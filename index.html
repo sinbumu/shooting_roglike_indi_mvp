@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>STELLAR SURVIVOR — 종스크롤 슈팅 로그라이크 MVP</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="game-wrap">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- ===== HUD (DOM Overlay) ===== -->
+      <div id="hud">
+        <div id="hud-top">
+          <div id="exp-bar"><div id="exp-fill"></div><span id="exp-label">Lv.1</span></div>
+          <div id="hp-bar"><div id="hp-fill"></div><span id="hp-label"></span></div>
+          <div id="hud-stats">
+            <span id="stat-time">00:00</span>
+            <span id="stat-kills">☠ 0</span>
+          </div>
+        </div>
+        <div id="weapon-slots"></div>
+      </div>
+
+      <!-- ===== 레벨업 3선택지 Overlay ===== -->
+      <div id="levelup-overlay" class="overlay hidden">
+        <h2 class="overlay-title">LEVEL UP!</h2>
+        <p class="overlay-sub">강화를 선택하세요</p>
+        <div id="card-container"></div>
+      </div>
+
+      <!-- ===== 게임오버 Overlay ===== -->
+      <div id="gameover-overlay" class="overlay hidden">
+        <h2 class="overlay-title danger">GAME OVER</h2>
+        <div id="gameover-stats"></div>
+        <button id="restart-btn">다시 도전</button>
+      </div>
+
+      <!-- ===== 시작 Overlay ===== -->
+      <div id="start-overlay" class="overlay">
+        <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
+        <p class="overlay-sub">드래그로 기체를 조종하세요.<br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요!</p>
+        <button id="start-btn">게임 시작</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,280 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #05060f;
+  overflow: hidden;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #e2e8f0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#game-wrap {
+  position: relative;
+  margin: 0 auto;
+  touch-action: none;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #0a0c1a;
+}
+
+/* ===================== HUD ===================== */
+
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+#hud-top {
+  padding: 10px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#exp-bar, #hp-bar {
+  position: relative;
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#exp-bar { height: 16px; }
+#hp-bar { height: 14px; width: 60%; }
+
+#exp-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+  transition: width 0.15s ease-out;
+}
+
+#hp-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #22c55e, #86efac);
+  transition: width 0.15s ease-out;
+}
+
+#exp-label, #hp-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+#hud-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- 무기 슬롯 ---------- */
+
+#weapon-slots {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.weapon-slot {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  position: relative;
+}
+
+.weapon-slot.filled {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.weapon-slot .slot-icon { font-size: 22px; line-height: 1; }
+
+.weapon-slot .slot-level {
+  font-size: 9px;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
+.weapon-slot .slot-tier {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 4px;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ===================== Overlays ===================== */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 5, 15, 0.82);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 10;
+  padding: 20px;
+  text-align: center;
+}
+
+.overlay.hidden { display: none; }
+
+.overlay-title {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  background: linear-gradient(180deg, #fef08a, #f59e0b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 10px rgba(245, 158, 11, 0.4));
+}
+
+.overlay-title.danger {
+  background: linear-gradient(180deg, #fca5a5, #dc2626);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 2px 10px rgba(220, 38, 38, 0.5));
+}
+
+.overlay-sub {
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.7;
+}
+
+/* ---------- 레벨업 카드 ---------- */
+
+#card-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.choice-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2px solid var(--card-color, #64748b);
+  background: rgba(15, 23, 42, 0.95);
+  color: #e2e8f0;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  animation: card-in 0.25s ease-out backwards;
+}
+
+.choice-card:nth-child(2) { animation-delay: 0.07s; }
+.choice-card:nth-child(3) { animation-delay: 0.14s; }
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.choice-card:hover, .choice-card:active {
+  transform: scale(1.03);
+  box-shadow: 0 0 18px var(--card-color, #64748b);
+}
+
+.choice-card .card-icon {
+  font-size: 30px;
+  flex-shrink: 0;
+}
+
+.choice-card .card-body { flex: 1; }
+
+.choice-card .card-kind {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--card-color, #94a3b8);
+  margin-bottom: 2px;
+}
+
+.choice-card .card-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 3px;
+}
+
+.choice-card .card-desc {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.choice-card.jackpot {
+  border-color: #fbbf24;
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.9), rgba(15, 23, 42, 0.95));
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.35);
+}
+
+/* ---------- 버튼 ---------- */
+
+button {
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  padding: 13px 42px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  color: #0f172a;
+  background: linear-gradient(180deg, #7dd3fc, #38bdf8);
+  box-shadow: 0 4px 18px rgba(56, 189, 248, 0.4);
+  transition: transform 0.1s ease;
+}
+
+button:hover { transform: scale(1.05); }
+
+#gameover-stats {
+  font-size: 15px;
+  line-height: 2;
+  color: #cbd5e1;
+}
+
+#gameover-stats b { color: #f8fafc; }
