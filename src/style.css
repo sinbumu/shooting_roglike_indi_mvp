@@ -29,6 +29,36 @@ html, body {
   background: #0a0c1a;
 }
 
+/* ===================== 가상 조이스틱 ===================== */
+
+#joystick {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  margin-left: -56px;
+  margin-top: -56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none; /* 시각 전용 — 입력은 canvas가 받는다 */
+  z-index: 5;
+}
+
+#joystick.hidden { display: none; }
+
+#joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(125, 211, 252, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 14px rgba(125, 211, 252, 0.5);
+  transform: translate(-50%, -50%);
+}
+
 /* ===================== HUD ===================== */
 
 #hud {

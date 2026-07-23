@@ -12,15 +12,19 @@ export const CANVAS = {
 export const PLAYER = {
   radius: 14,
   maxHp: 100,
-  /** px/초 — 포인터를 따라가는 최대 속도 */
-  moveSpeed: 900,
+  /** px/초 — 조이스틱/키보드 방향 이동 속도 */
+  moveSpeed: 430,
   /** 피격 후 무적 시간(ms) */
   invincibleMs: 900,
   /** 보석 자석 반경 */
   magnetRadius: 90,
-  /** 터치 시 손가락에 가리지 않도록 위로 띄우는 오프셋 */
-  touchOffsetY: -70,
   maxWeaponSlots: 5,
+} as const;
+
+/** 가상 조이스틱 설정 (CSS px 기준) */
+export const JOYSTICK = {
+  /** 스틱 최대 이동 반경 */
+  radius: 56,
 } as const;
 
 export const LEVELING = {

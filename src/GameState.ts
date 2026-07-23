@@ -82,8 +82,9 @@ export class GameState {
   // 플레이어
   playerX = CANVAS.width / 2;
   playerY = CANVAS.height * 0.78;
-  targetX = this.playerX;
-  targetY = this.playerY;
+  /** 입력 방향 벡터 (조이스틱/키보드가 매 프레임 갱신, 크기 0~1) */
+  moveX = 0;
+  moveY = 0;
   hp: number = PLAYER.maxHp;
   invincibleLeft = 0; // ms
 
@@ -137,17 +138,19 @@ export class GameState {
     return this.status;
   }
 
-  // ---------- 플레이어 이동 (포인터 추적) ----------
+  // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
 
   private updatePlayer(dt: number): void {
-    const dx = this.targetX - this.playerX;
-    const dy = this.targetY - this.playerY;
-    const dist = Math.hypot(dx, dy);
-    if (dist > 1) {
-      const step = Math.min(dist, PLAYER.moveSpeed * dt);
-      this.playerX += (dx / dist) * step;
-      this.playerY += (dy / dist) * step;
+    let mx = this.moveX;
+    let my = this.moveY;
+    const mag = Math.hypot(mx, my);
+    if (mag > 1) {
+      // 대각선 이동이 더 빨라지지 않도록 정규화
+      mx /= mag;
+      my /= mag;
     }
+    this.playerX += mx * PLAYER.moveSpeed * dt;
+    this.playerY += my * PLAYER.moveSpeed * dt;
     const r = PLAYER.radius;
     this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
     this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));

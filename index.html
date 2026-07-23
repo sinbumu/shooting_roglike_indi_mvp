@@ -10,6 +10,9 @@
     <div id="game-wrap">
       <canvas id="game-canvas"></canvas>
 
+      <!-- ===== 가상 조이스틱 (터치한 위치에 표시) ===== -->
+      <div id="joystick" class="hidden"><div id="joystick-knob"></div></div>
+
       <!-- ===== HUD (DOM Overlay) ===== -->
       <div id="hud">
         <div id="hud-top">
@@ -40,7 +43,7 @@
       <!-- ===== 시작 Overlay ===== -->
       <div id="start-overlay" class="overlay">
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">드래그로 기체를 조종하세요.<br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요!</p>
+        <p class="overlay-sub">📱 모바일: 화면을 누르면 나타나는 조이스틱으로 이동<br/>🖥️ PC: WASD / 방향키 (마우스 조이스틱도 가능)<br/><br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요!</p>
         <button id="start-btn">게임 시작</button>
       </div>
     </div>
