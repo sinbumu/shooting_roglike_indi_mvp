@@ -21,8 +21,20 @@
           <div id="hud-stats">
             <span id="stat-time">00:00</span>
             <span id="stat-kills">☠ 0</span>
+            <span id="stat-score">🏆 0</span>
+          </div>
+          <div id="boss-bar" class="hidden">
+            <div id="boss-fill"></div>
+            <span id="boss-label">⚠ DREADNOUGHT</span>
           </div>
         </div>
+        <div id="hud-buttons">
+          <button id="pause-btn" title="일시정지">⏸</button>
+          <button id="mute-btn" title="음소거">🔊</button>
+        </div>
+        <div id="banner" class="hidden"></div>
+        <div id="combo" class="hidden"></div>
+        <div id="slot-tooltip" class="hidden"></div>
         <div id="weapon-slots"></div>
       </div>
 
@@ -40,10 +52,24 @@
         <button id="restart-btn">다시 도전</button>
       </div>
 
+      <!-- ===== 승리 Overlay ===== -->
+      <div id="victory-overlay" class="overlay hidden">
+        <h2 class="overlay-title">MISSION CLEAR!</h2>
+        <div id="victory-stats"></div>
+        <button id="victory-restart-btn">다시 도전</button>
+      </div>
+
+      <!-- ===== 일시정지 Overlay ===== -->
+      <div id="pause-overlay" class="overlay hidden">
+        <h2 class="overlay-title">PAUSED</h2>
+        <button id="resume-btn">계속하기</button>
+        <button id="pause-restart-btn" class="secondary">다시 시작</button>
+      </div>
+
       <!-- ===== 시작 Overlay ===== -->
       <div id="start-overlay" class="overlay">
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">📱 모바일: 화면을 누르면 나타나는 조이스틱으로 이동<br/>🖥️ PC: WASD / 방향키 (마우스 조이스틱도 가능)<br/><br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요!</p>
+        <p class="overlay-sub">📱 모바일: 화면을 누르면 나타나는 조이스틱으로 이동<br/>🖥️ PC: WASD / 방향키 (ESC: 일시정지)<br/><br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요.<br/><b>5분을 버티면 미션 클리어!</b></p>
         <button id="start-btn">게임 시작</button>
       </div>
     </div>

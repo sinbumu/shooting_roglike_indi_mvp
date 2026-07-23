@@ -122,12 +122,157 @@ html, body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
+/* ---------- 보스 체력바 ---------- */
+
+#boss-bar {
+  position: relative;
+  width: 100%;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+}
+
+#boss-bar.hidden { display: none; }
+
+#boss-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #dc2626, #f87171);
+  transition: width 0.12s ease-out;
+}
+
+#boss-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- HUD 버튼 (일시정지/음소거) ---------- */
+
+#hud-buttons {
+  position: absolute;
+  top: 96px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#hud-buttons button {
+  pointer-events: auto;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 16px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #e2e8f0;
+  box-shadow: none;
+}
+
+/* ---------- 중앙 배너 (WAVE / BOSS) ---------- */
+
+#banner {
+  position: absolute;
+  top: 30%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: #f8fafc;
+  text-shadow: 0 0 18px rgba(56, 189, 248, 0.8), 0 2px 4px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+#banner.hidden { display: none; }
+
+#banner.banner-anim {
+  animation: banner-inout 2.2s ease-out forwards;
+}
+
+@keyframes banner-inout {
+  0% { opacity: 0; transform: scale(1.6); }
+  12% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.92); }
+}
+
+/* ---------- 콤보 카운터 ---------- */
+
+#combo {
+  position: absolute;
+  top: 26%;
+  right: 14px;
+  font-size: 20px;
+  font-weight: 900;
+  font-style: italic;
+  color: #fbbf24;
+  text-shadow: 0 0 12px rgba(251, 191, 36, 0.7), 0 2px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+#combo.hidden { display: none; }
+
+#combo.combo-pop {
+  animation: combo-pop 0.18s ease-out;
+}
+
+@keyframes combo-pop {
+  0% { transform: scale(1.45); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- 무기 슬롯 툴팁 ---------- */
+
+#slot-tooltip {
+  position: absolute;
+  bottom: 74px;
+  left: 12px;
+  right: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 12px;
+  line-height: 1.7;
+  pointer-events: none;
+}
+
+#slot-tooltip.hidden { display: none; }
+
+#slot-tooltip .tt-tier { color: #94a3b8; font-weight: 700; }
+#slot-tooltip .tt-desc { color: #94a3b8; }
+
+.new-record {
+  color: #fbbf24;
+  font-weight: 900;
+}
+
+button.secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  box-shadow: none;
+}
+
 /* ---------- 무기 슬롯 ---------- */
 
 #weapon-slots {
   display: flex;
   gap: 8px;
   padding: 0 12px 12px;
+  pointer-events: auto; /* 슬롯 탭 → 툴팁 */
 }
 
 .weapon-slot {

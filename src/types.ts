@@ -55,12 +55,15 @@ export interface Recipe {
 
 // ------------------------------------------------------------
 
-export type EnemyId = 'drone' | 'zigzag' | 'dasher' | 'rusher' | 'tank';
+export type EnemyId = 'drone' | 'zigzag' | 'dasher' | 'rusher' | 'tank' | 'boss';
 
 /** 스폰 방향. top은 일반 스폰, side/bottom은 Warning(2초) 후 기습 스폰 */
 export type SpawnEdge = 'top' | 'side' | 'bottom';
 
-export type MovePattern = 'down' | 'zigzag' | 'dashAcross' | 'dashUp' | 'slowDown';
+export type MovePattern = 'down' | 'zigzag' | 'dashAcross' | 'dashUp' | 'slowDown' | 'boss';
+
+/** 드롭 아이템 종류: 회복 / 자석(모든 보석 흡수) / 폭탄(전체 데미지) */
+export type PickupKind = 'heal' | 'magnet' | 'bomb';
 
 export interface EnemyDef {
   id: EnemyId;

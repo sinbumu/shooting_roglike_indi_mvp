@@ -1,6 +1,6 @@
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS } from './GameConfig';
 
 // ============================================================
 // PixiJS(WebGL) 렌더러 — GameState를 읽기만 하고 변경하지 않는다.
@@ -28,6 +28,13 @@ interface Particle {
   alphaFrom: number;
   drag: number;
   gravity: number;
+}
+
+/** 위로 떠오르며 사라지는 데미지 숫자 */
+interface DamageText {
+  obj: Text;
+  life: number;
+  maxLife: number;
 }
 
 interface ParticleOpts {
@@ -136,12 +143,14 @@ export class Renderer {
   private projG = new Graphics();
   private enemyG = new Graphics();
   private gemG = new Graphics();
+  private pickupG = new Graphics();
   private playerG = new Graphics();
   private coreG = new Graphics();
   private warnG = new Graphics();
   private flashG = new Graphics();
   private glowLayer = new Container();
   private fxLayer = new Container();
+  private textLayer = new Container();
 
   private glowTex!: Texture;
   private ringTex!: Texture;
@@ -149,6 +158,8 @@ export class Renderer {
 
   private particles: Particle[] = [];
   private freeSprites: Sprite[] = [];
+  private dmgTexts: DamageText[] = [];
+  private freeTexts: Text[] = [];
 
   private stars: Star[] = [];
   private elapsed = 0;
@@ -158,6 +169,7 @@ export class Renderer {
   private shakeDur = 1;
   private shakeMag = 0;
   private flashAlpha = 0;
+  private flashColor = 0xef4444;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     this.app = new Application();
@@ -178,8 +190,8 @@ export class Renderer {
 
     const bg = new Sprite(makeBgTexture());
     this.world.addChild(
-      bg, this.starG, this.projG, this.enemyG, this.gemG,
-      this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.warnG,
+      bg, this.starG, this.projG, this.enemyG, this.gemG, this.pickupG,
+      this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.textLayer, this.warnG,
     );
     this.app.stage.addChild(this.world, this.flashG);
 
@@ -200,6 +212,7 @@ export class Renderer {
 
     this.consumeEvents(state);
     this.updateParticles(dt);
+    this.updateDamageTexts(dt);
     this.updateShake(dt);
     this.updateFlash(dt);
 
@@ -208,8 +221,10 @@ export class Renderer {
 
     this.drawStars(dt, state.status !== 'gameover');
     this.drawGems(state);
+    this.drawPickups(state);
     this.drawEnemies(state);
     this.drawProjectiles(state);
+    this.drawEnemyProjectiles(state);
     this.drawPlayer(state, dt);
     this.drawWarnings(state);
 
@@ -227,6 +242,7 @@ export class Renderer {
           break;
         case 'enemyHit':
           this.hitSpark(ev.x, ev.y, hex(ev.color));
+          this.spawnDamageText(ev.x, ev.y, ev.damage);
           break;
         case 'fired':
           this.muzzleFlash(ev.x, ev.y, hex(ev.color));
@@ -236,10 +252,33 @@ export class Renderer {
           break;
         case 'playerHit':
           this.flashAlpha = 0.45;
+          this.flashColor = 0xef4444;
           this.shake(7, 0.35);
           break;
         case 'levelUp':
           this.levelUpBurst(ev.x, ev.y);
+          break;
+        case 'bossSpawned':
+          this.shake(6, 0.4);
+          break;
+        case 'bossDied':
+          this.explode(ev.x, ev.y, 0xdc2626, 42);
+          this.explode(ev.x, ev.y, 0xfbbf24, 30);
+          this.flashAlpha = 0.35;
+          this.flashColor = 0xffffff;
+          this.shake(10, 0.5);
+          break;
+        case 'pickup': {
+          const tint = ev.kind === 'heal' ? 0x4ade80 : ev.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
+          break;
+        }
+        case 'bomb':
+          this.flashAlpha = 0.5;
+          this.flashColor = 0xffffff;
+          this.shake(8, 0.4);
+          break;
+        default:
           break;
       }
     }
@@ -297,6 +336,48 @@ export class Renderer {
       const size = p.sizeFrom + (p.sizeTo - p.sizeFrom) * t;
       p.sprite.width = p.sprite.height = size;
       p.sprite.alpha = p.alphaFrom * (p.life / p.maxLife);
+    }
+  }
+
+  // ---------- 데미지 숫자 ----------
+
+  private spawnDamageText(x: number, y: number, dmg: number): void {
+    if (this.dmgTexts.length > 50) return; // 폭주 방지
+    let t = this.freeTexts.pop();
+    if (!t) {
+      t = new Text({
+        text: '',
+        style: {
+          fontFamily: 'sans-serif',
+          fontSize: 13,
+          fontWeight: '800',
+          fill: 0xffffff,
+          stroke: { color: 0x000000, width: 3 },
+        },
+      });
+      t.anchor.set(0.5);
+      this.textLayer.addChild(t);
+    }
+    t.text = String(Math.round(dmg));
+    t.visible = true;
+    t.alpha = 1;
+    t.scale.set(1);
+    t.position.set(x + (Math.random() - 0.5) * 16, y - 10);
+    this.dmgTexts.push({ obj: t, life: 0.5, maxLife: 0.5 });
+  }
+
+  private updateDamageTexts(dt: number): void {
+    for (let i = this.dmgTexts.length - 1; i >= 0; i--) {
+      const d = this.dmgTexts[i];
+      d.life -= dt;
+      if (d.life <= 0) {
+        d.obj.visible = false;
+        this.freeTexts.push(d.obj);
+        this.dmgTexts.splice(i, 1);
+        continue;
+      }
+      d.obj.y -= 75 * dt;
+      d.obj.alpha = d.life / d.maxLife;
     }
   }
 
@@ -436,7 +517,7 @@ export class Renderer {
     this.flashG.clear();
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 1.8);
-      this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: 0xef4444, alpha: this.flashAlpha });
+      this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: this.flashColor, alpha: this.flashAlpha });
     }
   }
 
@@ -519,14 +600,79 @@ export class Renderer {
         case 'tank':
           pts = [-r * 0.9, -r * 0.9, r * 0.9, -r * 0.9, r * 0.9, r * 0.9, -r * 0.9, r * 0.9];
           break;
+        case 'boss': {
+          // 천천히 회전하는 육각형
+          for (let k = 0; k < 6; k++) {
+            const a = (k / 6) * Math.PI * 2 + e.age * 0.5;
+            pts.push(Math.cos(a) * r, Math.sin(a) * r);
+          }
+          break;
+        }
       }
       const abs: number[] = [];
       for (let i = 0; i < pts.length; i += 2) abs.push(e.x + pts[i], e.y + pts[i + 1]);
       g.poly(abs, true).fill(color).stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 });
 
-      if (e.hp < e.maxHp) {
+      if (e.def.id === 'boss') {
+        // 코어 + 붉은 글로우
+        g.circle(e.x, e.y, r * 0.45).fill(0x7f1d1d);
+        g.circle(e.x, e.y, r * 0.28).fill(0xfca5a5);
+        const glow = this.glowPool.get();
+        glow.tint = 0xdc2626;
+        glow.position.set(e.x, e.y);
+        glow.width = glow.height = r * 4 + Math.sin(this.elapsed * 4) * 14;
+        glow.alpha = 0.5;
+      }
+
+      // 체력바 (보스는 DOM 상단 바 사용)
+      if (e.hp < e.maxHp && e.def.id !== 'boss') {
         g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
         g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4).fill(0x4ade80);
+      }
+    }
+  }
+
+  /** 보스 탄환 (마젠타 글로우) */
+  private drawEnemyProjectiles(state: GameState): void {
+    for (const p of state.enemyProjectiles) {
+      const glow = this.glowPool.get();
+      glow.tint = 0xff4d6d;
+      glow.position.set(p.x, p.y);
+      glow.width = glow.height = p.radius * 5.5;
+      glow.alpha = 1;
+      this.coreG.circle(p.x, p.y, p.radius * 0.6).fill(0xffd7de);
+    }
+  }
+
+  /** 드롭 아이템: 회복(십자) / 자석(U자) / 폭탄(구체) */
+  private drawPickups(state: GameState): void {
+    const g = this.pickupG;
+    g.clear();
+    for (const p of state.pickups) {
+      // 만료 직전 깜빡임
+      if (p.life < 3 && Math.floor(this.elapsed * 8) % 2 === 0) continue;
+
+      const bob = Math.sin(this.elapsed * 4 + p.x) * 3;
+      const y = p.y + bob;
+      const tint = p.kind === 'heal' ? 0x4ade80 : p.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
+
+      const glow = this.glowPool.get();
+      glow.tint = tint;
+      glow.position.set(p.x, y);
+      glow.width = glow.height = 40 + Math.sin(this.elapsed * 6) * 6;
+      glow.alpha = 0.7;
+
+      g.circle(p.x, y, PICKUPS.radius + 3).fill({ color: 0x0f172a, alpha: 0.85 }).stroke({ width: 2, color: tint });
+      if (p.kind === 'heal') {
+        g.rect(p.x - 6, y - 2, 12, 4).fill(tint);
+        g.rect(p.x - 2, y - 6, 4, 12).fill(tint);
+      } else if (p.kind === 'magnet') {
+        g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
+        g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
+        g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
+      } else {
+        g.circle(p.x, y + 1, 6).fill(tint);
+        g.rect(p.x - 1, y - 8, 2, 5).fill(0xfde68a);
       }
     }
   }

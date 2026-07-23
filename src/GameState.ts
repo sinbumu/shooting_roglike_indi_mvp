@@ -1,7 +1,8 @@
-import type { EnemyDef, EnemyId, WeaponId } from './types';
+import type { EnemyDef, EnemyId, WeaponId, PickupKind } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, WAVES, GEM,
   WARNING_DURATION, STARTING_WEAPON, enemyHpScale, spawnIntervalScale,
+  BOSS, VICTORY_TIME, SCORE, PICKUPS,
 } from './GameConfig';
 
 // ============================================================
@@ -38,6 +39,24 @@ export interface Enemy {
   /** dashAcross 방향 (-1: 왼쪽으로, 1: 오른쪽으로) */
   dir: number;
   hitFlash: number;
+  /** 보스 전용 공격 쿨다운 */
+  ringCd?: number;
+  aimedCd?: number;
+}
+
+/** 보스가 발사하는 적 탄환 */
+export interface EnemyProjectile {
+  x: number; y: number;
+  vx: number; vy: number;
+  radius: number;
+  damage: number;
+}
+
+/** 드롭 아이템 (회복/자석/폭탄) */
+export interface Pickup {
+  kind: PickupKind;
+  x: number; y: number;
+  life: number;
 }
 
 export interface Gem {
@@ -60,19 +79,27 @@ export interface SpawnWarning {
   timer: number;
 }
 
-export type GameStatus = 'ready' | 'playing' | 'levelup' | 'gameover';
+export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory';
 
 /**
- * 렌더러가 이펙트(파티클/흔들림 등)를 재생할 수 있도록 알리는 1회성 이벤트.
- * GameState는 매 프레임 push만 하고, Renderer가 소비 후 비운다.
+ * 1회성 게임 이벤트. GameState는 push만 하고,
+ * main(사운드/진동/배너/히트스톱)과 Renderer(이펙트)가 소비한다.
  */
 export type FxEvent =
   | { type: 'enemyDied'; x: number; y: number; color: string; radius: number }
-  | { type: 'enemyHit'; x: number; y: number; color: string }
+  | { type: 'enemyHit'; x: number; y: number; color: string; damage: number }
   | { type: 'fired'; x: number; y: number; color: string }
   | { type: 'gemPickup'; x: number; y: number }
   | { type: 'playerHit' }
-  | { type: 'levelUp'; x: number; y: number };
+  | { type: 'levelUp'; x: number; y: number }
+  | { type: 'banner'; text: string }
+  | { type: 'bossWarn' }
+  | { type: 'bossSpawned'; x: number; y: number }
+  | { type: 'bossDied'; x: number; y: number }
+  | { type: 'pickup'; kind: PickupKind; x: number; y: number }
+  | { type: 'bomb' }
+  | { type: 'victory' }
+  | { type: 'gameover' };
 
 // ============================================================
 
@@ -100,11 +127,19 @@ export class GameState {
   // 월드
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
+  enemyProjectiles: EnemyProjectile[] = [];
   gems: Gem[] = [];
+  pickups: Pickup[] = [];
   warnings: SpawnWarning[] = [];
 
   time = 0; // 초
   kills = 0;
+  score = 0;
+  comboCount = 0;
+  comboTimer = 0;
+
+  /** 현재 살아있는 보스의 enemy id (없으면 null) */
+  bossId: number | null = null;
 
   /** 렌더러가 소비하는 이펙트 이벤트 큐 */
   events: FxEvent[] = [];
@@ -112,6 +147,9 @@ export class GameState {
   private nextEnemyId = 1;
   /** 웨이브 엔트리별 스폰 누적 타이머 (key = waveIdx:entryIdx) */
   private spawnTimers = new Map<string, number>();
+  private bossIndex = 0;
+  private bossWarned = false;
+  private lastWaveNo = 0;
 
   start(): void {
     this.status = 'playing';
@@ -127,13 +165,37 @@ export class GameState {
     if (this.status !== 'playing') return this.status;
 
     this.time += dt;
+
+    // 승리 조건
+    if (this.time >= VICTORY_TIME) {
+      this.status = 'victory';
+      this.events.push({ type: 'victory' });
+      return this.status;
+    }
+
+    // 웨이브 배너 (30초 단위)
+    const waveNo = Math.floor(this.time / 30) + 1;
+    if (waveNo !== this.lastWaveNo) {
+      this.lastWaveNo = waveNo;
+      this.events.push({ type: 'banner', text: `WAVE ${waveNo}` });
+    }
+
+    // 콤보 유지 시간
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.comboCount = 0;
+    }
+
     this.updatePlayer(dt);
     this.updateWeapons(dt);
     this.updateSpawns(dt);
+    this.updateBossSchedule();
     this.updateWarnings(dt);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
+    this.updateEnemyProjectiles(dt);
     this.updateGems(dt);
+    this.updatePickups(dt);
     this.checkPlayerCollision(dt);
     return this.status;
   }
@@ -266,6 +328,27 @@ export class GameState {
     }
   }
 
+  // ---------- 보스 스케줄 ----------
+
+  private updateBossSchedule(): void {
+    if (this.bossIndex >= BOSS.times.length) return;
+    const spawnAt = BOSS.times[this.bossIndex];
+
+    if (!this.bossWarned && this.time >= spawnAt - BOSS.warningLead) {
+      this.bossWarned = true;
+      this.events.push({ type: 'bossWarn' });
+      this.events.push({ type: 'banner', text: '⚠ BOSS 접근 중' });
+    }
+    if (this.time >= spawnAt) {
+      const boss = this.addEnemy('boss', CANVAS.width / 2, -60, 1);
+      boss.hp = boss.maxHp = ENEMIES.boss.hp * (1 + this.bossIndex * BOSS.hpGrowth);
+      this.bossId = boss.id;
+      this.bossIndex++;
+      this.bossWarned = false;
+      this.events.push({ type: 'bossSpawned', x: boss.x, y: boss.y });
+    }
+  }
+
   private updateWarnings(dt: number): void {
     for (let i = this.warnings.length - 1; i >= 0; i--) {
       const w = this.warnings[i];
@@ -277,16 +360,18 @@ export class GameState {
     }
   }
 
-  private addEnemy(enemyId: EnemyId, x: number, y: number, dir: number): void {
+  private addEnemy(enemyId: EnemyId, x: number, y: number, dir: number): Enemy {
     const def = ENEMIES[enemyId];
     const hp = def.hp * enemyHpScale(this.time);
-    this.enemies.push({
+    const enemy: Enemy = {
       id: this.nextEnemyId++,
       def, x, y,
       hp, maxHp: hp,
       age: 0, baseX: x, dir,
       hitFlash: 0,
-    });
+    };
+    this.enemies.push(enemy);
+    return enemy;
   }
 
   // ---------- 적 이동 ----------
@@ -317,14 +402,81 @@ export class GameState {
         case 'dashUp':
           e.y -= e.def.speed * dt;
           break;
+        case 'boss':
+          this.updateBoss(e, dt);
+          break;
       }
 
-      // 화면을 완전히 벗어나면 제거
+      // 화면을 완전히 벗어나면 제거 (보스는 화면에 상주)
       const out =
         e.y > H + margin || e.y < -margin - 200 ||
         e.x < -margin - 200 || e.x > W + margin + 200;
       // 진입 직후(화면 밖에서 안으로 들어오는 중)는 제거하지 않도록 age 체크
-      if (out && e.age > 1.5) this.enemies.splice(i, 1);
+      if (out && e.age > 1.5 && e.def.id !== 'boss') this.enemies.splice(i, 1);
+    }
+  }
+
+  /** 보스: 상단에 진입 후 좌우로 유영하며 탄막 + 조준 사격 */
+  private updateBoss(e: Enemy, dt: number): void {
+    if (e.y < 130) {
+      e.y += 80 * dt;
+      return;
+    }
+    e.x = CANVAS.width / 2 + Math.sin(e.age * 0.7) * 150;
+
+    // 전방위 탄막
+    e.ringCd = (e.ringCd ?? 2.0) - dt;
+    if (e.ringCd <= 0) {
+      e.ringCd = BOSS.ringInterval;
+      for (let k = 0; k < BOSS.ringCount; k++) {
+        const a = (Math.PI * 2 * k) / BOSS.ringCount + e.age;
+        this.enemyProjectiles.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(a) * BOSS.ringSpeed,
+          vy: Math.sin(a) * BOSS.ringSpeed,
+          radius: 6,
+          damage: BOSS.bulletDamage,
+        });
+      }
+    }
+
+    // 플레이어 조준 3연사
+    e.aimedCd = (e.aimedCd ?? 1.2) - dt;
+    if (e.aimedCd <= 0) {
+      e.aimedCd = BOSS.aimedInterval;
+      const base = Math.atan2(this.playerY - e.y, this.playerX - e.x);
+      for (const off of [-0.22, 0, 0.22]) {
+        this.enemyProjectiles.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(base + off) * BOSS.aimedSpeed,
+          vy: Math.sin(base + off) * BOSS.aimedSpeed,
+          radius: 7,
+          damage: BOSS.bulletDamage,
+        });
+      }
+    }
+  }
+
+  // ---------- 적 탄환 ----------
+
+  private updateEnemyProjectiles(dt: number): void {
+    const W = CANVAS.width;
+    const H = CANVAS.height;
+    for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
+      const p = this.enemyProjectiles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) {
+        this.enemyProjectiles.splice(i, 1);
+        continue;
+      }
+      if (this.invincibleLeft <= 0) {
+        const rr = PLAYER.radius + p.radius - 3;
+        if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
+          this.enemyProjectiles.splice(i, 1);
+          this.hurtPlayer(p.damage);
+        }
+      }
     }
   }
 
@@ -401,19 +553,90 @@ export class GameState {
   private damageEnemy(e: Enemy, dmg: number): void {
     e.hp -= dmg;
     e.hitFlash = 0.08;
-    this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color });
+    this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color, damage: dmg });
     if (e.hp <= 0) {
       this.kills++;
-      this.events.push({ type: 'enemyDied', x: e.x, y: e.y, color: e.def.color, radius: e.def.radius });
-      // EXP 보석 드롭
+      this.comboCount++;
+      this.comboTimer = SCORE.comboWindow;
+      this.score += Math.round(
+        Math.max(1, e.def.exp) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus),
+      );
+
+      if (e.def.id === 'boss') {
+        this.killBoss(e);
+      } else {
+        this.events.push({ type: 'enemyDied', x: e.x, y: e.y, color: e.def.color, radius: e.def.radius });
+        // EXP 보석 드롭
+        this.gems.push({
+          x: e.x, y: e.y,
+          exp: e.def.exp,
+          life: GEM.lifetime,
+          magnetized: false,
+        });
+        // 낮은 확률로 아이템 드롭
+        if (Math.random() < PICKUPS.dropChance) {
+          const r = Math.random();
+          const kind: PickupKind = r < 0.45 ? 'heal' : r < 0.8 ? 'magnet' : 'bomb';
+          this.pickups.push({ kind, x: e.x, y: e.y, life: PICKUPS.lifetime });
+        }
+      }
+
+      const idx = this.enemies.indexOf(e);
+      if (idx >= 0) this.enemies.splice(idx, 1);
+    }
+  }
+
+  /** 보스 처치: 보너스 점수 + 보석 샤워 + 아이템 확정 드롭 */
+  private killBoss(e: Enemy): void {
+    this.bossId = null;
+    this.score += BOSS.score;
+    this.events.push({ type: 'bossDied', x: e.x, y: e.y });
+    this.events.push({ type: 'banner', text: 'BOSS 격파!' });
+    for (let k = 0; k < BOSS.gemDrop; k++) {
       this.gems.push({
-        x: e.x, y: e.y,
-        exp: e.def.exp,
+        x: e.x + (Math.random() - 0.5) * 200,
+        y: e.y + Math.random() * 140 + 20,
+        exp: 3,
         life: GEM.lifetime,
         magnetized: false,
       });
-      const idx = this.enemies.indexOf(e);
-      if (idx >= 0) this.enemies.splice(idx, 1);
+    }
+    this.pickups.push({ kind: 'heal', x: e.x - 40, y: e.y + 60, life: PICKUPS.lifetime });
+    this.pickups.push({ kind: 'magnet', x: e.x + 40, y: e.y + 60, life: PICKUPS.lifetime });
+  }
+
+  // ---------- 드롭 아이템 ----------
+
+  private updatePickups(_dt: number): void {
+    for (let i = this.pickups.length - 1; i >= 0; i--) {
+      const p = this.pickups[i];
+      p.life -= _dt;
+      if (p.life <= 0) {
+        this.pickups.splice(i, 1);
+        continue;
+      }
+      const rr = PLAYER.radius + PICKUPS.radius + 6;
+      if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
+        this.pickups.splice(i, 1);
+        this.applyPickup(p);
+      }
+    }
+  }
+
+  private applyPickup(p: Pickup): void {
+    this.events.push({ type: 'pickup', kind: p.kind, x: p.x, y: p.y });
+    switch (p.kind) {
+      case 'heal':
+        this.hp = Math.min(PLAYER.maxHp, this.hp + PICKUPS.healAmount);
+        break;
+      case 'magnet':
+        for (const g of this.gems) g.magnetized = true;
+        break;
+      case 'bomb': {
+        this.events.push({ type: 'bomb' });
+        for (const e of [...this.enemies]) this.damageEnemy(e, PICKUPS.bombDamage);
+        break;
+      }
     }
   }
 
@@ -467,15 +690,22 @@ export class GameState {
     for (const e of this.enemies) {
       const rr = PLAYER.radius + e.def.radius - 4; // 판정 약간 관대하게
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
-        this.hp -= e.def.contactDamage;
-        this.invincibleLeft = PLAYER.invincibleMs;
-        this.events.push({ type: 'playerHit' });
-        if (this.hp <= 0) {
-          this.hp = 0;
-          this.status = 'gameover';
-        }
+        this.hurtPlayer(e.def.contactDamage);
         return;
       }
+    }
+  }
+
+  /** 접촉/탄환 공용 피격 처리 */
+  private hurtPlayer(damage: number): void {
+    if (this.invincibleLeft > 0) return;
+    this.hp -= damage;
+    this.invincibleLeft = PLAYER.invincibleMs;
+    this.events.push({ type: 'playerHit' });
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.status = 'gameover';
+      this.events.push({ type: 'gameover' });
     }
   }
 }

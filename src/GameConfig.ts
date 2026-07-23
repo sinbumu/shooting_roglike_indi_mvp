@@ -146,7 +146,61 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     id: 'tank', name: '탱크', hp: 210, speed: 42, radius: 26, color: '#94a3b8',
     contactDamage: 25, exp: 10, spawnEdge: 'top', movePattern: 'slowDown',
   },
+  boss: {
+    id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: '#dc2626',
+    contactDamage: 30, exp: 0, spawnEdge: 'top', movePattern: 'boss',
+  },
 };
+
+// ------------------------------------------------------------
+// 보스전
+// ------------------------------------------------------------
+
+export const BOSS = {
+  /** 보스 등장 시각(초) */
+  times: [75, 165, 255],
+  /** 등장 몇 초 전에 경고 배너를 띄울지 */
+  warningLead: 3,
+  /** 회차별 체력 배율 (1 + index * 이 값) */
+  hpGrowth: 1.6,
+  /** 처치 시 드롭되는 보석 수 */
+  gemDrop: 24,
+  /** 보스 탄환 데미지 */
+  bulletDamage: 12,
+  /** 전방위 탄막: 발사 간격(초) / 탄 수 / 탄속 */
+  ringInterval: 2.6,
+  ringCount: 14,
+  ringSpeed: 150,
+  /** 조준 3연사: 발사 간격(초) / 탄속 */
+  aimedInterval: 1.5,
+  aimedSpeed: 270,
+  /** 처치 보너스 점수 */
+  score: 5000,
+} as const;
+
+// ------------------------------------------------------------
+// 승리 조건 / 점수 / 드롭 아이템
+// ------------------------------------------------------------
+
+/** 이 시간(초)까지 생존하면 미션 클리어 */
+export const VICTORY_TIME = 300;
+
+export const SCORE = {
+  /** 처치 점수 = 적 경험치 × killBase × (1 + 콤보 × comboBonus) */
+  killBase: 10,
+  comboBonus: 0.04,
+  /** 콤보 유지 시간(초) */
+  comboWindow: 2.0,
+} as const;
+
+export const PICKUPS = {
+  /** 일반 적 처치 시 드롭 확률 */
+  dropChance: 0.035,
+  healAmount: 25,
+  bombDamage: 250,
+  radius: 11,
+  lifetime: 12,
+} as const;
 
 /** 기습형(side/bottom) 적이 경고 상태로 대기하는 시간(초) */
 export const WARNING_DURATION = 2.0;
