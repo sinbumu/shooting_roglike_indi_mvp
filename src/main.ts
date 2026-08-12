@@ -6,6 +6,7 @@ import { AudioManager } from './Audio';
 import { generateChoices, applyChoice } from './LevelUpSystem';
 import {
   loadMeta, saveMeta, settleRun, tryBuyUpgrade, tryUnlockShip, selectShip,
+  selectStage, selectChallenge,
 } from './Meta';
 import type { ShipId, MetaUpgradeId } from './types';
 import './style.css';
@@ -154,6 +155,9 @@ function processEvents(): void {
       case 'banner':
         ui.showBanner(ev.text);
         break;
+      case 'story':
+        ui.showStory(ev.text);
+        break;
       case 'bossWarn':
         vibrate(200);
         break;
@@ -207,7 +211,7 @@ function loop(now: number): void {
 function beginRun(): void {
   meta = loadMeta();
   state = new GameState();
-  state.start(meta.selectedShip, meta);
+  state.start(meta.selectedShip, meta, meta.selectedStage, meta.selectedChallenge);
   runSettled = false;
   hitstop = 0;
   ui.hideGameOver();
@@ -231,6 +235,16 @@ function backToHangar(): void {
 
 ui.bindHangar(meta, () => {
   saveMeta(meta);
+  ui.refreshHangar();
+});
+
+ui.onSelectStage((id) => {
+  if (!selectStage(meta, id)) ui.showBanner('아직 해금되지 않은 스테이지입니다');
+  else ui.refreshHangar();
+});
+
+ui.onSelectChallenge((id) => {
+  selectChallenge(meta, id);
   ui.refreshHangar();
 });
 

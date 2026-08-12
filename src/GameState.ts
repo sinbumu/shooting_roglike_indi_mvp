@@ -1,11 +1,12 @@
-import type { EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId } from './types';
+import type { EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId } from './types';
 import {
-  CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, WAVES, GEM, SHIPS, PASSIVES, ELITE,
-  WARNING_DURATION, enemyHpScale, spawnIntervalScale,
-  BOSS, VICTORY_TIME, SCORE, PICKUPS,
+  CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
+  STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
+  BOSS, SCORE, PICKUPS,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
+import type { Wave } from './types';
 
 // ============================================================
 // 런타임 엔티티
@@ -108,7 +109,8 @@ export type FxEvent =
   | { type: 'bomb' }
   | { type: 'victory' }
   | { type: 'gameover' }
-  | { type: 'achievement'; id: string; name: string };
+  | { type: 'achievement'; id: string; name: string }
+  | { type: 'story'; text: string };
 
 // ============================================================
 
@@ -121,16 +123,24 @@ export class GameState {
   moveX = 0;
   moveY = 0;
   shipId: ShipId = 'scout';
+  stageId: StageId = 'orbit';
+  challengeId: ChallengeId = 'standard';
   maxHp: number = PLAYER.maxHp;
   hp: number = PLAYER.maxHp;
   moveSpeed: number = PLAYER.moveSpeed;
   magnetRadius: number = PLAYER.magnetRadius;
-  /** 메타+패시브 반영 데미지 배율 */
   damageMul = 1;
-  /** 피해 감소 (0~0.7) */
   armorReduce = 0;
   expMul = 1;
   dropChanceBonus = 0;
+  enemyHpMul = 1;
+  scoreMul = 1;
+  creditMul = 1;
+  maxWeaponSlots: number = PLAYER.maxWeaponSlots;
+  maxPassiveSlots: number = PLAYER.maxPassiveSlots;
+  victoryTime = 300;
+  bgTop = 0x0b0e22;
+  bgBottom = 0x070812;
   invincibleLeft = 0;
 
   // 성장
@@ -167,13 +177,39 @@ export class GameState {
   private bossIndex = 0;
   private bossWarned = false;
   private lastWaveNo = 0;
+  private waves: Wave[] = STAGES.orbit.waves;
+  private bossTimes: readonly number[] = STAGES.orbit.bossTimes;
+  private bossRoster: readonly EnemyId[] = STAGES.orbit.bossRoster;
+  private storyBeats: { at: number; text: string }[] = [];
+  private nextStoryIdx = 0;
 
-  /** 기체 + 메타 보너스로 런 시작 */
-  start(shipId: ShipId, meta: MetaSave): void {
+  /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
+  start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
     const ship = SHIPS[shipId];
+    const stage = STAGES[stageId ?? meta.selectedStage];
+    const challenge = CHALLENGES[challengeId ?? meta.selectedChallenge];
     const m = metaBonuses(meta);
+
     this.shipId = shipId;
-    this.maxHp = Math.round(PLAYER.maxHp * ship.hpMul * m.hpMul);
+    this.stageId = stage.id;
+    this.challengeId = challenge.id;
+    this.waves = stage.waves;
+    this.bossTimes = stage.bossTimes;
+    this.bossRoster = stage.bossRoster;
+    this.storyBeats = stage.story;
+    this.nextStoryIdx = 0;
+    this.victoryTime = stage.victoryTime;
+    this.bgTop = stage.bgTop;
+    this.bgBottom = stage.bgBottom;
+
+    this.maxWeaponSlots = challenge.weaponSlotCap ?? PLAYER.maxWeaponSlots;
+    this.maxPassiveSlots = challenge.passiveSlotCap ?? PLAYER.maxPassiveSlots;
+    this.enemyHpMul = challenge.enemyHpMul ?? 1;
+    this.scoreMul = challenge.scoreMul ?? 1;
+    this.creditMul = challenge.creditMul ?? 1;
+
+    const hpMul = ship.hpMul * m.hpMul * (challenge.hpMul ?? 1);
+    this.maxHp = Math.round(PLAYER.maxHp * hpMul);
     this.hp = this.maxHp;
     this.baseMoveSpeed = PLAYER.moveSpeed * ship.speedMul * m.speedMul;
     this.baseMagnet = PLAYER.magnetRadius + m.magnetAdd;
@@ -183,6 +219,11 @@ export class GameState {
     this.applyPassiveEffects();
     this.weapons = [{ weaponId: ship.startingWeapon, level: 1, cooldownLeft: 300 }];
     this.status = 'playing';
+
+    if (this.storyBeats[0]?.at === 0) {
+      this.events.push({ type: 'story', text: this.storyBeats[0].text });
+      this.nextStoryIdx = 1;
+    }
   }
 
   private baseMoveSpeed: number = PLAYER.moveSpeed;
@@ -224,10 +265,18 @@ export class GameState {
     this.time += dt;
 
     // 승리 조건
-    if (this.time >= VICTORY_TIME) {
+    if (this.time >= this.victoryTime) {
       this.status = 'victory';
       this.events.push({ type: 'victory' });
       return this.status;
+    }
+
+    while (
+      this.nextStoryIdx < this.storyBeats.length
+      && this.time >= this.storyBeats[this.nextStoryIdx].at
+    ) {
+      this.events.push({ type: 'story', text: this.storyBeats[this.nextStoryIdx].text });
+      this.nextStoryIdx++;
     }
 
     // 웨이브 배너 (30초 단위)
@@ -329,7 +378,7 @@ export class GameState {
 
   private updateSpawns(dt: number): void {
     const scale = spawnIntervalScale(this.time);
-    WAVES.forEach((wave, wi) => {
+    this.waves.forEach((wave, wi) => {
       if (this.time < wave.from || this.time >= wave.to) return;
       wave.entries.forEach((entry, ei) => {
         const key = `${wi}:${ei}`;
@@ -388,8 +437,8 @@ export class GameState {
   // ---------- 보스 스케줄 ----------
 
   private updateBossSchedule(): void {
-    if (this.bossIndex >= BOSS.times.length) return;
-    const spawnAt = BOSS.times[this.bossIndex];
+    if (this.bossIndex >= this.bossTimes.length) return;
+    const spawnAt = this.bossTimes[this.bossIndex];
 
     if (!this.bossWarned && this.time >= spawnAt - BOSS.warningLead) {
       this.bossWarned = true;
@@ -397,9 +446,9 @@ export class GameState {
       this.events.push({ type: 'banner', text: '⚠ BOSS 접근 중' });
     }
     if (this.time >= spawnAt) {
-      const bossType = BOSS.roster[this.bossIndex % BOSS.roster.length];
+      const bossType = this.bossRoster[this.bossIndex % this.bossRoster.length];
       const boss = this.addEnemy(bossType, CANVAS.width / 2, -60, 1, false);
-      boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth);
+      boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth) * this.enemyHpMul;
       this.bossId = boss.id;
       this.bossIndex++;
       this.bossWarned = false;
@@ -433,7 +482,7 @@ export class GameState {
       && this.time >= ELITE.unlockAt
       && Math.random() < ELITE.chance;
 
-    let hp = def.hp * enemyHpScale(this.time);
+    let hp = def.hp * enemyHpScale(this.time) * this.enemyHpMul;
     if (elite) hp *= ELITE.hpMul;
 
     const enemy: Enemy = {
@@ -676,7 +725,7 @@ export class GameState {
       const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1));
       const scoreMul = e.elite ? ELITE.scoreMul : 1;
       this.score += Math.round(
-        Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul,
+        Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul * this.scoreMul,
       );
 
       const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
@@ -712,7 +761,7 @@ export class GameState {
   private killBoss(e: Enemy): void {
     this.bossId = null;
     this.bossKills++;
-    this.score += BOSS.score;
+    this.score += Math.round(BOSS.score * this.scoreMul);
     this.events.push({ type: 'bossDied', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: `${e.def.name} 격파!` });
     for (let k = 0; k < BOSS.gemDrop; k++) {

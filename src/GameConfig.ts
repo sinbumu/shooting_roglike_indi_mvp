@@ -2,6 +2,7 @@ import type {
   WeaponDef, WeaponId, Recipe, EnemyDef, EnemyId, Wave,
   ShipDef, ShipId, PassiveDef, PassiveId,
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
+  StageDef, StageId, ChallengeDef, ChallengeId,
 } from './types';
 
 // ============================================================
@@ -241,8 +242,7 @@ export const META_UPGRADES: Record<MetaUpgradeId, MetaUpgradeDef> = {
 };
 
 export const META = {
-  storageKey: 'stellar-meta-v1',
-  /** 점수 → 크레딧 환산 */
+  storageKey: 'stellar-meta-v2',
   creditsPerScore: 0.01,
   clearBonus: 40,
   bossKillBonus: 25,
@@ -259,6 +259,9 @@ export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
   combo_20: { id: 'combo_20', name: '광란', desc: '콤보 20 달성', icon: '🔥', reward: 20 },
   score_10k: { id: 'score_10k', name: '만점 비행사', desc: '한 판 10,000점', icon: '🎯', reward: 40 },
   elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 20 },
+  nebula_clear: { id: 'nebula_clear', name: '성운 돌파', desc: '성운 전선 클리어', icon: '🌌', reward: 50 },
+  rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 70 },
+  challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 45 },
 };
 
 /** 엘리트 적 (일반 적의 강화 버전) */
@@ -311,19 +314,16 @@ export const BOSS = {
 // 승리 조건 / 점수 / 드롭 아이템
 // ------------------------------------------------------------
 
-/** 이 시간(초)까지 생존하면 미션 클리어 */
+/** 기본 승리 시간 (스테이지별로 덮어씀) */
 export const VICTORY_TIME = 300;
 
 export const SCORE = {
-  /** 처치 점수 = 적 경험치 × killBase × (1 + 콤보 × comboBonus) */
   killBase: 10,
   comboBonus: 0.04,
-  /** 콤보 유지 시간(초) */
   comboWindow: 2.0,
 } as const;
 
 export const PICKUPS = {
-  /** 일반 적 처치 시 드롭 확률 */
   dropChance: 0.035,
   healAmount: 25,
   bombDamage: 250,
@@ -331,40 +331,136 @@ export const PICKUPS = {
   lifetime: 12,
 } as const;
 
-/** 기습형(side/bottom) 적이 경고 상태로 대기하는 시간(초) */
 export const WARNING_DURATION = 2.0;
 
-/** 시간에 따른 적 체력 배율 — 30초마다 +40% */
 export const enemyHpScale = (timeSec: number): number => 1 + (timeSec / 30) * 0.4;
 
-/** 시간에 따른 스폰 간격 배율 — 점점 빨라져 최소 35%까지 */
 export const spawnIntervalScale = (timeSec: number): number =>
   Math.max(0.35, 1 - timeSec / 180);
 
 // ------------------------------------------------------------
-// 웨이브 스케줄
+// 스테이지 (테마 · 웨이브 · 스토리)
 // ------------------------------------------------------------
 
-export const WAVES: Wave[] = [
-  { from: 0,  to: Infinity, entries: [{ enemy: 'drone', interval: 1.1 }] },
+const ORBIT_WAVES: Wave[] = [
+  { from: 0, to: Infinity, entries: [{ enemy: 'drone', interval: 1.1 }] },
   { from: 15, to: Infinity, entries: [{ enemy: 'zigzag', interval: 2.4 }] },
   { from: 35, to: Infinity, entries: [{ enemy: 'dasher', interval: 4.5 }] },
   { from: 55, to: Infinity, entries: [{ enemy: 'rusher', interval: 6.0 }] },
   { from: 75, to: Infinity, entries: [{ enemy: 'tank', interval: 9.0 }] },
-  // 후반 물량 러시
   { from: 120, to: Infinity, entries: [{ enemy: 'drone', interval: 0.9 }, { enemy: 'dasher', interval: 5.0 }] },
 ];
 
+const NEBULA_WAVES: Wave[] = [
+  { from: 0, to: Infinity, entries: [{ enemy: 'zigzag', interval: 1.4 }] },
+  { from: 10, to: Infinity, entries: [{ enemy: 'drone', interval: 1.0 }] },
+  { from: 25, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.5 }] },
+  { from: 45, to: Infinity, entries: [{ enemy: 'rusher', interval: 5.0 }] },
+  { from: 60, to: Infinity, entries: [{ enemy: 'tank', interval: 7.5 }] },
+  { from: 100, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.0 }, { enemy: 'zigzag', interval: 1.2 }] },
+];
+
+const RIFT_WAVES: Wave[] = [
+  { from: 0, to: Infinity, entries: [{ enemy: 'drone', interval: 0.85 }] },
+  { from: 8, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.2 }] },
+  { from: 20, to: Infinity, entries: [{ enemy: 'rusher', interval: 4.2 }] },
+  { from: 35, to: Infinity, entries: [{ enemy: 'tank', interval: 6.5 }] },
+  { from: 50, to: Infinity, entries: [{ enemy: 'zigzag', interval: 1.1 }] },
+  { from: 90, to: Infinity, entries: [{ enemy: 'dasher', interval: 2.4 }, { enemy: 'rusher', interval: 3.8 }, { enemy: 'drone', interval: 0.7 }] },
+];
+
+export const STAGES: Record<StageId, StageDef> = {
+  orbit: {
+    id: 'orbit', name: '궤도 방벽', icon: '🛰️', color: '#7dd3fc',
+    desc: '지구 궤도. 기본 전선. 시스템을 익히기 좋습니다.',
+    victoryTime: 300,
+    bgTop: 0x0b0e22, bgBottom: 0x070812,
+    waves: ORBIT_WAVES,
+    bossTimes: [75, 165, 255],
+    bossRoster: ['boss', 'bossSeraph', 'boss'],
+    clearCreditMul: 1,
+    story: [
+      { at: 0, text: '궤도 방벽 방어 개시. 생존 시간 5분.' },
+      { at: 30, text: '적 함대 밀도 상승. 빌드를 서두르세요.' },
+      { at: 72, text: '대형 반응 확인… 드레드노트급 접근.' },
+      { at: 162, text: '두 번째 고비. 탄막을 읽으세요.' },
+      { at: 250, text: '최종 방어선. 조금만 더!' },
+    ],
+  },
+  nebula: {
+    id: 'nebula', name: '성운 전선', icon: '🌌', color: '#c084fc',
+    desc: '시야가 흐린 성운. 기습이 빠르고 보스가 먼저 옵니다.',
+    unlockAfter: 'orbit',
+    victoryTime: 270,
+    bgTop: 0x1a1030, bgBottom: 0x0a0618,
+    waves: NEBULA_WAVES,
+    bossTimes: [55, 140, 230],
+    bossRoster: ['bossSeraph', 'boss', 'bossSeraph'],
+    clearCreditMul: 1.25,
+    story: [
+      { at: 0, text: '성운 속으로 진입. 센서 교란 주의.' },
+      { at: 25, text: '측면 돌파가 잦습니다. Warning을 믿으세요.' },
+      { at: 52, text: '푸른 섬광… 세라프가 먼저 나타납니다.' },
+      { at: 135, text: '성운 핵에 접근 중. 화력을 모으세요.' },
+      { at: 220, text: '돌파까지 얼마 남지 않았습니다.' },
+    ],
+  },
+  rift: {
+    id: 'rift', name: '공허 균열', icon: '🕳️', color: '#fb7185',
+    desc: '최전선. 물량과 탄막이 동시에 몰려옵니다. 4분 30초.',
+    unlockAfter: 'nebula',
+    victoryTime: 270,
+    bgTop: 0x2a0a14, bgBottom: 0x0c0408,
+    waves: RIFT_WAVES,
+    bossTimes: [45, 120, 210],
+    bossRoster: ['boss', 'bossSeraph', 'boss'],
+    clearCreditMul: 1.5,
+    story: [
+      { at: 0, text: '균열 너머. 귀환 좌표는 확보되지 않았습니다.' },
+      { at: 40, text: '조기 보스 경보! 대비하세요.' },
+      { at: 90, text: '공허가 밀려옵니다. 콤보를 유지하세요.' },
+      { at: 200, text: '마지막 파도. 여기서 끝내십시오.' },
+    ],
+  },
+};
+
+export const DEFAULT_STAGE: StageId = 'orbit';
+
+/** 하위 호환: 기본 스테이지 웨이브 */
+export const WAVES = STAGES.orbit.waves;
+
 // ------------------------------------------------------------
-// 기타 상수
+// 도전 모드
 // ------------------------------------------------------------
+
+export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
+  standard: {
+    id: 'standard', name: '표준', icon: '⭐',
+    desc: '기본 규칙. 슬롯 5·패시브 3.',
+  },
+  tight: {
+    id: 'tight', name: '제한 무장', icon: '🔒',
+    desc: '무기 슬롯 3. 조합 선택이 더 중요합니다.',
+    weaponSlotCap: 3, scoreMul: 1.25, creditMul: 1.2,
+  },
+  fragile: {
+    id: 'fragile', name: '유리 장갑', icon: '💔',
+    desc: '최대 체력 50%. 실수는 곧바로 끝입니다.',
+    hpMul: 0.5, scoreMul: 1.35, creditMul: 1.25,
+  },
+  bare: {
+    id: 'bare', name: '맨몸 출격', icon: '🪶',
+    desc: '패시브 슬롯 0. 무기만으로 버티세요.',
+    passiveSlotCap: 0, scoreMul: 1.3, creditMul: 1.2,
+  },
+};
+
+export const DEFAULT_CHALLENGE: ChallengeId = 'standard';
 
 export const GEM = {
   radius: 7,
-  /** 자석에 끌려올 때 속도 */
   magnetSpeed: 520,
-  /** 화면에 남아있는 최대 시간(초) */
   lifetime: 25,
 } as const;
 
-export const HEAL_CARD_RATIO = 0.3; // 회복 카드: 최대 체력의 30%
+export const HEAL_CARD_RATIO = 0.3;

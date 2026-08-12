@@ -118,19 +118,6 @@ function makeRingTexture(): Texture {
   return Texture.from(c);
 }
 
-function makeBgTexture(): Texture {
-  const c = document.createElement('canvas');
-  c.width = CANVAS.width;
-  c.height = CANVAS.height;
-  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
-  const g = ctx.createLinearGradient(0, 0, 0, CANVAS.height);
-  g.addColorStop(0, '#0b0e22');
-  g.addColorStop(1, '#070812');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, CANVAS.width, CANVAS.height);
-  return Texture.from(c);
-}
-
 // ============================================================
 
 export class Renderer {
@@ -140,6 +127,7 @@ export class Renderer {
   private world = new Container();
 
   private starG = new Graphics();
+  private bgG = new Graphics();
   private projG = new Graphics();
   private enemyG = new Graphics();
   private gemG = new Graphics();
@@ -188,9 +176,8 @@ export class Renderer {
     this.ringTex = makeRingTexture();
     this.glowPool = new FramePool(this.glowLayer, this.glowTex);
 
-    const bg = new Sprite(makeBgTexture());
     this.world.addChild(
-      bg, this.starG, this.projG, this.enemyG, this.gemG, this.pickupG,
+      this.bgG, this.starG, this.projG, this.enemyG, this.gemG, this.pickupG,
       this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.textLayer, this.warnG,
     );
     this.app.stage.addChild(this.world, this.flashG);
@@ -219,6 +206,7 @@ export class Renderer {
     this.glowPool.begin();
     this.coreG.clear();
 
+    this.drawBackground(state);
     this.drawStars(dt, state.status !== 'gameover');
     this.drawGems(state);
     this.drawPickups(state);
@@ -522,6 +510,14 @@ export class Renderer {
   }
 
   // ---------- 월드 드로잉 ----------
+
+  private drawBackground(state: GameState): void {
+    const g = this.bgG;
+    g.clear();
+    // Pixi Graphics fill gradient: two stacked rects with alpha blend approximation
+    g.rect(0, 0, CANVAS.width, CANVAS.height).fill(state.bgBottom);
+    g.rect(0, 0, CANVAS.width, CANVAS.height * 0.55).fill({ color: state.bgTop, alpha: 0.95 });
+  }
 
   private drawStars(dt: number, scrolling: boolean): void {
     const g = this.starG;

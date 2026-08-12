@@ -33,6 +33,7 @@
           <button id="mute-btn" title="음소거">🔊</button>
         </div>
         <div id="banner" class="hidden"></div>
+        <div id="story-line" class="hidden"></div>
         <div id="combo" class="hidden"></div>
         <div id="slot-tooltip" class="hidden"></div>
         <div id="passive-slots"></div>
@@ -70,8 +71,13 @@
       <!-- ===== 시작 / 격납고 Overlay ===== -->
       <div id="start-overlay" class="overlay">
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">기체를 고르고 출격하세요. 크레딧으로 영구 강화·기체 해금.<br/>5분 생존 = 미션 클리어</p>
-        <div id="meta-bar">💰 <span id="meta-credits">0</span></div>
+        <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>이전 스테이지 클리어로 다음 전선이 열립니다.</p>
+        <div id="meta-bar">💰 <span id="meta-credits">0</span> · <span id="meta-stats"></span></div>
+        <div class="hangar-label">스테이지</div>
+        <div id="stage-select" class="chip-row"></div>
+        <div class="hangar-label">도전 모드</div>
+        <div id="challenge-select" class="chip-row"></div>
+        <div class="hangar-label">기체</div>
         <div id="ship-select"></div>
         <div class="hangar-actions">
           <button id="start-btn">출격</button>

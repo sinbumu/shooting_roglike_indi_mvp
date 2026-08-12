@@ -101,15 +101,58 @@ export type AchievementId =
   | 'tier3'
   | 'combo_20'
   | 'score_10k'
-  | 'elite_hunter';
+  | 'elite_hunter'
+  | 'nebula_clear'
+  | 'rift_clear'
+  | 'challenge_clear';
 
 export interface AchievementDef {
   id: AchievementId;
   name: string;
   desc: string;
   icon: string;
-  /** 달성 시 크레딧 보상 */
   reward: number;
+}
+
+export type StageId = 'orbit' | 'nebula' | 'rift';
+
+export interface StoryBeat {
+  /** 경과 초 */
+  at: number;
+  text: string;
+}
+
+export interface StageDef {
+  id: StageId;
+  name: string;
+  icon: string;
+  color: string;
+  desc: string;
+  /** 이전 스테이지 클리어로 해금 (없으면 기본 해금) */
+  unlockAfter?: StageId;
+  victoryTime: number;
+  bgTop: number;
+  bgBottom: number;
+  waves: Wave[];
+  bossTimes: readonly number[];
+  bossRoster: readonly EnemyId[];
+  story: StoryBeat[];
+  clearCreditMul: number;
+}
+
+export type ChallengeId = 'standard' | 'tight' | 'fragile' | 'bare';
+
+export interface ChallengeDef {
+  id: ChallengeId;
+  name: string;
+  icon: string;
+  desc: string;
+  weaponSlotCap?: number;
+  passiveSlotCap?: number;
+  hpMul?: number;
+  enemyHpMul?: number;
+  scoreMul?: number;
+  creditMul?: number;
 }
 
 // ------------------------------------------------------------

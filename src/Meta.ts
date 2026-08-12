@@ -1,23 +1,32 @@
 import type {
-  AchievementId, MetaUpgradeId, ShipId,
+  AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
+  STAGES, DEFAULT_STAGE, DEFAULT_CHALLENGE,
 } from './GameConfig';
 import type { GameState } from './GameState';
 import { WEAPONS } from './GameConfig';
 
-// ============================================================
-// 런 간 영구 진행 (localStorage)
-// ============================================================
+export interface RunStats {
+  runs: number;
+  clears: number;
+  kills: number;
+  playTimeSec: number;
+}
 
 export interface MetaSave {
   credits: number;
   upgrades: Record<MetaUpgradeId, number>;
   unlockedShips: ShipId[];
+  unlockedStages: StageId[];
+  clearedStages: StageId[];
   achievements: AchievementId[];
   selectedShip: ShipId;
+  selectedStage: StageId;
+  selectedChallenge: ChallengeId;
   bestScore: number;
+  stats: RunStats;
 }
 
 function defaultSave(): MetaSave {
@@ -25,27 +34,44 @@ function defaultSave(): MetaSave {
     credits: 0,
     upgrades: { hull: 0, firepower: 0, thruster: 0, magnet: 0, fortune: 0 },
     unlockedShips: ['scout'],
+    unlockedStages: ['orbit'],
+    clearedStages: [],
     achievements: [],
     selectedShip: DEFAULT_SHIP,
+    selectedStage: DEFAULT_STAGE,
+    selectedChallenge: DEFAULT_CHALLENGE,
     bestScore: 0,
+    stats: { runs: 0, clears: 0, kills: 0, playTimeSec: 0 },
   };
 }
 
 export function loadMeta(): MetaSave {
   try {
-    const raw = localStorage.getItem(META.storageKey);
+    // v1 → v2 마이그레이션
+    const raw = localStorage.getItem(META.storageKey)
+      ?? localStorage.getItem('stellar-meta-v1');
     if (!raw) return defaultSave();
     const parsed = JSON.parse(raw) as Partial<MetaSave>;
     const base = defaultSave();
+    const unlockedStages = parsed.unlockedStages?.length
+      ? parsed.unlockedStages
+      : base.unlockedStages;
     return {
       ...base,
       ...parsed,
       upgrades: { ...base.upgrades, ...parsed.upgrades },
       unlockedShips: parsed.unlockedShips?.length ? parsed.unlockedShips : base.unlockedShips,
+      unlockedStages,
+      clearedStages: parsed.clearedStages ?? [],
       achievements: parsed.achievements ?? [],
       selectedShip: parsed.selectedShip && (parsed.unlockedShips ?? base.unlockedShips).includes(parsed.selectedShip)
         ? parsed.selectedShip
         : DEFAULT_SHIP,
+      selectedStage: parsed.selectedStage && unlockedStages.includes(parsed.selectedStage)
+        ? parsed.selectedStage
+        : DEFAULT_STAGE,
+      selectedChallenge: parsed.selectedChallenge ?? DEFAULT_CHALLENGE,
+      stats: { ...base.stats, ...parsed.stats },
     };
   } catch {
     return defaultSave();
@@ -89,16 +115,48 @@ export function selectShip(meta: MetaSave, id: ShipId): boolean {
   return true;
 }
 
-/** 런 종료 시 크레딧·업적·최고점 반영 */
+export function selectStage(meta: MetaSave, id: StageId): boolean {
+  if (!meta.unlockedStages.includes(id)) return false;
+  meta.selectedStage = id;
+  saveMeta(meta);
+  return true;
+}
+
+export function selectChallenge(meta: MetaSave, id: ChallengeId): void {
+  meta.selectedChallenge = id;
+  saveMeta(meta);
+}
+
+function unlockNextStages(meta: MetaSave, cleared: StageId): void {
+  for (const stage of Object.values(STAGES)) {
+    if (stage.unlockAfter === cleared && !meta.unlockedStages.includes(stage.id)) {
+      meta.unlockedStages.push(stage.id);
+    }
+  }
+  if (!meta.clearedStages.includes(cleared)) meta.clearedStages.push(cleared);
+}
+
 export function settleRun(
   meta: MetaSave,
   state: GameState,
   cleared: boolean,
 ): { newly: AchievementId[]; creditsGained: number } {
-  const bossKills = state.bossKills;
-  const baseGain = Math.floor(state.score * META.creditsPerScore)
-    + (cleared ? META.clearBonus : 0)
-    + bossKills * META.bossKillBonus;
+  const stage = STAGES[state.stageId];
+  const creditMul = (state.creditMul || 1) * (cleared ? stage.clearCreditMul : 1);
+
+  const baseGain = Math.floor(
+    (state.score * META.creditsPerScore
+      + (cleared ? META.clearBonus : 0)
+      + state.bossKills * META.bossKillBonus) * creditMul,
+  );
+
+  meta.stats.runs += 1;
+  meta.stats.kills += state.kills;
+  meta.stats.playTimeSec += Math.floor(state.time);
+  if (cleared) {
+    meta.stats.clears += 1;
+    unlockNextStages(meta, state.stageId);
+  }
 
   const newly = evaluateAchievements(meta, state, cleared);
   let achvReward = 0;
@@ -128,7 +186,10 @@ function evaluateAchievements(
   tryUnlock('first_blood', state.kills >= 1);
   tryUnlock('survive_60', state.time >= 60);
   tryUnlock('survive_180', state.time >= 180);
-  tryUnlock('clear_mission', cleared);
+  tryUnlock('clear_mission', cleared && state.stageId === 'orbit');
+  tryUnlock('nebula_clear', cleared && state.stageId === 'nebula');
+  tryUnlock('rift_clear', cleared && state.stageId === 'rift');
+  tryUnlock('challenge_clear', cleared && state.challengeId !== 'standard');
   tryUnlock('boss_slayer', state.bossKills >= 1);
   tryUnlock('combo_20', state.maxCombo >= 20);
   tryUnlock('score_10k', state.score >= 10000);
@@ -141,7 +202,6 @@ function evaluateAchievements(
   return unlocked;
 }
 
-/** 메타 레벨을 반영한 런 시작 배율 */
 export function metaBonuses(meta: MetaSave): {
   hpMul: number;
   damageMul: number;

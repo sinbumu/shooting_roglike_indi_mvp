@@ -1,6 +1,6 @@
 import type { LevelUpChoice, WeaponId, PassiveId } from './types';
 import {
-  WEAPONS, RECIPES, PLAYER, LEVELING, HEAL_CARD_RATIO, PASSIVES,
+  WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, PASSIVES,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -42,7 +42,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   }
 
   // 2. 신규 무기
-  if (state.weapons.length < PLAYER.maxWeaponSlots) {
+  if (state.weapons.length < state.maxWeaponSlots) {
     for (const def of Object.values(WEAPONS)) {
       if (def.tier !== 1 || owned.includes(def.id)) continue;
       pool.push({
@@ -73,7 +73,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   }
 
   // 4. 신규 패시브
-  if (state.passives.length < PLAYER.maxPassiveSlots) {
+  if (state.passives.length < state.maxPassiveSlots) {
     for (const def of Object.values(PASSIVES)) {
       if (ownedPassives.has(def.id)) continue;
       pool.push({

@@ -1,6 +1,7 @@
-import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId } from './types';
+import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
-  WEAPONS, PLAYER, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
+  WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
+  STAGES, CHALLENGES,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -25,6 +26,7 @@ export class UI {
   private bossFill = document.getElementById('boss-fill') as HTMLDivElement;
   private bossLabel = document.getElementById('boss-label') as HTMLSpanElement;
   private bannerEl = document.getElementById('banner') as HTMLDivElement;
+  private storyEl = document.getElementById('story-line') as HTMLDivElement;
   private comboEl = document.getElementById('combo') as HTMLDivElement;
   private tooltipEl = document.getElementById('slot-tooltip') as HTMLDivElement;
   private muteBtn = document.getElementById('mute-btn') as HTMLButtonElement;
@@ -41,7 +43,10 @@ export class UI {
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
+  private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
+  private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
   private metaCredits = document.getElementById('meta-credits') as HTMLSpanElement;
+  private metaStats = document.getElementById('meta-stats') as HTMLSpanElement;
   private metaShopCredits = document.getElementById('meta-shop-credits') as HTMLSpanElement;
   private metaShop = document.getElementById('meta-shop') as HTMLDivElement;
   private achvList = document.getElementById('achv-list') as HTMLDivElement;
@@ -51,6 +56,7 @@ export class UI {
   private lastCombo = 0;
   private lastState: GameState | null = null;
   private bannerTimeout: number | null = null;
+  private storyTimeout: number | null = null;
   private tooltipTimeout: number | null = null;
   private meta: MetaSave | null = null;
   private onHangarChange: (() => void) | null = null;
@@ -97,6 +103,39 @@ export class UI {
   refreshHangar(): void {
     if (!this.meta) return;
     this.metaCredits.textContent = String(this.meta.credits);
+    const st = this.meta.stats;
+    this.metaStats.textContent = `런 ${st.runs} · 클리어 ${st.clears} · 처치 ${st.kills}`;
+
+    this.stageSelect.innerHTML = '';
+    for (const stage of Object.values(STAGES)) {
+      const unlocked = this.meta.unlockedStages.includes(stage.id);
+      const selected = this.meta.selectedStage === stage.id;
+      const chip = document.createElement('button');
+      chip.className = 'chip' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+      chip.style.setProperty('--chip-color', stage.color);
+      chip.innerHTML = `${stage.icon} ${stage.name}${unlocked ? '' : ' 🔒'}`;
+      chip.title = unlocked
+        ? stage.desc
+        : `${stage.desc} (이전 스테이지 클리어로 해금)`;
+      chip.addEventListener('click', () => {
+        chip.dispatchEvent(new CustomEvent('select-stage', { bubbles: true, detail: stage.id }));
+      });
+      this.stageSelect.appendChild(chip);
+    }
+
+    this.challengeSelect.innerHTML = '';
+    for (const ch of Object.values(CHALLENGES)) {
+      const selected = this.meta.selectedChallenge === ch.id;
+      const chip = document.createElement('button');
+      chip.className = 'chip' + (selected ? ' selected' : '');
+      chip.innerHTML = `${ch.icon} ${ch.name}`;
+      chip.title = ch.desc;
+      chip.addEventListener('click', () => {
+        chip.dispatchEvent(new CustomEvent('select-challenge', { bubbles: true, detail: ch.id }));
+      });
+      this.challengeSelect.appendChild(chip);
+    }
+
     this.shipSelect.innerHTML = '';
 
     for (const ship of Object.values(SHIPS)) {
@@ -120,12 +159,19 @@ export class UI {
           this.meta.selectedShip = ship.id;
           this.onHangarChange();
         } else {
-          this.onHangarChange(); // parent handles unlock attempt via flag — use custom event
           card.dispatchEvent(new CustomEvent('unlock-ship', { bubbles: true, detail: ship.id }));
         }
       });
       this.shipSelect.appendChild(card);
     }
+  }
+
+  onSelectStage(fn: (id: StageId) => void): void {
+    this.stageSelect.addEventListener('select-stage', ((e: CustomEvent<StageId>) => fn(e.detail)) as EventListener);
+  }
+
+  onSelectChallenge(fn: (id: ChallengeId) => void): void {
+    this.challengeSelect.addEventListener('select-challenge', ((e: CustomEvent<ChallengeId>) => fn(e.detail)) as EventListener);
   }
 
   onUnlockShipRequest(fn: (id: ShipId) => void): void {
@@ -255,7 +301,7 @@ export class UI {
     this.lastSlotsKey = key;
 
     this.slotsEl.innerHTML = '';
-    for (let i = 0; i < PLAYER.maxWeaponSlots; i++) {
+    for (let i = 0; i < state.maxWeaponSlots; i++) {
       const slot = state.weapons[i];
       const el = document.createElement('div');
       el.className = 'weapon-slot' + (slot ? ' filled' : '');
@@ -278,7 +324,7 @@ export class UI {
     this.lastPassiveKey = key;
 
     this.passiveSlotsEl.innerHTML = '';
-    for (let i = 0; i < PLAYER.maxPassiveSlots; i++) {
+    for (let i = 0; i < state.maxPassiveSlots; i++) {
       const slot = state.passives[i];
       const el = document.createElement('div');
       el.className = 'weapon-slot passive-slot' + (slot ? ' filled' : '');
@@ -340,6 +386,13 @@ export class UI {
     this.bannerTimeout = window.setTimeout(() => this.bannerEl.classList.add('hidden'), 2200);
   }
 
+  showStory(text: string): void {
+    this.storyEl.textContent = text;
+    this.storyEl.classList.remove('hidden');
+    if (this.storyTimeout) clearTimeout(this.storyTimeout);
+    this.storyTimeout = window.setTimeout(() => this.storyEl.classList.add('hidden'), 4500);
+  }
+
   showLevelUp(choices: LevelUpChoice[], onPick: (choice: LevelUpChoice) => void): void {
     this.cardContainer.innerHTML = '';
     for (const choice of choices) {
@@ -375,7 +428,8 @@ export class UI {
     return `
       점수 <b>${state.score.toLocaleString()}</b>${isNew ? ' <span class="new-record">🎉 신기록!</span>' : ''}<br/>
       최고 기록 <b>${best.toLocaleString()}</b> · 획득 크레딧 <b>+${creditsGained}</b><br/>
-      생존 <b>${m}:${s}</b> · 처치 <b>${state.kills}</b> · Lv.<b>${state.level}</b>${achvLine}
+      생존 <b>${m}:${s}</b> · 처치 <b>${state.kills}</b> · Lv.<b>${state.level}</b><br/>
+      ${STAGES[state.stageId].icon}${STAGES[state.stageId].name} · ${CHALLENGES[state.challengeId].icon}${CHALLENGES[state.challengeId].name}${achvLine}
     `;
   }
 
