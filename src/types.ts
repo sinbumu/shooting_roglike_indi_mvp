@@ -226,7 +226,8 @@ export type ChoiceKind =
   | 'passiveUp'
   | 'statBoost'
   | 'tactical'
-  | 'affix';
+  | 'affix'
+  | 'arsenal';
 
 export interface LevelUpChoice {
   kind: ChoiceKind;

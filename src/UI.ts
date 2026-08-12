@@ -1,7 +1,7 @@
 import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
-  STAGES, CHALLENGES, AFFIXES,
+  STAGES, CHALLENGES, AFFIXES, ARSENAL,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -20,6 +20,7 @@ export class UI {
   private statTime = document.getElementById('stat-time') as HTMLSpanElement;
   private statKills = document.getElementById('stat-kills') as HTMLSpanElement;
   private statScore = document.getElementById('stat-score') as HTMLSpanElement;
+  private statCubes = document.getElementById('stat-cubes') as HTMLSpanElement;
   private slotsEl = document.getElementById('weapon-slots') as HTMLDivElement;
   private passiveSlotsEl = document.getElementById('passive-slots') as HTMLDivElement;
 
@@ -34,6 +35,9 @@ export class UI {
 
   private levelupOverlay = document.getElementById('levelup-overlay') as HTMLDivElement;
   private cardContainer = document.getElementById('card-container') as HTMLDivElement;
+  private arsenalOverlay = document.getElementById('arsenal-overlay') as HTMLDivElement;
+  private arsenalList = document.getElementById('arsenal-list') as HTMLDivElement;
+  private arsenalCubes = document.getElementById('arsenal-cubes') as HTMLSpanElement;
   private gameoverOverlay = document.getElementById('gameover-overlay') as HTMLDivElement;
   private gameoverStats = document.getElementById('gameover-stats') as HTMLDivElement;
   private victoryOverlay = document.getElementById('victory-overlay') as HTMLDivElement;
@@ -261,6 +265,8 @@ export class UI {
     this.statTime.textContent = `${m}:${s}`;
     this.statKills.textContent = `☠ ${state.kills}`;
     this.statScore.textContent = `🏆 ${state.score.toLocaleString()}`;
+    this.statCubes.textContent = `🧊 ${state.quantumCubes}`;
+    this.statCubes.style.opacity = state.quantumCubes > 0 ? '1' : '0.45';
 
     this.updateBossBar(state);
     this.updateCombo(state);
@@ -297,7 +303,7 @@ export class UI {
   }
 
   private renderSlots(state: GameState): void {
-    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}`).join(',');
+    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}:${w.damageBonus ?? 0}`).join(',');
     if (key === this.lastSlotsKey) return;
     this.lastSlotsKey = key;
 
@@ -356,9 +362,12 @@ export class UI {
     const affixLine = slot.affix
       ? `<br/><span class="tt-affix">${AFFIXES[slot.affix].label} ${AFFIXES[slot.affix].desc}</span>`
       : '';
+    const buffLine = (slot.damageBonus ?? 0) > 0
+      ? `<br/><span class="tt-affix">무기고 강화 +${Math.round((slot.damageBonus ?? 0) * 100)}%</span>`
+      : '';
     this.tooltipEl.innerHTML = `
       <b>${def.icon} ${def.name}</b> <span class="tt-tier">T${def.tier} · Lv.${slot.level}</span><br/>
-      <span class="tt-desc">${def.desc}</span>${affixLine}<br/>
+      <span class="tt-desc">${def.desc}</span>${affixLine}${buffLine}<br/>
       데미지 <b>${dmg}</b> × ${p.count}발 · 쿨타임 <b>${cd}s</b>
     `;
     this.tooltipEl.classList.remove('hidden');
@@ -404,7 +413,7 @@ export class UI {
       const card = document.createElement('button');
       card.className = 'choice-card'
         + (choice.kind === 'jackpot' ? ' jackpot' : '')
-        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' ? ' endgame' : '');
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'arsenal' ? ' endgame' : '');
       card.style.setProperty('--card-color', choice.color);
       card.innerHTML = `
         <span class="card-icon">${choice.icon}</span>
@@ -422,6 +431,73 @@ export class UI {
 
   hideLevelUp(): void {
     this.levelupOverlay.classList.add('hidden');
+  }
+
+  /**
+   * 무기고: Tier3 무기별 리롤/부여/강화.
+   * onAction 후 UI를 다시 그려야 하므로 호출측에서 refresh용으로 재호출하거나
+   * 내부에서 state를 다시 읽어 갱신한다.
+   */
+  showArsenal(
+    state: GameState,
+    onClose: () => void,
+    onChanged: () => void,
+  ): void {
+    this.renderArsenal(state, onChanged);
+    (document.getElementById('arsenal-close-btn') as HTMLButtonElement).onclick = () => {
+      this.hideArsenal();
+      onClose();
+    };
+    this.arsenalOverlay.classList.remove('hidden');
+  }
+
+  hideArsenal(): void {
+    this.arsenalOverlay.classList.add('hidden');
+  }
+
+  private renderArsenal(state: GameState, onChanged: () => void): void {
+    this.arsenalCubes.textContent = String(state.quantumCubes);
+    this.arsenalList.innerHTML = '';
+    const t3 = state.weapons.filter((w) => WEAPONS[w.weaponId].tier === 3);
+    if (t3.length === 0) {
+      this.arsenalList.innerHTML = '<p class="arsenal-empty">Tier 3 무기가 없습니다. 조합 후 다시 오세요.</p>';
+      return;
+    }
+    for (const slot of t3) {
+      const def = WEAPONS[slot.weaponId];
+      const row = document.createElement('div');
+      row.className = 'arsenal-row';
+      const affixTxt = slot.affix ? AFFIXES[slot.affix].label : '접사 없음';
+      const buffPct = Math.round((slot.damageBonus ?? 0) * 100);
+      row.innerHTML = `
+        <div class="arsenal-info">
+          <span class="arsenal-icon">${def.icon}</span>
+          <div>
+            <div class="arsenal-name">${def.name} · Lv.${slot.level}</div>
+            <div class="arsenal-meta">${affixTxt} · 강화 +${buffPct}%</div>
+          </div>
+        </div>
+        <div class="arsenal-actions"></div>
+      `;
+      const actions = row.querySelector('.arsenal-actions') as HTMLDivElement;
+      const addBtn = (label: string, cost: number, enabled: boolean, fn: () => boolean) => {
+        const btn = document.createElement('button');
+        btn.className = 'arsenal-btn';
+        btn.textContent = `${label} (${cost}🧊)`;
+        btn.disabled = !enabled || state.quantumCubes < cost;
+        btn.onclick = () => {
+          if (fn()) {
+            this.renderArsenal(state, onChanged);
+            onChanged();
+          }
+        };
+        actions.appendChild(btn);
+      };
+      addBtn('리롤', ARSENAL.costs.reroll, !!slot.affix, () => state.rerollAffix(slot.weaponId));
+      addBtn('부여', ARSENAL.costs.grant, !slot.affix, () => state.grantAffix(slot.weaponId));
+      addBtn('강화', ARSENAL.costs.buff, true, () => state.buffWeapon(slot.weaponId));
+      this.arsenalList.appendChild(row);
+    }
   }
 
   private resultHtml(state: GameState, creditsGained: number, newAchv: AchievementId[]): string {

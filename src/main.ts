@@ -133,9 +133,28 @@ function openLevelUpUI(): void {
     applyChoice(state, choice);
     ui.hideLevelUp();
     state.pendingLevelUps--;
+    if (state.status === 'arsenal') {
+      openArsenalUI();
+      return;
+    }
     if (state.pendingLevelUps > 0) openLevelUpUI();
     else state.status = 'playing';
   });
+}
+
+function openArsenalUI(): void {
+  state.status = 'arsenal';
+  ui.showArsenal(
+    state,
+    () => {
+      ui.hideArsenal();
+      if (state.pendingLevelUps > 0) openLevelUpUI();
+      else state.status = 'playing';
+    },
+    () => {
+      ui.updateHUD(state);
+    },
+  );
 }
 
 function endRun(cleared: boolean): void {
@@ -212,6 +231,7 @@ function loop(now: number): void {
     } else {
       const status: GameStatus = state.update(dt);
       if (status === 'levelup') openLevelUpUI();
+      else if (status === 'arsenal') openArsenalUI();
       else if (status === 'gameover') endRun(false);
       else if (status === 'victory') endRun(true);
     }

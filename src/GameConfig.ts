@@ -423,6 +423,52 @@ export const RIFT_EVENT = {
   elitePool: ['dasher', 'rusher', 'tank', 'zigzag'] as const satisfies readonly EnemyId[],
 } as const;
 
+/** 런 전용 크래프팅 화폐 (퀀텀 큐브) */
+export const QUANTUM = {
+  phaseDrop: 1,
+  riftEliteDrop: 1,
+  jackpotDrop: 1,
+} as const;
+
+/** 무기고 (Arsenal Terminal) */
+export const ARSENAL = {
+  openTimes: [180, 270] as const,
+  costs: { reroll: 1, grant: 2, buff: 1 },
+  buffDamage: 0.1,
+  /** 엔드게임 레벨업 카드 가중치 */
+  choiceWeight: 22,
+} as const;
+
+/** 어픽스 × 보조 스탯 시너지 수치 */
+export const AFFIX_SYNERGY = {
+  chain: {
+    baseJumps: 2,
+    baseRange: 140,
+    /** 자석 반경 보너스 +20%마다 */
+    magnetStep: 0.2,
+    jumpsPerStep: 1,
+    rangePerStep: 0.15,
+    damageMul: 0.55,
+  },
+  pierce: {
+    affixBonus: 2,
+    /** 관통 히트마다 기본 데미지 배수 */
+    baseFalloff: 0.8,
+    /** 투속 +10%마다 감소율 상쇄 (5%p) */
+    speedStep: 0.1,
+    falloffMitigation: 0.05,
+    minFalloff: 0.5,
+    /** projSpeedMul 초과 시 가속 딜 */
+    accelThreshold: 1.4,
+    accelMul: 1.1,
+  },
+  split: {
+    damageMul: 0.5,
+    shardLife: 0.55,
+    shardSpeedMul: 0.85,
+  },
+} as const;
+
 // ------------------------------------------------------------
 // 승리 조건 / 점수 / 드롭 아이템
 // ------------------------------------------------------------

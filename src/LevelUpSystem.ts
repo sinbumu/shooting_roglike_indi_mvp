@@ -3,7 +3,7 @@ import type {
 } from './types';
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
-  ENDGAME, TACTICAL, AFFIXES,
+  ENDGAME, TACTICAL, AFFIXES, ARSENAL, QUANTUM,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -18,6 +18,7 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   statBoost: 'BREAK — 한계 돌파',
   tactical: 'TACTICAL — 전술',
   affix: 'AFFIX — T0 접사',
+  arsenal: 'ARSENAL — 무기고',
 };
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
@@ -74,6 +75,17 @@ function buildEndgamePool(state: GameState): LevelUpChoice[] {
     icon: '🔧',
     color: '#4ade80',
   });
+
+  if (state.quantumCubes > 0) {
+    pool.push({
+      kind: 'arsenal',
+      weight: ARSENAL.choiceWeight,
+      title: '무기고 접근',
+      desc: `퀀텀 큐브 ${state.quantumCubes}개로 어픽스 리롤·부여·강화`,
+      icon: '🛠️',
+      color: '#67e8f9',
+    });
+  }
 
   for (const slot of state.weapons) {
     if (slot.affix) continue;
@@ -264,6 +276,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       for (const slot of state.weapons) {
         slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
       }
+      state.addQuantumCubes(QUANTUM.jackpotDrop);
       state.events.push({ type: 'jackpot' });
       break;
     }
@@ -297,6 +310,10 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
     case 'affix': {
       const wid = (choice.weaponIds as WeaponId[])[0];
       state.applyAffix(wid, choice.affixId as AffixId);
+      break;
+    }
+    case 'arsenal': {
+      state.openArsenal();
       break;
     }
   }

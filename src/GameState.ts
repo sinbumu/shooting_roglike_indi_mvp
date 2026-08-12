@@ -6,6 +6,7 @@ import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
+  QUANTUM, ARSENAL, AFFIX_SYNERGY,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -20,6 +21,8 @@ export interface WeaponSlot {
   level: number;
   cooldownLeft: number; // ms
   affix?: AffixId;
+  /** 무기고 강화로 누적되는 데미지 보너스 (0.1 = +10%) */
+  damageBonus?: number;
 }
 
 export interface Projectile {
@@ -36,6 +39,8 @@ export interface Projectile {
   affix?: AffixId;
   /** 분열 자식탄 — 재분열 방지 */
   noSplit?: boolean;
+  /** 관통 시너지: 몇 번 관통했는지 */
+  pierceHits?: number;
 }
 
 export interface Enemy {
@@ -99,7 +104,7 @@ export interface SpawnWarning {
   timer: number;
 }
 
-export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory';
+export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'arsenal' | 'gameover' | 'victory';
 
 /**
  * 1회성 게임 이벤트. GameState는 push만 하고,
@@ -167,6 +172,7 @@ export class GameState {
   shieldLeft = 0;
   /** 자기장 폭주 남은 시간(초) */
   magnetStormLeft = 0;
+  quantumCubes = 0;
 
   runStats: RunStats = {
     projSpeedMul: 1,
@@ -218,6 +224,7 @@ export class GameState {
   private riftWarnAt: number | null = null;
   private riftActive = 0;
   private baseExpMul = 1;
+  private arsenalOpened = new Set<number>();
 
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
@@ -259,6 +266,8 @@ export class GameState {
     };
     this.shieldLeft = 0;
     this.magnetStormLeft = 0;
+    this.quantumCubes = 0;
+    this.arsenalOpened.clear();
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
@@ -338,8 +347,58 @@ export class GameState {
     for (const slot of this.weapons) {
       slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
     }
+    this.addQuantumCubes(QUANTUM.jackpotDrop);
     this.events.push({ type: 'jackpot' });
     this.events.push({ type: 'banner', text: '🎰 JACKPOT!' });
+  }
+
+  addQuantumCubes(n: number): void {
+    if (n <= 0) return;
+    this.quantumCubes += n;
+    this.events.push({ type: 'banner', text: `🧊 퀀텀 큐브 +${n}` });
+  }
+
+  openArsenal(): void {
+    this.status = 'arsenal';
+    this.events.push({ type: 'banner', text: '🛠️ 무기고' });
+  }
+
+  /** 어픽스 리롤 (T3 + 기존 어픽스) */
+  rerollAffix(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot || WEAPONS[weaponId].tier !== 3 || !slot.affix) return false;
+    if (this.quantumCubes < ARSENAL.costs.reroll) return false;
+    this.quantumCubes -= ARSENAL.costs.reroll;
+    const ids = (Object.keys(AFFIXES) as AffixId[]).filter((id) => id !== slot.affix);
+    slot.affix = ids[Math.floor(Math.random() * ids.length)] ?? slot.affix;
+    this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 리롤!` });
+    return true;
+  }
+
+  /** 어픽스 부여 (T3 + 무어픽스) */
+  grantAffix(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot || WEAPONS[weaponId].tier !== 3 || slot.affix) return false;
+    if (this.quantumCubes < ARSENAL.costs.grant) return false;
+    this.quantumCubes -= ARSENAL.costs.grant;
+    const ids = Object.keys(AFFIXES) as AffixId[];
+    slot.affix = ids[Math.floor(Math.random() * ids.length)];
+    this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 부여!` });
+    return true;
+  }
+
+  /** 깡스탯 +10% */
+  buffWeapon(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot || WEAPONS[weaponId].tier !== 3) return false;
+    if (this.quantumCubes < ARSENAL.costs.buff) return false;
+    this.quantumCubes -= ARSENAL.costs.buff;
+    slot.damageBonus = (slot.damageBonus ?? 0) + ARSENAL.buffDamage;
+    this.events.push({
+      type: 'banner',
+      text: `${WEAPONS[weaponId].name} +${Math.round((slot.damageBonus) * 100)}%`,
+    });
+    return true;
   }
 
   applyTactical(id: TacticalId): void {
@@ -412,6 +471,7 @@ export class GameState {
     this.updateSpawns(dt);
     this.updateBossSchedule();
     this.updateRiftEvent(dt);
+    this.updateArsenalSchedule();
     this.updateWarnings(dt);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
@@ -420,6 +480,17 @@ export class GameState {
     this.updatePickups(dt);
     this.checkPlayerCollision(dt);
     return this.status;
+  }
+
+  private updateArsenalSchedule(): void {
+    if (this.quantumCubes <= 0) return;
+    for (const t of ARSENAL.openTimes) {
+      if (this.time >= t && !this.arsenalOpened.has(t)) {
+        this.arsenalOpened.add(t);
+        this.openArsenal();
+        return;
+      }
+    }
   }
 
   private updateBuffs(dt: number): void {
@@ -470,10 +541,13 @@ export class GameState {
   private fireWeapon(slot: WeaponSlot): void {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
-    const damage = p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel) * this.damageMul;
+    const damage = p.damage
+      * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
+      * this.damageMul
+      * (1 + (slot.damageBonus ?? 0));
     const speed = p.speed * this.runStats.projSpeedMul;
     let pierce = p.pierce;
-    if (slot.affix === 'pierce') pierce += 2;
+    if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
 
     const baseAngle = -Math.PI / 2; // 위쪽
     for (let i = 0; i < p.count; i++) {
@@ -500,6 +574,7 @@ export class GameState {
         color: def.color,
         hitIds: new Set(),
         affix: slot.affix,
+        pierceHits: 0,
       });
     }
     this.events.push({ type: 'fired', x: this.playerX, y: this.playerY - PLAYER.radius, color: def.color });
@@ -632,6 +707,7 @@ export class GameState {
   }
 
   private onRiftEliteKilled(): void {
+    this.addQuantumCubes(QUANTUM.riftEliteDrop);
     this.riftActive = Math.max(0, this.riftActive - 1);
     if (this.riftActive > 0) return;
     this.events.push({ type: 'riftReward' });
@@ -872,6 +948,10 @@ export class GameState {
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           p.hitIds.add(e.id);
           let dmg = p.damage;
+          if (p.affix === 'pierce') {
+            dmg *= this.pierceDamageMul(p);
+            p.pierceHits = (p.pierceHits ?? 0) + 1;
+          }
           if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
           this.damageEnemy(e, dmg);
 
@@ -899,22 +979,43 @@ export class GameState {
     }
   }
 
+  private pierceDamageMul(p: Projectile): number {
+    const syn = AFFIX_SYNERGY.pierce;
+    const hits = p.pierceHits ?? 0;
+    if (hits <= 0) return 1;
+    const speedBonus = this.runStats.projSpeedMul - 1;
+    if (this.runStats.projSpeedMul > syn.accelThreshold) {
+      return Math.pow(syn.accelMul, hits);
+    }
+    const steps = Math.floor(speedBonus / syn.speedStep);
+    const falloff = Math.max(
+      syn.minFalloff,
+      syn.baseFalloff + steps * syn.falloffMitigation,
+    );
+    return Math.pow(falloff, hits);
+  }
+
   private spawnSplitShards(p: Projectile): void {
+    const syn = AFFIX_SYNERGY.split;
     const base = Math.atan2(p.vy, p.vx);
+    const moveBonus = Math.max(0, this.moveSpeed / PLAYER.moveSpeed - 1);
+    const shardCrit = Math.min(0.85, COMBAT.baseCritChance + moveBonus);
     for (const off of [-0.45, 0, 0.45]) {
       const a = base + off;
-      const spd = p.speed * 0.85;
+      const spd = p.speed * syn.shardSpeedMul;
+      let damage = p.damage * syn.damageMul;
+      if (Math.random() < shardCrit) damage *= this.runStats.critMul;
       this.projectiles.push({
         x: p.x,
         y: p.y,
         vx: Math.cos(a) * spd,
         vy: Math.sin(a) * spd,
         speed: spd,
-        damage: p.damage * 0.45,
+        damage,
         radius: Math.max(3, p.radius * 0.8),
         homingTurnRate: 0,
         pierceLeft: 0,
-        life: 0.55,
+        life: syn.shardLife,
         color: p.color,
         hitIds: new Set(p.hitIds),
         noSplit: true,
@@ -923,21 +1024,32 @@ export class GameState {
   }
 
   private applyChain(p: Projectile, from: Enemy): void {
-    let best: Enemy | null = null;
-    let bestD = 140 * 140;
-    for (const e of this.enemies) {
-      if (e.id === from.id || p.hitIds.has(e.id)) continue;
-      const d = (e.x - from.x) ** 2 + (e.y - from.y) ** 2;
-      if (d < bestD) {
-        bestD = d;
-        best = e;
+    const syn = AFFIX_SYNERGY.chain;
+    const magnetBonus = Math.max(0, this.magnetRadius / PLAYER.magnetRadius - 1);
+    const steps = Math.floor(magnetBonus / syn.magnetStep);
+    const jumps = syn.baseJumps + steps * syn.jumpsPerStep;
+    const range = syn.baseRange * (1 + steps * syn.rangePerStep);
+    const rangeSq = range * range;
+
+    let origin = from;
+    for (let j = 0; j < jumps; j++) {
+      let best: Enemy | null = null;
+      let bestD = rangeSq;
+      for (const e of this.enemies) {
+        if (p.hitIds.has(e.id)) continue;
+        const d = (e.x - origin.x) ** 2 + (e.y - origin.y) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = e;
+        }
       }
+      if (!best) break;
+      p.hitIds.add(best.id);
+      let dmg = p.damage * syn.damageMul;
+      if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
+      this.damageEnemy(best, dmg);
+      origin = best;
     }
-    if (!best) return;
-    p.hitIds.add(best.id);
-    let dmg = p.damage * 0.55;
-    if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
-    this.damageEnemy(best, dmg);
   }
 
   private nearestEnemy(x: number, y: number, exclude: Set<number>): Enemy | null {
@@ -1028,6 +1140,7 @@ export class GameState {
     }
     this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: '⚡ PHASE 2' });
+    this.addQuantumCubes(QUANTUM.phaseDrop);
   }
 
   private killBoss(e: Enemy): void {

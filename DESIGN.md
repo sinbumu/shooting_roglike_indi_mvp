@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-12** — **로컬 MVP + 엔드게임·도파민 심화 완료** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-12** — **로컬 MVP + 엔드게임·시너지 크래프팅 완료** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -13,7 +13,8 @@
 | 질문 | 답 |
 |---|---|
 | 기획상 **로컬 MVP**는 다 됐나? | **예.** 코어·메타·스테이지·도전·스프라이트·프로시저럴 사운드까지 구현됨 |
-| 엔드게임·도파민 패치? | **완료** — 한계 돌파 / 전술 폴백 / T0 어픽스 / 잭팟 연출 / 보스 페이즈 / 돌발 균열 ([docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md](./docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md)) |
+| 엔드게임·도파민 패치? | **완료** — 한계 돌파 / 전술 / T0 어픽스 / 잭팟 / 보스 페이즈 / 돌발 균열 |
+| 크래프팅·시너지? | **완료** — 퀀텀 큐브 · 무기고 · 어픽스×자석/투속/이속 ([docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -51,6 +52,7 @@
 - [x] 비주얼/오디오: Pixi 스프라이트 + Graphics 폴백, Web Audio 합성  
 - [x] 엔드게임: 한계 돌파 스탯 · 전술(EMP/쉴드/자석폭주) · T0 어픽스(분열/관통/연쇄)  
 - [x] 도파민: 잭팟 히트스톱·쉐이크·피치 SFX · 보스 50% 페이즈+보석 샤워 · 돌발 균열 웨이브  
+- [x] 크래프팅: 퀀텀 큐브 · 무기고(리롤/부여/강화) · 어픽스 교차 시너지  
 
 ---
 
@@ -201,4 +203,5 @@
 | [REPORT.md](./REPORT.md) | 발표/피치·데모 시나리오 |
 | [PLAN.md](./PLAN.md) | 초기 MVP 계획 → **로컬 MVP 완료** 기록 |
 | [docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md](./docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md) | 엔드게임·도파민 기획 (구현 완료) |
+| [docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md) | 퀀텀·무기고·어픽스 시너지 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

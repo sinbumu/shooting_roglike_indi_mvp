@@ -22,6 +22,7 @@
             <span id="stat-time">00:00</span>
             <span id="stat-kills">☠ 0</span>
             <span id="stat-score">🏆 0</span>
+            <span id="stat-cubes">🧊 0</span>
           </div>
           <div id="boss-bar" class="hidden">
             <div id="boss-fill"></div>
@@ -44,6 +45,14 @@
         <h2 class="overlay-title">LEVEL UP!</h2>
         <p class="overlay-sub">강화를 선택하세요</p>
         <div id="card-container"></div>
+      </div>
+
+      <!-- ===== 무기고 (Arsenal) ===== -->
+      <div id="arsenal-overlay" class="overlay hidden">
+        <h2 class="overlay-title">ARSENAL</h2>
+        <p class="overlay-sub">퀀텀 큐브로 Tier3를 깎으세요 · 🧊 <span id="arsenal-cubes">0</span></p>
+        <div id="arsenal-list"></div>
+        <button id="arsenal-close-btn" class="secondary">닫기</button>
       </div>
 
       <!-- ===== 게임오버 Overlay ===== -->
