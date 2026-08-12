@@ -1,33 +1,33 @@
 # 🚀 STELLAR SURVIVOR
 
-뱀파이어 서바이버식 **경험치 파밍·레벨업**과 **무기 조합(합성) 시스템**을 결합한 종스크롤 슈팅 로그라이크 웹게임 MVP입니다.
+뱀파이어 서바이버식 **경험치 파밍·레벨업**과 **무기 조합(합성)**을 결합한 종스크롤 슈팅 로그라이크 웹게임입니다.
 
-▶ **플레이**: https://sinbumu.github.io/shooting_roglike_indi_mvp/ (main 브랜치 push 시 자동 배포)
+| | |
+|---|---|
+| **상태** | MVP 1차 배포 완료 (2026-08) |
+| **플레이** | https://sinbumu.github.io/shooting_roglike_indi_mvp/ |
+| **기획/콘텐츠 현황** | **[DESIGN.md](./DESIGN.md)** ← 기획자용 메인 문서 |
+| **발표 참고** | [REPORT.md](./REPORT.md) |
 
-## 게임 방법
+## 지금 할 수 있는 것 (플레이 요약)
 
-- 기체를 조종해 적을 피하면서 **5분을 버티면 미션 클리어**입니다. **무기는 자동으로 발사**됩니다.
-- 적을 처치하면 떨어지는 **EXP 보석**을 먹어 레벨업하세요.
-- 레벨업 시 3개의 카드 중 하나를 선택합니다: **신규 무기 / 무기 강화 / 무기 조합**
-- 같은 계열 무기 2개를 **조합**하면 상위 무기가 됩니다. 최대 5개의 무기 슬롯을 어떻게 채울지가 핵심 전략입니다.
-- 낮은 확률(4%)로 모든 무기가 일괄 강화되는 **대성공(Jackpot)** 카드가 등장합니다.
-- 화면 측면/하단의 빨간 `!` 경고는 2초 뒤 그 방향에서 기습 적이 진입한다는 신호입니다.
-- 일정 시간마다 탄막을 뿌리는 **보스**가 등장합니다. 처치하면 보석 샤워와 아이템이 쏟아집니다.
-- 적이 낮은 확률로 아이템을 드롭합니다: **➕회복 / 🧲자석(모든 보석 흡수) / 💣폭탄(전체 데미지)**
-- 연속 처치로 **콤보**를 쌓으면 점수 배율이 올라가고, 최고 점수는 브라우저에 저장됩니다.
-- HUD의 무기 슬롯을 탭하면 상세 스탯을 볼 수 있습니다. ESC 또는 ⏸ 버튼으로 일시정지.
-- 효과음과 BGM은 외부 파일 없이 Web Audio API로 실시간 합성됩니다. 🔊 버튼으로 음소거.
+- **5분 생존**하면 Mission Clear. 무기는 **자동 발사**.
+- 적 처치 → EXP 보석 → 레벨업 시 **3선택지** (신규 / 강화 / 조합 / 대성공).
+- 무기 슬롯 **최대 5**, Tier1→2→3 **조합 트리**로 빌드.
+- 측면·하단 기습은 **빨간 `!` 2초 경고** 후 진입.
+- **보스(드레드노트)** 3회, 아이템(회복·자석·폭탄), 점수·콤보·로컬 최고기록.
+- 모바일 **가상 조이스틱** / PC **WASD·방향키** (+ ESC 일시정지).
+
+상세 카탈로그·추가 후보·밸런스 위치는 **[DESIGN.md](./DESIGN.md)** 참고.
 
 ### 조작
 
 | 환경 | 조작 |
 |---|---|
-| 모바일 | 화면 아무 곳이나 터치하면 그 자리에 **가상 조이스틱**이 나타남 — 드래그로 이동 |
-| PC | **WASD** 또는 **방향키** (마우스로 가상 조이스틱 사용도 가능), **ESC** 일시정지 |
+| 모바일 | 화면을 누르면 **가상 조이스틱** — 드래그로 이동 |
+| PC | **WASD** / **방향키**, 마우스 조이스틱도 가능, **ESC** 일시정지 |
 
 ### 무기 트리
-
-Tier1 무기 2개를 조합하면 Tier2, Tier2 무기 2개를 조합하면 Tier3(종결 무기)가 됩니다.
 
 ```
 Tier 1          Tier 2                    Tier 3 (종결)
@@ -39,63 +39,46 @@ Tier 1          Tier 2                    Tier 3 (종결)
                 (스프레드+호밍)       (레일건+스웜)
 ```
 
-- 조합 시 재료 2개가 슬롯에서 제거되고 상위 무기 1개가 추가됩니다 (레벨은 재료 중 낮은 쪽 계승).
-
-## 실행 방법
+## 실행
 
 ```bash
 npm install
-npm run dev      # 개발 서버 (http://localhost:5173)
-npm run build    # 프로덕션 빌드 → dist/
-npm run preview  # 빌드 결과 로컬 확인
+npm run dev      # http://localhost:5173
+npm run build    # → dist/
+npm run preview
 ```
 
 ## 배포
 
-- `main` 브랜치에 push하면 GitHub Actions(`.github/workflows/deploy.yml`)가 빌드 후 **GitHub Pages**로 자동 배포합니다.
-  - 최초 1회: 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 선택해야 합니다.
-  - 이 설정이 없으면 `Get Pages site failed / HttpError: Not Found`로 실패합니다. 켠 뒤 Actions 탭에서 실패한 워크플로를 **Re-run jobs** 하면 됩니다.
-- 다른 정적 호스팅(Netlify, Vercel 등)을 쓸 경우 `npm run build` 결과물인 `dist/`를 올리면 됩니다. (`vite.config.ts`의 `base: './'` 덕분에 어떤 하위 경로에서도 동작)
+- `main` push → GitHub Actions → **GitHub Pages** 자동 배포.
+- Settings → Pages → Source를 **GitHub Actions**로 둔 상태여야 합니다.
+- 로컬 작업은 커밋만 하고, 원격 push는 모아서 진행하는 운영을 권장합니다.
 
 ## 기술 스택
 
-- **Vite + TypeScript** (strict 모드, `any` 미사용)
-- **PixiJS v8** — WebGL/WebGPU 렌더링 (파티클, 글로우, 충격파 등 이펙트 포함)
-- **순수 HTML/CSS(DOM)** — HUD, 레벨업 카드, 가상 조이스틱 등 UI 오버레이
-- 게임 엔진 프레임워크 없이 자체 `requestAnimationFrame` 루프 사용
+- Vite + TypeScript (strict) + PixiJS v8 + DOM UI + Web Audio (애셋 파일 없음)
 
 ## 아키텍처
 
-상태(로직)와 렌더링을 엄격히 분리한 구조입니다. 렌더러를 다른 기술로 교체해도 게임 로직은 그대로 재사용할 수 있습니다 (실제로 Canvas 2D → PixiJS로 교체됨).
-
 ```
 src/
-├── GameConfig.ts    # ★ 모든 밸런스 데이터 (무기/레시피/적/보스/웨이브/점수/상수)
-├── types.ts         # 공용 타입 정의
-├── GameState.ts     # 게임 로직 — 이동, 스폰, 보스, 충돌, 경험치, 점수 (렌더링을 모름)
-├── Renderer.ts      # PixiJS 렌더링 + 이펙트(파티클/흔들림/데미지 숫자)
-├── Audio.ts         # Web Audio 효과음 + BGM (전부 프로시저럴 합성)
-├── LevelUpSystem.ts # 레벨업 3선택지 가중치 추첨 & 적용
-├── UI.ts            # DOM 오버레이 (HUD, 카드, 배너, 보스 체력바, 결과 화면)
-├── main.ts          # 부트스트랩, 게임 루프, 입력, 히트스톱/진동/일시정지
+├── GameConfig.ts    # ★ 밸런스·콘텐츠 데이터 (기획 실험의 주 무대)
+├── types.ts
+├── GameState.ts     # 게임 로직
+├── Renderer.ts      # PixiJS + 이펙트
+├── Audio.ts         # 효과음·BGM
+├── LevelUpSystem.ts # 3선택지
+├── UI.ts            # HUD·오버레이
+├── main.ts          # 루프·입력
 └── style.css
 ```
 
-- **이벤트 큐**: `GameState`가 "적 사망, 발사, 피격" 등의 1회성 이벤트를 `state.events`에 쌓으면, `Renderer`가 매 프레임 소비해 파티클/화면 흔들림 등의 이펙트를 재생합니다. 로직은 렌더링 기술을 전혀 모릅니다.
-- **일시정지**: 레벨업 시 `GameState.update()`만 멈추고 렌더링은 계속되므로, 오버레이 뒤에서 이펙트가 자연스럽게 마무리됩니다.
+로직 / 렌더 / UI 분리. 수치 변경은 대부분 `GameConfig.ts`만으로 가능합니다.
 
-## 밸런스 튜닝 가이드
+## 문서 가이드
 
-게임 수치는 전부 `src/GameConfig.ts`에 있습니다. 코드 수정 없이 상수만 바꾸면 됩니다.
-
-| 항목 | 위치 |
+| 문서 | 누가 보면 좋은가 |
 |---|---|
-| 무기 추가/수정 (데미지, 쿨타임, 탄 수, 유도력, 관통) | `WEAPONS` |
-| 조합 레시피 | `RECIPES` |
-| 적 종류 (체력, 속도, 접촉 데미지, 경험치) | `ENEMIES` |
-| 웨이브 스케줄 (등장 시각, 스폰 간격) | `WAVES` |
-| 난이도 곡선 (적 체력 증가, 스폰 가속) | `enemyHpScale`, `spawnIntervalScale` |
-| 레벨업 곡선, 잭팟 확률, 무기 최대 레벨 | `LEVELING` |
-| 플레이어 (이동 속도, 체력, 자석 반경, 슬롯 수) | `PLAYER` |
-| 보스 (등장 시각, 체력 배율, 탄막 패턴, 보상) | `BOSS` |
-| 승리 조건 시간 / 점수·콤보 / 아이템 드롭률 | `VICTORY_TIME`, `SCORE`, `PICKUPS` |
+| [DESIGN.md](./DESIGN.md) | **기획** — 구현 현황, 콘텐츠 목록, 추가 후보, 논의 질문 |
+| [REPORT.md](./REPORT.md) | 발표·피치·데모 시나리오 |
+| [PLAN.md](./PLAN.md) | 초기 개발 계획 (완료된 역사 문서) |
