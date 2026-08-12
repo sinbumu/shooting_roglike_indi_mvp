@@ -1,4 +1,8 @@
-import type { WeaponDef, WeaponId, Recipe, EnemyDef, EnemyId, Wave } from './types';
+import type {
+  WeaponDef, WeaponId, Recipe, EnemyDef, EnemyId, Wave,
+  ShipDef, ShipId, PassiveDef, PassiveId,
+  MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
+} from './types';
 
 // ============================================================
 // 게임 밸런스/데이터 전부를 여기서 관리한다 (Data-Driven)
@@ -19,6 +23,8 @@ export const PLAYER = {
   /** 보석 자석 반경 */
   magnetRadius: 90,
   maxWeaponSlots: 5,
+  /** 런 중 패시브 슬롯 최대 */
+  maxPassiveSlots: 3,
 } as const;
 
 /** 가상 조이스틱 설정 (CSS px 기준) */
@@ -150,7 +156,125 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: '#dc2626',
     contactDamage: 30, exp: 0, spawnEdge: 'top', movePattern: 'boss',
   },
+  bossSeraph: {
+    id: 'bossSeraph', name: '세라프', hp: 800, speed: 70, radius: 38, color: '#38bdf8',
+    contactDamage: 28, exp: 0, spawnEdge: 'top', movePattern: 'bossSeraph',
+  },
 };
+
+// ------------------------------------------------------------
+// 시작 기체
+// ------------------------------------------------------------
+
+export const SHIPS: Record<ShipId, ShipDef> = {
+  scout: {
+    id: 'scout', name: '스카웃', icon: '🛸', color: '#7dd3fc',
+    desc: '빠른 기동. 체력은 낮지만 회피에 유리합니다.',
+    hpMul: 0.85, speedMul: 1.2, startingWeapon: 'vulcan', unlockCost: 0,
+  },
+  fortress: {
+    id: 'fortress', name: '포트리스', icon: '🛡️', color: '#86efac',
+    desc: '두꺼운 장갑. 느리지만 맞아도 버팁니다. 스프레드로 시작.',
+    hpMul: 1.35, speedMul: 0.82, startingWeapon: 'spread', unlockCost: 120,
+  },
+  hunter: {
+    id: 'hunter', name: '헌터', icon: '🎯', color: '#fdba74',
+    desc: '균형형. 호밍으로 시작해 추격전에 강합니다.',
+    hpMul: 1.0, speedMul: 1.0, startingWeapon: 'homing', unlockCost: 120,
+  },
+};
+
+export const DEFAULT_SHIP: ShipId = 'scout';
+
+// ------------------------------------------------------------
+// 런 중 패시브 (레벨업 카드)
+// ------------------------------------------------------------
+
+export const PASSIVES: Record<PassiveId, PassiveDef> = {
+  magnet: {
+    id: 'magnet', name: '자력장', icon: '🧲', color: '#38bdf8',
+    desc: '보석 자석 반경 증가', perLevel: 35, maxLevel: 5,
+  },
+  thruster: {
+    id: 'thruster', name: '추력 부스터', icon: '💨', color: '#a5b4fc',
+    desc: '이동 속도 증가', perLevel: 0.08, maxLevel: 5,
+  },
+  plating: {
+    id: 'plating', name: '반응장갑', icon: '🧱', color: '#94a3b8',
+    desc: '받는 피해 감소', perLevel: 0.08, maxLevel: 4,
+  },
+  collector: {
+    id: 'collector', name: '수집 모듈', icon: '📗', color: '#4ade80',
+    desc: '경험치 획득량 증가', perLevel: 0.15, maxLevel: 5,
+  },
+  overcharge: {
+    id: 'overcharge', name: '과충전', icon: '💢', color: '#fbbf24',
+    desc: '모든 무기 데미지 증가', perLevel: 0.12, maxLevel: 5,
+  },
+};
+
+// ------------------------------------------------------------
+// 영구 메타 업그레이드 (런 간)
+// ------------------------------------------------------------
+
+export const META_UPGRADES: Record<MetaUpgradeId, MetaUpgradeDef> = {
+  hull: {
+    id: 'hull', name: '선체 강화', icon: '❤️',
+    desc: '최대 체력 +10%/레벨', maxLevel: 5, baseCost: 40, perLevel: 0.1,
+  },
+  firepower: {
+    id: 'firepower', name: '화력 보정', icon: '🔥',
+    desc: '무기 데미지 +8%/레벨', maxLevel: 5, baseCost: 45, perLevel: 0.08,
+  },
+  thruster: {
+    id: 'thruster', name: '엔진 개조', icon: '🚀',
+    desc: '이동 속도 +6%/레벨', maxLevel: 5, baseCost: 35, perLevel: 0.06,
+  },
+  magnet: {
+    id: 'magnet', name: '자석 코어', icon: '🧲',
+    desc: '자석 반경 +15px/레벨', maxLevel: 5, baseCost: 30, perLevel: 15,
+  },
+  fortune: {
+    id: 'fortune', name: '행운 회로', icon: '🍀',
+    desc: '아이템 드롭률 +1%/레벨', maxLevel: 5, baseCost: 50, perLevel: 0.01,
+  },
+};
+
+export const META = {
+  storageKey: 'stellar-meta-v1',
+  /** 점수 → 크레딧 환산 */
+  creditsPerScore: 0.01,
+  clearBonus: 40,
+  bossKillBonus: 25,
+} as const;
+
+export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
+  first_blood: { id: 'first_blood', name: '첫 격추', desc: '적을 1기 처치', icon: '✨', reward: 10 },
+  survive_60: { id: 'survive_60', name: '1분 생존', desc: '60초 이상 생존', icon: '⏱️', reward: 15 },
+  survive_180: { id: 'survive_180', name: '3분 생존', desc: '180초 이상 생존', icon: '⌛', reward: 30 },
+  clear_mission: { id: 'clear_mission', name: '미션 클리어', desc: '5분 생존 성공', icon: '🏆', reward: 80 },
+  boss_slayer: { id: 'boss_slayer', name: '보스 슬레이어', desc: '보스를 1기 이상 처치', icon: '💀', reward: 35 },
+  tier2: { id: 'tier2', name: '상위 무장', desc: 'Tier2 무기 획득', icon: '⚡', reward: 25 },
+  tier3: { id: 'tier3', name: '종결 무장', desc: 'Tier3 무기 획득', icon: '🌟', reward: 60 },
+  combo_20: { id: 'combo_20', name: '광란', desc: '콤보 20 달성', icon: '🔥', reward: 20 },
+  score_10k: { id: 'score_10k', name: '만점 비행사', desc: '한 판 10,000점', icon: '🎯', reward: 40 },
+  elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 20 },
+};
+
+/** 엘리트 적 (일반 적의 강화 버전) */
+export const ELITE = {
+  /** 이 시각(초) 이후부터 엘리트 등장 가능 */
+  unlockAt: 40,
+  /** 스폰 시 엘리트가 될 확률 */
+  chance: 0.12,
+  hpMul: 2.4,
+  speedMul: 1.15,
+  damageMul: 1.35,
+  expMul: 3,
+  scoreMul: 3,
+  /** 처치 시 아이템 확정 드롭 */
+  guaranteedPickup: true,
+} as const;
 
 // ------------------------------------------------------------
 // 보스전
@@ -159,6 +283,8 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
 export const BOSS = {
   /** 보스 등장 시각(초) */
   times: [75, 165, 255],
+  /** 회차별 보스 종류 (순환) */
+  roster: ['boss', 'bossSeraph', 'boss'] as const satisfies readonly EnemyId[],
   /** 등장 몇 초 전에 경고 배너를 띄울지 */
   warningLead: 3,
   /** 회차별 체력 배율 (1 + index * 이 값) */
@@ -174,6 +300,9 @@ export const BOSS = {
   /** 조준 3연사: 발사 간격(초) / 탄속 */
   aimedInterval: 1.5,
   aimedSpeed: 270,
+  /** 세라프: 나선 탄막 */
+  spiralInterval: 0.12,
+  spiralSpeed: 200,
   /** 처치 보너스 점수 */
   score: 5000,
 } as const;

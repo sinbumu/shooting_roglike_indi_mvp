@@ -1,10 +1,8 @@
-import type { LevelUpChoice, WeaponId } from './types';
-import { WEAPONS, RECIPES, PLAYER, LEVELING, HEAL_CARD_RATIO } from './GameConfig';
+import type { LevelUpChoice, WeaponId, PassiveId } from './types';
+import {
+  WEAPONS, RECIPES, PLAYER, LEVELING, HEAL_CARD_RATIO, PASSIVES,
+} from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
-
-// ============================================================
-// 레벨업 3선택지 추출 & 적용 (가중치 기반 필터링)
-// ============================================================
 
 const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   merge: 'MERGE — 조합',
@@ -12,25 +10,20 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   upgrade: 'UPGRADE — 강화',
   jackpot: 'JACKPOT — 대성공!',
   heal: 'REPAIR — 수리',
+  passive: 'PASSIVE — 신규 패시브',
+  passiveUp: 'PASSIVE — 패시브 강화',
 };
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
   return KIND_LABEL[kind];
 }
 
-/**
- * 후보 풀 구성:
- *  1. 조합(Merge)   — 슬롯에 레시피 재료 2개가 모두 있으면 최우선 가중치
- *  2. 신규(New)     — 슬롯 여유가 있을 때 미보유 Tier1 무기
- *  3. 강화(Upgrade) — 보유 무기 레벨업
- *  4. 대성공(Jackpot) — 낮은 확률(4%)로 등장, 모든 무기 일괄 강화
- *  후보 부족 시 회복 카드로 채움
- */
 export function generateChoices(state: GameState): LevelUpChoice[] {
   const pool: LevelUpChoice[] = [];
   const owned = state.weapons.map((w) => w.weaponId);
+  const ownedPassives = new Set(state.passives.map((p) => p.passiveId));
 
-  // 1. 조합 후보 (최우선 가중치 100)
+  // 1. 조합
   for (const recipe of RECIPES) {
     const [a, b] = recipe.materials;
     if (owned.includes(a) && owned.includes(b)) {
@@ -48,7 +41,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     }
   }
 
-  // 2. 신규 후보 (가중치 25) — 슬롯 5개 미만일 때 미보유 하급(Tier1) 무기
+  // 2. 신규 무기
   if (state.weapons.length < PLAYER.maxWeaponSlots) {
     for (const def of Object.values(WEAPONS)) {
       if (def.tier !== 1 || owned.includes(def.id)) continue;
@@ -64,7 +57,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     }
   }
 
-  // 3. 강화 후보 (가중치 40)
+  // 3. 무기 강화
   for (const slot of state.weapons) {
     if (slot.level >= LEVELING.maxWeaponLevel) continue;
     const def = WEAPONS[slot.weaponId];
@@ -79,10 +72,39 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     });
   }
 
-  // 가중치 기반 3장 추첨 (중복 없음)
+  // 4. 신규 패시브
+  if (state.passives.length < PLAYER.maxPassiveSlots) {
+    for (const def of Object.values(PASSIVES)) {
+      if (ownedPassives.has(def.id)) continue;
+      pool.push({
+        kind: 'passive',
+        weight: 28,
+        title: def.name,
+        desc: def.desc,
+        icon: def.icon,
+        color: def.color,
+        passiveId: def.id,
+      });
+    }
+  }
+
+  // 5. 패시브 강화
+  for (const slot of state.passives) {
+    const def = PASSIVES[slot.passiveId];
+    if (slot.level >= def.maxLevel) continue;
+    pool.push({
+      kind: 'passiveUp',
+      weight: 32,
+      title: `${def.name} Lv.${slot.level} → ${slot.level + 1}`,
+      desc: def.desc,
+      icon: def.icon,
+      color: def.color,
+      passiveId: def.id,
+    });
+  }
+
   const choices: LevelUpChoice[] = [];
 
-  // 4. 대성공: 4% 확률로 카드 한 장을 잭팟으로 대체
   if (Math.random() < LEVELING.jackpotChance && state.weapons.length > 0) {
     choices.push({
       kind: 'jackpot',
@@ -109,7 +131,6 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     pool.splice(picked, 1);
   }
 
-  // 후보 부족 시 회복 카드로 채움
   while (choices.length < 3) {
     choices.push({
       kind: 'heal',
@@ -119,18 +140,16 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
       icon: '🔧',
       color: '#4ade80',
     });
-    break; // 회복 카드는 1장만
+    break;
   }
 
   return choices;
 }
 
-/** 선택 결과를 GameState에 반영한다 */
 export function applyChoice(state: GameState, choice: LevelUpChoice): void {
   switch (choice.kind) {
     case 'merge': {
       const [a, b] = choice.weaponIds as [WeaponId, WeaponId];
-      // 재료 2개의 레벨 중 낮은 쪽을 계승
       const slotA = state.weapons.find((w) => w.weaponId === a) as WeaponSlot;
       const slotB = state.weapons.find((w) => w.weaponId === b) as WeaponSlot;
       const inheritLevel = Math.min(slotA.level, slotB.level);
@@ -160,7 +179,22 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       break;
     }
     case 'heal': {
-      state.hp = Math.min(PLAYER.maxHp, state.hp + PLAYER.maxHp * HEAL_CARD_RATIO);
+      state.hp = Math.min(state.maxHp, state.hp + state.maxHp * HEAL_CARD_RATIO);
+      break;
+    }
+    case 'passive': {
+      const id = choice.passiveId as PassiveId;
+      state.passives.push({ passiveId: id, level: 1 });
+      state.applyPassiveEffects();
+      break;
+    }
+    case 'passiveUp': {
+      const id = choice.passiveId as PassiveId;
+      const slot = state.passives.find((p) => p.passiveId === id);
+      if (slot) {
+        slot.level = Math.min(PASSIVES[id].maxLevel, slot.level + 1);
+        state.applyPassiveEffects();
+      }
       break;
     }
   }

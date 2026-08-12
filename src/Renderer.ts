@@ -580,8 +580,9 @@ export class Renderer {
     const g = this.enemyG;
     g.clear();
     for (const e of state.enemies) {
-      const r = e.def.radius;
-      const color = e.hitFlash > 0 ? 0xffffff : hex(e.def.color);
+      const r = e.def.radius * (e.elite ? 1.2 : 1);
+      const color = e.hitFlash > 0 ? 0xffffff : (e.elite ? 0xfbbf24 : hex(e.def.color));
+      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
 
       let pts: number[] = [];
       switch (e.def.id) {
@@ -600,10 +601,11 @@ export class Renderer {
         case 'tank':
           pts = [-r * 0.9, -r * 0.9, r * 0.9, -r * 0.9, r * 0.9, r * 0.9, -r * 0.9, r * 0.9];
           break;
-        case 'boss': {
-          // 천천히 회전하는 육각형
-          for (let k = 0; k < 6; k++) {
-            const a = (k / 6) * Math.PI * 2 + e.age * 0.5;
+        case 'boss':
+        case 'bossSeraph': {
+          const sides = e.def.id === 'bossSeraph' ? 8 : 6;
+          for (let k = 0; k < sides; k++) {
+            const a = (k / sides) * Math.PI * 2 + e.age * 0.5;
             pts.push(Math.cos(a) * r, Math.sin(a) * r);
           }
           break;
@@ -611,10 +613,21 @@ export class Renderer {
       }
       const abs: number[] = [];
       for (let i = 0; i < pts.length; i += 2) abs.push(e.x + pts[i], e.y + pts[i + 1]);
-      g.poly(abs, true).fill(color).stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 });
+      g.poly(abs, true).fill(color).stroke({
+        width: e.elite ? 2.5 : 1.5,
+        color: e.elite ? 0xfde68a : 0xffffff,
+        alpha: e.elite ? 0.9 : 0.35,
+      });
+
+      if (e.elite) {
+        const glow = this.glowPool.get();
+        glow.tint = 0xfbbf24;
+        glow.position.set(e.x, e.y);
+        glow.width = glow.height = r * 3.2;
+        glow.alpha = 0.55;
+      }
 
       if (e.def.id === 'boss') {
-        // 코어 + 붉은 글로우
         g.circle(e.x, e.y, r * 0.45).fill(0x7f1d1d);
         g.circle(e.x, e.y, r * 0.28).fill(0xfca5a5);
         const glow = this.glowPool.get();
@@ -622,12 +635,20 @@ export class Renderer {
         glow.position.set(e.x, e.y);
         glow.width = glow.height = r * 4 + Math.sin(this.elapsed * 4) * 14;
         glow.alpha = 0.5;
+      } else if (e.def.id === 'bossSeraph') {
+        g.circle(e.x, e.y, r * 0.4).fill(0x0c4a6e);
+        g.circle(e.x, e.y, r * 0.22).fill(0xbae6fd);
+        const glow = this.glowPool.get();
+        glow.tint = 0x38bdf8;
+        glow.position.set(e.x, e.y);
+        glow.width = glow.height = r * 4.2 + Math.sin(this.elapsed * 5) * 12;
+        glow.alpha = 0.55;
       }
 
-      // 체력바 (보스는 DOM 상단 바 사용)
-      if (e.hp < e.maxHp && e.def.id !== 'boss') {
+      if (e.hp < e.maxHp && !isBoss) {
         g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
-        g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4).fill(0x4ade80);
+        g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4)
+          .fill(e.elite ? 0xfbbf24 : 0x4ade80);
       }
     }
   }

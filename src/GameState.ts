@@ -1,9 +1,11 @@
-import type { EnemyDef, EnemyId, WeaponId, PickupKind } from './types';
+import type { EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId } from './types';
 import {
-  CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, WAVES, GEM,
-  WARNING_DURATION, STARTING_WEAPON, enemyHpScale, spawnIntervalScale,
+  CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, WAVES, GEM, SHIPS, PASSIVES, ELITE,
+  WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, VICTORY_TIME, SCORE, PICKUPS,
 } from './GameConfig';
+import type { MetaSave } from './Meta';
+import { metaBonuses } from './Meta';
 
 // ============================================================
 // 런타임 엔티티
@@ -36,12 +38,18 @@ export interface Enemy {
   maxHp: number;
   age: number;
   baseX: number;
-  /** dashAcross 방향 (-1: 왼쪽으로, 1: 오른쪽으로) */
   dir: number;
   hitFlash: number;
+  elite: boolean;
   /** 보스 전용 공격 쿨다운 */
   ringCd?: number;
   aimedCd?: number;
+  spiralAngle?: number;
+}
+
+export interface PassiveSlot {
+  passiveId: PassiveId;
+  level: number;
 }
 
 /** 보스가 발사하는 적 탄환 */
@@ -99,7 +107,8 @@ export type FxEvent =
   | { type: 'pickup'; kind: PickupKind; x: number; y: number }
   | { type: 'bomb' }
   | { type: 'victory' }
-  | { type: 'gameover' };
+  | { type: 'gameover' }
+  | { type: 'achievement'; id: string; name: string };
 
 // ============================================================
 
@@ -109,20 +118,29 @@ export class GameState {
   // 플레이어
   playerX = CANVAS.width / 2;
   playerY = CANVAS.height * 0.78;
-  /** 입력 방향 벡터 (조이스틱/키보드가 매 프레임 갱신, 크기 0~1) */
   moveX = 0;
   moveY = 0;
+  shipId: ShipId = 'scout';
+  maxHp: number = PLAYER.maxHp;
   hp: number = PLAYER.maxHp;
-  invincibleLeft = 0; // ms
+  moveSpeed: number = PLAYER.moveSpeed;
+  magnetRadius: number = PLAYER.magnetRadius;
+  /** 메타+패시브 반영 데미지 배율 */
+  damageMul = 1;
+  /** 피해 감소 (0~0.7) */
+  armorReduce = 0;
+  expMul = 1;
+  dropChanceBonus = 0;
+  invincibleLeft = 0;
 
   // 성장
   level = 1;
   exp = 0;
   expToNext = LEVELING.expForLevel(1);
-  /** 연속 레벨업 대기 수 (한 번에 여러 레벨 오를 수 있음) */
   pendingLevelUps = 0;
 
   weapons: WeaponSlot[] = [];
+  passives: PassiveSlot[] = [];
 
   // 월드
   enemies: Enemy[] = [];
@@ -132,28 +150,67 @@ export class GameState {
   pickups: Pickup[] = [];
   warnings: SpawnWarning[] = [];
 
-  time = 0; // 초
+  time = 0;
   kills = 0;
+  eliteKills = 0;
+  bossKills = 0;
   score = 0;
   comboCount = 0;
+  maxCombo = 0;
   comboTimer = 0;
 
-  /** 현재 살아있는 보스의 enemy id (없으면 null) */
   bossId: number | null = null;
-
-  /** 렌더러가 소비하는 이펙트 이벤트 큐 */
   events: FxEvent[] = [];
 
   private nextEnemyId = 1;
-  /** 웨이브 엔트리별 스폰 누적 타이머 (key = waveIdx:entryIdx) */
   private spawnTimers = new Map<string, number>();
   private bossIndex = 0;
   private bossWarned = false;
   private lastWaveNo = 0;
 
-  start(): void {
+  /** 기체 + 메타 보너스로 런 시작 */
+  start(shipId: ShipId, meta: MetaSave): void {
+    const ship = SHIPS[shipId];
+    const m = metaBonuses(meta);
+    this.shipId = shipId;
+    this.maxHp = Math.round(PLAYER.maxHp * ship.hpMul * m.hpMul);
+    this.hp = this.maxHp;
+    this.baseMoveSpeed = PLAYER.moveSpeed * ship.speedMul * m.speedMul;
+    this.baseMagnet = PLAYER.magnetRadius + m.magnetAdd;
+    this.baseDamageMul = m.damageMul;
+    this.dropChanceBonus = m.dropChanceAdd;
+    this.passives = [];
+    this.applyPassiveEffects();
+    this.weapons = [{ weaponId: ship.startingWeapon, level: 1, cooldownLeft: 300 }];
     this.status = 'playing';
-    this.weapons = [{ weaponId: STARTING_WEAPON, level: 1, cooldownLeft: 300 }];
+  }
+
+  private baseMoveSpeed: number = PLAYER.moveSpeed;
+  private baseMagnet: number = PLAYER.magnetRadius;
+  private baseDamageMul = 1;
+
+  /** 패시브 레벨 합산 → 런타임 스탯 재계산 */
+  applyPassiveEffects(): void {
+    let magnetAdd = 0;
+    let speedAdd = 0;
+    let armor = 0;
+    let expAdd = 0;
+    let dmgAdd = 0;
+    for (const p of this.passives) {
+      const v = PASSIVES[p.passiveId].perLevel * p.level;
+      switch (p.passiveId) {
+        case 'magnet': magnetAdd += v; break;
+        case 'thruster': speedAdd += v; break;
+        case 'plating': armor += v; break;
+        case 'collector': expAdd += v; break;
+        case 'overcharge': dmgAdd += v; break;
+      }
+    }
+    this.magnetRadius = this.baseMagnet + magnetAdd;
+    this.moveSpeed = this.baseMoveSpeed * (1 + speedAdd);
+    this.armorReduce = Math.min(0.7, armor);
+    this.expMul = 1 + expAdd;
+    this.damageMul = this.baseDamageMul * (1 + dmgAdd);
   }
 
   // ==========================================================
@@ -211,8 +268,8 @@ export class GameState {
       mx /= mag;
       my /= mag;
     }
-    this.playerX += mx * PLAYER.moveSpeed * dt;
-    this.playerY += my * PLAYER.moveSpeed * dt;
+    this.playerX += mx * this.moveSpeed * dt;
+    this.playerY += my * this.moveSpeed * dt;
     const r = PLAYER.radius;
     this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
     this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
@@ -237,7 +294,7 @@ export class GameState {
   private fireWeapon(slot: WeaponSlot): void {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
-    const damage = p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel);
+    const damage = p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel) * this.damageMul;
 
     const baseAngle = -Math.PI / 2; // 위쪽
     for (let i = 0; i < p.count; i++) {
@@ -340,12 +397,14 @@ export class GameState {
       this.events.push({ type: 'banner', text: '⚠ BOSS 접근 중' });
     }
     if (this.time >= spawnAt) {
-      const boss = this.addEnemy('boss', CANVAS.width / 2, -60, 1);
-      boss.hp = boss.maxHp = ENEMIES.boss.hp * (1 + this.bossIndex * BOSS.hpGrowth);
+      const bossType = BOSS.roster[this.bossIndex % BOSS.roster.length];
+      const boss = this.addEnemy(bossType, CANVAS.width / 2, -60, 1, false);
+      boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth);
       this.bossId = boss.id;
       this.bossIndex++;
       this.bossWarned = false;
       this.events.push({ type: 'bossSpawned', x: boss.x, y: boss.y });
+      this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[bossType].name}` });
     }
   }
 
@@ -360,15 +419,30 @@ export class GameState {
     }
   }
 
-  private addEnemy(enemyId: EnemyId, x: number, y: number, dir: number): Enemy {
+  private addEnemy(
+    enemyId: EnemyId,
+    x: number,
+    y: number,
+    dir: number,
+    allowElite = true,
+  ): Enemy {
     const def = ENEMIES[enemyId];
-    const hp = def.hp * enemyHpScale(this.time);
+    const isBoss = def.movePattern === 'boss' || def.movePattern === 'bossSeraph';
+    const elite = allowElite
+      && !isBoss
+      && this.time >= ELITE.unlockAt
+      && Math.random() < ELITE.chance;
+
+    let hp = def.hp * enemyHpScale(this.time);
+    if (elite) hp *= ELITE.hpMul;
+
     const enemy: Enemy = {
       id: this.nextEnemyId++,
       def, x, y,
       hp, maxHp: hp,
       age: 0, baseX: x, dir,
       hitFlash: 0,
+      elite,
     };
     this.enemies.push(enemy);
     return enemy;
@@ -389,30 +463,32 @@ export class GameState {
       switch (e.def.movePattern) {
         case 'down':
         case 'slowDown':
-          e.y += e.def.speed * dt;
+          e.y += e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
           break;
         case 'zigzag':
-          e.y += e.def.speed * 0.75 * dt;
+          e.y += e.def.speed * 0.75 * (e.elite ? ELITE.speedMul : 1) * dt;
           e.x = e.baseX + Math.sin(e.age * 2.6) * 70;
           break;
         case 'dashAcross':
-          e.x += e.def.speed * e.dir * dt;
+          e.x += e.def.speed * (e.elite ? ELITE.speedMul : 1) * e.dir * dt;
           e.y += 26 * dt;
           break;
         case 'dashUp':
-          e.y -= e.def.speed * dt;
+          e.y -= e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
           break;
         case 'boss':
           this.updateBoss(e, dt);
           break;
+        case 'bossSeraph':
+          this.updateBossSeraph(e, dt);
+          break;
       }
 
-      // 화면을 완전히 벗어나면 제거 (보스는 화면에 상주)
+      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
       const out =
         e.y > H + margin || e.y < -margin - 200 ||
         e.x < -margin - 200 || e.x > W + margin + 200;
-      // 진입 직후(화면 밖에서 안으로 들어오는 중)는 제거하지 않도록 age 체크
-      if (out && e.age > 1.5 && e.def.id !== 'boss') this.enemies.splice(i, 1);
+      if (out && e.age > 1.5 && !isBoss) this.enemies.splice(i, 1);
     }
   }
 
@@ -424,7 +500,6 @@ export class GameState {
     }
     e.x = CANVAS.width / 2 + Math.sin(e.age * 0.7) * 150;
 
-    // 전방위 탄막
     e.ringCd = (e.ringCd ?? 2.0) - dt;
     if (e.ringCd <= 0) {
       e.ringCd = BOSS.ringInterval;
@@ -440,7 +515,6 @@ export class GameState {
       }
     }
 
-    // 플레이어 조준 3연사
     e.aimedCd = (e.aimedCd ?? 1.2) - dt;
     if (e.aimedCd <= 0) {
       e.aimedCd = BOSS.aimedInterval;
@@ -454,6 +528,44 @@ export class GameState {
           damage: BOSS.bulletDamage,
         });
       }
+    }
+  }
+
+  /** 세라프: 좌우 유영 + 연속 나선 탄 */
+  private updateBossSeraph(e: Enemy, dt: number): void {
+    if (e.y < 120) {
+      e.y += 90 * dt;
+      return;
+    }
+    e.x = CANVAS.width / 2 + Math.sin(e.age * 1.1) * 170;
+    e.spiralAngle = (e.spiralAngle ?? 0) + dt * 4.5;
+
+    e.ringCd = (e.ringCd ?? 0) - dt;
+    if (e.ringCd <= 0) {
+      e.ringCd = BOSS.spiralInterval;
+      const a = e.spiralAngle;
+      for (const off of [0, Math.PI]) {
+        this.enemyProjectiles.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(a + off) * BOSS.spiralSpeed,
+          vy: Math.sin(a + off) * BOSS.spiralSpeed,
+          radius: 5,
+          damage: BOSS.bulletDamage,
+        });
+      }
+    }
+
+    e.aimedCd = (e.aimedCd ?? 1.8) - dt;
+    if (e.aimedCd <= 0) {
+      e.aimedCd = 2.0;
+      const base = Math.atan2(this.playerY - e.y, this.playerX - e.x);
+      this.enemyProjectiles.push({
+        x: e.x, y: e.y,
+        vx: Math.cos(base) * BOSS.aimedSpeed * 1.1,
+        vy: Math.sin(base) * BOSS.aimedSpeed * 1.1,
+        radius: 8,
+        damage: BOSS.bulletDamage + 4,
+      });
     }
   }
 
@@ -515,7 +627,8 @@ export class GameState {
       let removed = false;
       for (const e of this.enemies) {
         if (p.hitIds.has(e.id)) continue;
-        const rr = p.radius + e.def.radius;
+        const hitR = e.def.radius * (e.elite ? 1.15 : 1);
+        const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           p.hitIds.add(e.id);
           this.damageEnemy(e, p.damage);
@@ -557,24 +670,34 @@ export class GameState {
     if (e.hp <= 0) {
       this.kills++;
       this.comboCount++;
+      this.maxCombo = Math.max(this.maxCombo, this.comboCount);
       this.comboTimer = SCORE.comboWindow;
+
+      const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1));
+      const scoreMul = e.elite ? ELITE.scoreMul : 1;
       this.score += Math.round(
-        Math.max(1, e.def.exp) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus),
+        Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul,
       );
 
-      if (e.def.id === 'boss') {
+      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+      if (isBoss) {
         this.killBoss(e);
       } else {
-        this.events.push({ type: 'enemyDied', x: e.x, y: e.y, color: e.def.color, radius: e.def.radius });
-        // EXP 보석 드롭
+        if (e.elite) this.eliteKills++;
+        this.events.push({
+          type: 'enemyDied',
+          x: e.x, y: e.y,
+          color: e.elite ? '#fbbf24' : e.def.color,
+          radius: e.def.radius * (e.elite ? 1.3 : 1),
+        });
         this.gems.push({
           x: e.x, y: e.y,
-          exp: e.def.exp,
+          exp: Math.max(1, expDrop),
           life: GEM.lifetime,
           magnetized: false,
         });
-        // 낮은 확률로 아이템 드롭
-        if (Math.random() < PICKUPS.dropChance) {
+        const dropRate = PICKUPS.dropChance + this.dropChanceBonus;
+        if ((e.elite && ELITE.guaranteedPickup) || Math.random() < dropRate) {
           const r = Math.random();
           const kind: PickupKind = r < 0.45 ? 'heal' : r < 0.8 ? 'magnet' : 'bomb';
           this.pickups.push({ kind, x: e.x, y: e.y, life: PICKUPS.lifetime });
@@ -586,12 +709,12 @@ export class GameState {
     }
   }
 
-  /** 보스 처치: 보너스 점수 + 보석 샤워 + 아이템 확정 드롭 */
   private killBoss(e: Enemy): void {
     this.bossId = null;
+    this.bossKills++;
     this.score += BOSS.score;
     this.events.push({ type: 'bossDied', x: e.x, y: e.y });
-    this.events.push({ type: 'banner', text: 'BOSS 격파!' });
+    this.events.push({ type: 'banner', text: `${e.def.name} 격파!` });
     for (let k = 0; k < BOSS.gemDrop; k++) {
       this.gems.push({
         x: e.x + (Math.random() - 0.5) * 200,
@@ -627,7 +750,7 @@ export class GameState {
     this.events.push({ type: 'pickup', kind: p.kind, x: p.x, y: p.y });
     switch (p.kind) {
       case 'heal':
-        this.hp = Math.min(PLAYER.maxHp, this.hp + PICKUPS.healAmount);
+        this.hp = Math.min(this.maxHp, this.hp + PICKUPS.healAmount);
         break;
       case 'magnet':
         for (const g of this.gems) g.magnetized = true;
@@ -654,7 +777,7 @@ export class GameState {
       const dy = this.playerY - g.y;
       const dist = Math.hypot(dx, dy);
 
-      if (g.magnetized || dist < PLAYER.magnetRadius) {
+      if (g.magnetized || dist < this.magnetRadius) {
         g.magnetized = true;
         const step = GEM.magnetSpeed * dt;
         g.x += (dx / Math.max(dist, 1)) * step;
@@ -670,7 +793,7 @@ export class GameState {
   }
 
   private gainExp(amount: number): void {
-    this.exp += amount;
+    this.exp += amount * this.expMul;
     while (this.exp >= this.expToNext) {
       this.exp -= this.expToNext;
       this.level++;
@@ -688,18 +811,18 @@ export class GameState {
   private checkPlayerCollision(_dt: number): void {
     if (this.invincibleLeft > 0) return;
     for (const e of this.enemies) {
-      const rr = PLAYER.radius + e.def.radius - 4; // 판정 약간 관대하게
+      const rr = PLAYER.radius + e.def.radius * (e.elite ? 1.15 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
-        this.hurtPlayer(e.def.contactDamage);
+        const dmg = e.def.contactDamage * (e.elite ? ELITE.damageMul : 1);
+        this.hurtPlayer(dmg);
         return;
       }
     }
   }
 
-  /** 접촉/탄환 공용 피격 처리 */
   private hurtPlayer(damage: number): void {
     if (this.invincibleLeft > 0) return;
-    this.hp -= damage;
+    this.hp -= damage * (1 - this.armorReduce);
     this.invincibleLeft = PLAYER.invincibleMs;
     this.events.push({ type: 'playerHit' });
     if (this.hp <= 0) {

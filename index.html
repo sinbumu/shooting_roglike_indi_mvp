@@ -35,6 +35,7 @@
         <div id="banner" class="hidden"></div>
         <div id="combo" class="hidden"></div>
         <div id="slot-tooltip" class="hidden"></div>
+        <div id="passive-slots"></div>
         <div id="weapon-slots"></div>
       </div>
 
@@ -66,11 +67,32 @@
         <button id="pause-restart-btn" class="secondary">다시 시작</button>
       </div>
 
-      <!-- ===== 시작 Overlay ===== -->
+      <!-- ===== 시작 / 격납고 Overlay ===== -->
       <div id="start-overlay" class="overlay">
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">📱 모바일: 화면을 누르면 나타나는 조이스틱으로 이동<br/>🖥️ PC: WASD / 방향키 (ESC: 일시정지)<br/><br/>무기는 자동으로 발사됩니다.<br/>같은 계열 무기 2개를 조합해 상위 무기를 만드세요.<br/><b>5분을 버티면 미션 클리어!</b></p>
-        <button id="start-btn">게임 시작</button>
+        <p class="overlay-sub">기체를 고르고 출격하세요. 크레딧으로 영구 강화·기체 해금.<br/>5분 생존 = 미션 클리어</p>
+        <div id="meta-bar">💰 <span id="meta-credits">0</span></div>
+        <div id="ship-select"></div>
+        <div class="hangar-actions">
+          <button id="start-btn">출격</button>
+          <button id="meta-btn" class="secondary">영구 강화</button>
+          <button id="achv-btn" class="secondary">업적</button>
+        </div>
+      </div>
+
+      <!-- ===== 메타 상점 ===== -->
+      <div id="meta-overlay" class="overlay hidden">
+        <h2 class="overlay-title">HANGAR</h2>
+        <p class="overlay-sub">런 간 영구 업그레이드 · 💰 <span id="meta-shop-credits">0</span></p>
+        <div id="meta-shop"></div>
+        <button id="meta-close-btn" class="secondary">닫기</button>
+      </div>
+
+      <!-- ===== 업적 ===== -->
+      <div id="achv-overlay" class="overlay hidden">
+        <h2 class="overlay-title">ACHIEVEMENTS</h2>
+        <div id="achv-list"></div>
+        <button id="achv-close-btn" class="secondary">닫기</button>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
