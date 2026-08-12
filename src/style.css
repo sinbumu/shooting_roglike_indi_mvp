@@ -194,6 +194,7 @@ html, body {
   color: #f8fafc;
   text-shadow: 0 0 18px rgba(56, 189, 248, 0.8), 0 2px 4px rgba(0, 0, 0, 0.9);
   pointer-events: none;
+  z-index: 30; /* 격납고·상점 오버레이(10)보다 앞 */
 }
 
 #banner.hidden { display: none; }
