@@ -203,6 +203,7 @@ function loop(now: number): void {
   }
 
   processEvents();
+  audio.setCombatIntensity(state.bossId != null ? 1 : 0);
   renderer.render(state, dt);
   ui.updateHUD(state);
   requestAnimationFrame(loop);

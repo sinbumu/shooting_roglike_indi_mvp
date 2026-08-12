@@ -7,6 +7,7 @@ import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
 import type { MetaSave } from './Meta';
 import { upgradeCost } from './Meta';
+import { SPRITE_PATHS } from './assets';
 
 /**
  * DOM Overlay UI (HUD, 격납고, 메타 상점, 업적, 레벨업, 결과)
@@ -145,7 +146,7 @@ export class UI {
       card.className = 'ship-card' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
       card.style.setProperty('--ship-color', ship.color);
       card.innerHTML = `
-        <div class="ship-icon">${ship.icon}</div>
+        <div class="ship-icon"><img src="${SPRITE_PATHS.ships[ship.id]}" alt="" width="48" height="48" /></div>
         <div class="ship-name">${ship.name}</div>
         <div class="ship-desc">${ship.desc}</div>
         <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul}<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}</div>

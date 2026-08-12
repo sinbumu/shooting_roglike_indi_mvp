@@ -17,11 +17,25 @@ interface NoiseOpts {
   /** 밴드패스 중심 주파수 */
   freq?: number;
   delay?: number;
+  /** 하이패스(킥/하이햇 구분) */
+  highpass?: number;
+}
+
+/** CSS hex → 대략적 피치 바이어스 (발사음 색 변화) */
+function colorPitchBias(color: string): number {
+  const n = parseInt(color.replace('#', '').slice(0, 6), 16);
+  if (Number.isNaN(n)) return 0;
+  const r = (n >> 16) & 0xff;
+  const g = (n >> 8) & 0xff;
+  const b = n & 0xff;
+  // 차가운 색(청/녹) ↑, 따뜻한 색(적/주황) ↓
+  return ((b + g * 0.5 - r) / 255) * 180;
 }
 
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private bgmBus: GainNode | null = null;
   private muted = false;
 
   private noiseBuffer: AudioBuffer | null = null;
@@ -34,6 +48,9 @@ export class AudioManager {
   private nextNoteTime = 0;
   private bgmInterval: number | null = null;
 
+  /** 0 = 평시, 1 = 보스전 (BGM 덕킹) */
+  private combatIntensity = 0;
+
   /** 사용자 제스처 안에서 호출 (여러 번 호출해도 안전) */
   init(): void {
     if (this.ctx) {
@@ -45,7 +62,11 @@ export class AudioManager {
     this.master.gain.value = this.muted ? 0 : 0.5;
     this.master.connect(this.ctx.destination);
 
-    // 화이트 노이즈 버퍼 (폭발음용)
+    this.bgmBus = this.ctx.createGain();
+    this.bgmBus.gain.value = 1;
+    this.bgmBus.connect(this.master);
+
+    // 화이트 노이즈 버퍼 (폭발·퍼커션용)
     const len = Math.floor(this.ctx.sampleRate * 0.5);
     this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const data = this.noiseBuffer.getChannelData(0);
@@ -70,6 +91,17 @@ export class AudioManager {
     void this.ctx?.resume();
   }
 
+  /**
+   * 전투 강도 (보스 중이면 1). BGM을 살짝 덕킹하고 킥을 강조한다.
+   * main에서 bossId 유무로 매 프레임/상태 변화 시 호출.
+   */
+  setCombatIntensity(v: number): void {
+    this.combatIntensity = Math.max(0, Math.min(1, v));
+    if (!this.ctx || !this.bgmBus) return;
+    const target = 1 - this.combatIntensity * 0.35;
+    this.bgmBus.gain.setTargetAtTime(target, this.ctx.currentTime, 0.25);
+  }
+
   // ==========================================================
   // 이벤트 → 효과음 매핑
   // ==========================================================
@@ -79,83 +111,120 @@ export class AudioManager {
     const now = performance.now();
 
     switch (ev.type) {
-      case 'fired':
-        if (now - this.lastShotAt < 80) return; // 연사 스팸 방지
+      case 'fired': {
+        if (now - this.lastShotAt < 80) return;
         this.lastShotAt = now;
-        this.tone(700, 0.06, { type: 'square', slideTo: 180, gain: 0.022 });
+        const bias = colorPitchBias(ev.color);
+        const base = 620 + bias;
+        const wave: OscillatorType = bias > 40 ? 'triangle' : bias < -40 ? 'sawtooth' : 'square';
+        this.tone(base, 0.055, { type: wave, slideTo: 140 + bias * 0.2, gain: 0.02 });
+        this.tone(base * 1.5, 0.035, { type: 'sine', slideTo: base * 0.4, gain: 0.01, delay: 0.008 });
         break;
+      }
 
       case 'enemyHit':
         if (now - this.lastHitAt < 70) return;
         this.lastHitAt = now;
-        this.tone(320, 0.03, { type: 'square', slideTo: 240, gain: 0.015 });
+        this.tone(340, 0.028, { type: 'square', slideTo: 220, gain: 0.012 });
+        this.noise(0.04, { gain: 0.035, freq: 900, highpass: 600 });
         break;
 
-      case 'enemyDied':
-        this.noise(0.22, { gain: 0.11, freq: 500 });
-        this.tone(150, 0.2, { type: 'sawtooth', slideTo: 40, gain: 0.08 });
+      case 'enemyDied': {
+        const big = ev.radius >= 22;
+        const huge = ev.radius >= 36;
+        const dur = huge ? 0.55 : big ? 0.35 : 0.2;
+        const low = huge ? 70 : big ? 110 : 160;
+        this.noise(dur, { gain: huge ? 0.2 : big ? 0.14 : 0.1, freq: huge ? 220 : 480 });
+        this.noise(dur * 0.6, { gain: 0.06, freq: 1200, highpass: 800, delay: 0.02 });
+        this.tone(low, dur * 0.95, { type: 'sawtooth', slideTo: 28, gain: huge ? 0.12 : 0.08 });
+        if (big) {
+          this.tone(low * 1.8, dur * 0.5, { type: 'triangle', slideTo: 50, gain: 0.04, delay: 0.04 });
+        }
         break;
+      }
 
       case 'gemPickup':
         if (now - this.lastGemAt < 50) return;
         this.lastGemAt = now;
-        this.tone(700 + Math.random() * 250, 0.08, { type: 'sine', slideTo: 1500, gain: 0.045 });
-        break;
-
-      case 'playerHit':
-        this.noise(0.3, { gain: 0.22, freq: 220 });
-        this.tone(120, 0.28, { type: 'sawtooth', slideTo: 45, gain: 0.14 });
-        break;
-
-      case 'levelUp':
-        [523, 659, 784, 1047].forEach((f, i) =>
-          this.tone(f, 0.14, { type: 'triangle', gain: 0.09, delay: i * 0.07 }),
-        );
-        break;
-
-      case 'bossWarn':
-        for (let i = 0; i < 4; i++) {
-          this.tone(i % 2 === 0 ? 620 : 440, 0.16, { type: 'square', gain: 0.07, delay: i * 0.18 });
+        {
+          const root = 740 + Math.random() * 180;
+          this.tone(root, 0.06, { type: 'sine', gain: 0.04 });
+          this.tone(root * 1.25, 0.07, { type: 'sine', gain: 0.03, delay: 0.035 });
+          this.tone(root * 1.5, 0.08, { type: 'triangle', gain: 0.025, delay: 0.07 });
         }
         break;
 
+      case 'playerHit':
+        this.noise(0.32, { gain: 0.22, freq: 200 });
+        this.noise(0.18, { gain: 0.08, freq: 700, highpass: 400, delay: 0.02 });
+        this.tone(110, 0.3, { type: 'sawtooth', slideTo: 40, gain: 0.14 });
+        break;
+
+      case 'levelUp':
+        [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) =>
+          this.tone(f, 0.12, { type: 'triangle', gain: 0.085, delay: i * 0.055 }),
+        );
+        this.tone(523.25 * 2, 0.2, { type: 'sine', gain: 0.04, delay: 0.28 });
+        break;
+
+      case 'bossWarn':
+        // 사이렌 교대
+        for (let i = 0; i < 5; i++) {
+          const hi = i % 2 === 0;
+          this.tone(hi ? 680 : 420, 0.15, {
+            type: 'square',
+            slideTo: hi ? 520 : 560,
+            gain: 0.065,
+            delay: i * 0.16,
+          });
+        }
+        this.noise(0.4, { gain: 0.06, freq: 180, delay: 0.05 });
+        break;
+
       case 'bossSpawned':
-        this.noise(0.5, { gain: 0.18, freq: 150 });
-        this.tone(80, 0.5, { type: 'sawtooth', slideTo: 40, gain: 0.12 });
+        this.noise(0.55, { gain: 0.2, freq: 120 });
+        this.tone(55, 0.65, { type: 'sawtooth', slideTo: 32, gain: 0.15 });
+        this.tone(110, 0.4, { type: 'triangle', slideTo: 55, gain: 0.06, delay: 0.08 });
         break;
 
       case 'bossDied':
-        this.noise(0.7, { gain: 0.3, freq: 300 });
-        this.tone(200, 0.65, { type: 'sawtooth', slideTo: 28, gain: 0.14 });
-        [523, 659, 784].forEach((f, i) =>
-          this.tone(f, 0.16, { type: 'triangle', gain: 0.08, delay: 0.35 + i * 0.09 }),
+        this.noise(0.75, { gain: 0.28, freq: 260 });
+        this.noise(0.5, { gain: 0.1, freq: 900, highpass: 500, delay: 0.05 });
+        this.tone(180, 0.7, { type: 'sawtooth', slideTo: 24, gain: 0.14 });
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) =>
+          this.tone(f, 0.18, { type: 'triangle', gain: 0.075, delay: 0.32 + i * 0.08 }),
         );
         break;
 
       case 'pickup':
         if (ev.kind === 'heal') {
-          this.tone(880, 0.1, { type: 'sine', slideTo: 1320, gain: 0.07 });
+          [660, 880, 1100].forEach((f, i) =>
+            this.tone(f, 0.09, { type: 'sine', gain: 0.055, delay: i * 0.05 }),
+          );
         } else if (ev.kind === 'magnet') {
-          this.tone(300, 0.28, { type: 'sine', slideTo: 1400, gain: 0.06 });
+          this.tone(280, 0.32, { type: 'sine', slideTo: 1500, gain: 0.055 });
+          this.tone(420, 0.2, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.06 });
         }
-        // bomb은 별도 'bomb' 이벤트에서 폭발음 재생
         break;
 
       case 'bomb':
-        this.noise(0.6, { gain: 0.28, freq: 180 });
-        this.tone(90, 0.55, { type: 'sawtooth', slideTo: 30, gain: 0.16 });
+        this.noise(0.65, { gain: 0.28, freq: 160 });
+        this.noise(0.35, { gain: 0.1, freq: 1100, highpass: 700, delay: 0.03 });
+        this.tone(85, 0.58, { type: 'sawtooth', slideTo: 28, gain: 0.16 });
         break;
 
       case 'victory':
-        [523, 659, 784, 1047, 1319].forEach((f, i) =>
-          this.tone(f, 0.22, { type: 'triangle', gain: 0.1, delay: i * 0.13 }),
+        [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) =>
+          this.tone(f, 0.2, { type: 'triangle', gain: 0.095, delay: i * 0.12 }),
         );
+        this.tone(1568, 0.35, { type: 'sine', gain: 0.05, delay: 0.65 });
         break;
 
       case 'gameover':
         [392, 330, 262, 196].forEach((f, i) =>
-          this.tone(f, 0.3, { type: 'triangle', gain: 0.09, delay: i * 0.22 }),
+          this.tone(f, 0.32, { type: 'triangle', gain: 0.085, delay: i * 0.2 }),
         );
+        this.noise(0.4, { gain: 0.08, freq: 140, delay: 0.1 });
         break;
 
       default:
@@ -185,6 +254,25 @@ export class AudioManager {
     osc.stop(t0 + dur + 0.02);
   }
 
+  /** BGM 전용 톤 (덕킹 버스 경유) */
+  private bgmTone(freq: number, dur: number, opts: ToneOpts = {}): void {
+    if (!this.ctx || !this.bgmBus) return;
+    const t0 = this.ctx.currentTime + (opts.delay ?? 0);
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = opts.type ?? 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    if (opts.slideTo !== undefined) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(1, opts.slideTo), t0 + dur);
+    }
+    const vol = opts.gain ?? 0.05;
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(g).connect(this.bgmBus);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+
   private noise(dur: number, opts: NoiseOpts = {}): void {
     if (!this.ctx || !this.master || !this.noiseBuffer) return;
     const t0 = this.ctx.currentTime + (opts.delay ?? 0);
@@ -192,9 +280,12 @@ export class AudioManager {
     src.buffer = this.noiseBuffer;
     src.loop = true;
     const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = opts.freq ?? 400;
-    filter.Q.value = 0.8;
+    filter.type = opts.highpass ? 'highpass' : 'bandpass';
+    filter.frequency.value = opts.highpass ?? opts.freq ?? 400;
+    filter.Q.value = opts.highpass ? 0.5 : 0.8;
+    if (opts.highpass && opts.freq) {
+      // 하이패스 뒤 밴드 느낌은 gain만으로 충분
+    }
     const g = this.ctx.createGain();
     const vol = opts.gain ?? 0.15;
     g.gain.setValueAtTime(vol, t0);
@@ -204,8 +295,27 @@ export class AudioManager {
     src.stop(t0 + dur + 0.02);
   }
 
+  private bgmNoise(dur: number, opts: NoiseOpts = {}): void {
+    if (!this.ctx || !this.bgmBus || !this.noiseBuffer) return;
+    const t0 = this.ctx.currentTime + (opts.delay ?? 0);
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    src.loop = true;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = opts.highpass ? 'highpass' : 'bandpass';
+    filter.frequency.value = opts.highpass ?? opts.freq ?? 400;
+    filter.Q.value = 0.7;
+    const g = this.ctx.createGain();
+    const vol = opts.gain ?? 0.04;
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    src.connect(filter).connect(g).connect(this.bgmBus);
+    src.start(t0);
+    src.stop(t0 + dur + 0.02);
+  }
+
   // ==========================================================
-  // BGM — Am → F → C → G 진행의 심플한 신스 루프
+  // BGM — Am → F → C → G + 킥/하이햇 펄스·옥타브 변주
   // ==========================================================
 
   private startBgm(): void {
@@ -216,10 +326,10 @@ export class AudioManager {
   }
 
   private scheduleBgm(): void {
-    if (!this.ctx || !this.master) return;
+    if (!this.ctx || !this.bgmBus) return;
     const eighth = 60 / 132 / 2; // 132 BPM, 8분음표
+    const kickBoost = 1 + this.combatIntensity * 0.45;
 
-    // 코드 진행 (각 코드 16스텝 = 2마디)
     const bassRoots = [110, 87.31, 130.81, 98]; // A2, F2, C3, G2
     const chordTones = [
       [220, 261.63, 329.63], // Am
@@ -233,14 +343,31 @@ export class AudioManager {
       const step = this.bgmStep % 64;
       const chord = Math.floor(step / 16);
       const delay = this.nextNoteTime - this.ctx.currentTime;
+      const barStep = step % 16;
+      const octaveUp = Math.floor(this.bgmStep / 64) % 2 === 1;
+
+      // 킥식 노이즈 펄스 (4분음표 on 1·3)
+      if (barStep % 4 === 0) {
+        this.bgmNoise(0.08, { gain: 0.045 * kickBoost, freq: 80, delay });
+        this.bgmTone(bassRoots[chord] * 0.5, eighth * 1.2, {
+          type: 'triangle',
+          slideTo: bassRoots[chord] * 0.35,
+          gain: 0.035 * kickBoost,
+          delay,
+        });
+      }
+      // 하이햇식 펄스 (오프비트)
+      if (barStep % 2 === 1) {
+        this.bgmNoise(0.035, { gain: 0.018 + this.combatIntensity * 0.012, highpass: 4500, delay });
+      }
 
       // 베이스 (4분음표)
       if (step % 2 === 0) {
-        this.tone(bassRoots[chord], eighth * 1.8, { type: 'triangle', gain: 0.05, delay });
+        this.bgmTone(bassRoots[chord], eighth * 1.8, { type: 'triangle', gain: 0.048, delay });
       }
-      // 아르페지오 (8분음표)
-      const tone = chordTones[chord][arpOrder[step % 4]];
-      this.tone(tone, eighth * 0.85, { type: 'sine', gain: 0.028, delay });
+      // 아르페지오 (8분음표) — 격 마디마다 옥타브 업
+      const tone = chordTones[chord][arpOrder[step % 4]] * (octaveUp ? 2 : 1);
+      this.bgmTone(tone, eighth * 0.85, { type: 'sine', gain: octaveUp ? 0.022 : 0.028, delay });
 
       this.bgmStep++;
       this.nextNoteTime += eighth;

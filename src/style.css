@@ -373,7 +373,13 @@ button.secondary {
 
 .ship-card.locked { opacity: 0.72; }
 
-.ship-icon { font-size: 22px; }
+.ship-icon { font-size: 22px; line-height: 0; }
+.ship-icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: auto;
+}
 .ship-name { font-size: 15px; font-weight: 800; margin: 2px 0; }
 .ship-desc, .ship-meta { font-size: 11px; color: #94a3b8; line-height: 1.4; }
 .ship-status { font-size: 11px; font-weight: 800; margin-top: 4px; color: #7dd3fc; }

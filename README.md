@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| **상태** | 로컬 완결형 MVP (스테이지·도전·메타) — 2026-08 |
+| **상태** | 로컬 완결형 MVP (스테이지·도전·메타·스프라이트) — 2026-08 |
 | **플레이** | https://sinbumu.github.io/shooting_roglike_indi_mvp/ |
 | **기획/콘텐츠 현황** | **[DESIGN.md](./DESIGN.md)** |
 | **발표 참고** | [REPORT.md](./REPORT.md) |
@@ -52,7 +52,8 @@ npm run preview
 
 ## 기술 스택
 
-- Vite + TypeScript (strict) + PixiJS v8 + DOM UI + Web Audio (애셋 파일 없음)
+- Vite + TypeScript (strict) + PixiJS v8 + DOM UI + Web Audio (프로시저럴, 외부 음원 없음)
+- 스프라이트: `public/assets/sprites/` (기체·적·보스·픽업 PNG)
 
 ## 아키텍처
 
@@ -60,13 +61,16 @@ npm run preview
 src/
 ├── GameConfig.ts    # ★ 밸런스·콘텐츠 데이터 (기획 실험의 주 무대)
 ├── types.ts
+├── assets.ts        # 스프라이트 경로·로드
 ├── GameState.ts     # 게임 로직
-├── Renderer.ts      # PixiJS + 이펙트
-├── Audio.ts         # 효과음·BGM
+├── Renderer.ts      # PixiJS + 스프라이트·이펙트
+├── Audio.ts         # 프로시저럴 효과음·BGM
 ├── LevelUpSystem.ts # 3선택지
 ├── UI.ts            # HUD·오버레이
+├── Meta.ts          # 메타 진행·업적
 ├── main.ts          # 루프·입력
 └── style.css
+public/assets/sprites/  # ship_*/enemy_*/boss_*/pickup_*.png
 ```
 
 로직 / 렌더 / UI 분리. 수치 변경은 대부분 `GameConfig.ts`만으로 가능합니다.

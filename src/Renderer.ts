@@ -1,6 +1,8 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
 import { CANVAS, PLAYER, PICKUPS } from './GameConfig';
+import { loadSpriteAtlas, type SpriteAtlas } from './assets';
+import type { EnemyId, PickupKind, ShipId } from './types';
 
 // ============================================================
 // PixiJS(WebGL) 렌더러 — GameState를 읽기만 하고 변경하지 않는다.
@@ -84,6 +86,42 @@ class FramePool {
   }
 }
 
+/** 매 프레임 텍스처를 바꿀 수 있는 일반 스프라이트 풀 */
+class EntityPool {
+  private sprites: Sprite[] = [];
+  private used = 0;
+
+  constructor(private layer: Container) {}
+
+  begin(): void {
+    this.used = 0;
+  }
+
+  get(tex: Texture): Sprite {
+    let s = this.sprites[this.used];
+    if (!s) {
+      s = new Sprite(tex);
+      s.anchor.set(0.5);
+      this.layer.addChild(s);
+      this.sprites.push(s);
+    }
+    s.texture = tex;
+    s.visible = true;
+    s.tint = 0xffffff;
+    s.alpha = 1;
+    s.rotation = 0;
+    s.scale.set(1);
+    this.used++;
+    return s;
+  }
+
+  end(): void {
+    for (let i = this.used; i < this.sprites.length; i++) {
+      this.sprites[i].visible = false;
+    }
+  }
+}
+
 // ------------------------------------------------------------
 // 프로시저럴 텍스처 생성 (외부 애셋 없이 글로우/링을 만든다)
 // ------------------------------------------------------------
@@ -137,12 +175,16 @@ export class Renderer {
   private warnG = new Graphics();
   private flashG = new Graphics();
   private glowLayer = new Container();
+  private spriteLayer = new Container();
   private fxLayer = new Container();
   private textLayer = new Container();
 
   private glowTex!: Texture;
   private ringTex!: Texture;
   private glowPool!: FramePool;
+  private entityPool!: EntityPool;
+  private playerSprite: Sprite | null = null;
+  private atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, ready: false };
 
   private particles: Particle[] = [];
   private freeSprites: Sprite[] = [];
@@ -175,9 +217,11 @@ export class Renderer {
     this.glowTex = makeGlowTexture();
     this.ringTex = makeRingTexture();
     this.glowPool = new FramePool(this.glowLayer, this.glowTex);
+    this.entityPool = new EntityPool(this.spriteLayer);
+    this.atlas = await loadSpriteAtlas();
 
     this.world.addChild(
-      this.bgG, this.starG, this.projG, this.enemyG, this.gemG, this.pickupG,
+      this.bgG, this.starG, this.projG, this.spriteLayer, this.enemyG, this.gemG, this.pickupG,
       this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.textLayer, this.warnG,
     );
     this.app.stage.addChild(this.world, this.flashG);
@@ -204,6 +248,7 @@ export class Renderer {
     this.updateFlash(dt);
 
     this.glowPool.begin();
+    this.entityPool.begin();
     this.coreG.clear();
 
     this.drawBackground(state);
@@ -216,6 +261,7 @@ export class Renderer {
     this.drawPlayer(state, dt);
     this.drawWarnings(state);
 
+    this.entityPool.end();
     this.glowPool.end();
     this.app.render();
   }
@@ -539,9 +585,10 @@ export class Renderer {
     g.clear();
     const { playerX: x, playerY: y } = state;
 
+    if (this.playerSprite) this.playerSprite.visible = false;
+
     if (state.status === 'ready' || state.status === 'gameover') return;
 
-    // 엔진 트레일 파티클 (플레이 중에만)
     if (state.status === 'playing' && dt > 0) {
       this.spawnParticle({
         x: x + (Math.random() - 0.5) * 6,
@@ -555,17 +602,31 @@ export class Renderer {
       });
     }
 
-    // 무적 시간 동안 깜빡임
     if (state.invincibleLeft > 0 && Math.floor(this.elapsed * 14) % 2 === 0) return;
 
-    // 엔진 글로우
     const engine = this.glowPool.get();
     engine.tint = 0xfb923c;
     engine.position.set(x, y + 14);
     engine.width = engine.height = 26 + Math.sin(this.elapsed * 28) * 7;
     engine.alpha = 0.9;
 
-    // 기체
+    const shipTex = this.atlas.ships[state.shipId as ShipId];
+    if (shipTex) {
+      if (!this.playerSprite) {
+        this.playerSprite = new Sprite(shipTex);
+        this.playerSprite.anchor.set(0.5);
+        this.spriteLayer.addChild(this.playerSprite);
+      }
+      this.playerSprite.texture = shipTex;
+      this.playerSprite.visible = true;
+      this.playerSprite.position.set(x, y);
+      const size = PLAYER.radius * 3.2;
+      this.playerSprite.width = size;
+      this.playerSprite.height = size;
+      return;
+    }
+
+    // Graphics 폴백
     g.poly([x, y - PLAYER.radius - 4, x - 13, y + 10, x - 4, y + 6, x, y + 9, x + 4, y + 6, x + 13, y + 10], true)
       .fill(0x7dd3fc)
       .stroke({ width: 1.5, color: 0xe0f2fe });
@@ -577,68 +638,81 @@ export class Renderer {
     g.clear();
     for (const e of state.enemies) {
       const r = e.def.radius * (e.elite ? 1.2 : 1);
-      const color = e.hitFlash > 0 ? 0xffffff : (e.elite ? 0xfbbf24 : hex(e.def.color));
       const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+      const tex = this.atlas.enemies[e.def.id as EnemyId];
 
-      let pts: number[] = [];
-      switch (e.def.id) {
-        case 'drone':
-          pts = [0, r, -r, -r * 0.7, r, -r * 0.7];
-          break;
-        case 'zigzag':
-          pts = [0, r, -r, 0, 0, -r, r, 0];
-          break;
-        case 'dasher':
-          pts = [e.dir * r, 0, -e.dir * r, -r * 0.8, -e.dir * r * 0.3, 0, -e.dir * r, r * 0.8];
-          break;
-        case 'rusher':
-          pts = [0, -r, -r * 0.9, r * 0.8, 0, r * 0.3, r * 0.9, r * 0.8];
-          break;
-        case 'tank':
-          pts = [-r * 0.9, -r * 0.9, r * 0.9, -r * 0.9, r * 0.9, r * 0.9, -r * 0.9, r * 0.9];
-          break;
-        case 'boss':
-        case 'bossSeraph': {
-          const sides = e.def.id === 'bossSeraph' ? 8 : 6;
-          for (let k = 0; k < sides; k++) {
-            const a = (k / sides) * Math.PI * 2 + e.age * 0.5;
-            pts.push(Math.cos(a) * r, Math.sin(a) * r);
-          }
-          break;
+      if (tex) {
+        const spr = this.entityPool.get(tex);
+        spr.position.set(e.x, e.y);
+        const size = r * 2.4;
+        spr.width = size;
+        spr.height = size;
+        if (e.def.id === 'dasher') {
+          spr.rotation = e.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+        } else {
+          spr.rotation = 0;
         }
-      }
-      const abs: number[] = [];
-      for (let i = 0; i < pts.length; i += 2) abs.push(e.x + pts[i], e.y + pts[i + 1]);
-      g.poly(abs, true).fill(color).stroke({
-        width: e.elite ? 2.5 : 1.5,
-        color: e.elite ? 0xfde68a : 0xffffff,
-        alpha: e.elite ? 0.9 : 0.35,
-      });
+        if (e.hitFlash > 0) spr.tint = 0xffffff;
+        else if (e.elite) spr.tint = 0xfbbf24;
+        else spr.tint = 0xffffff;
 
-      if (e.elite) {
-        const glow = this.glowPool.get();
-        glow.tint = 0xfbbf24;
-        glow.position.set(e.x, e.y);
-        glow.width = glow.height = r * 3.2;
-        glow.alpha = 0.55;
-      }
-
-      if (e.def.id === 'boss') {
-        g.circle(e.x, e.y, r * 0.45).fill(0x7f1d1d);
-        g.circle(e.x, e.y, r * 0.28).fill(0xfca5a5);
-        const glow = this.glowPool.get();
-        glow.tint = 0xdc2626;
-        glow.position.set(e.x, e.y);
-        glow.width = glow.height = r * 4 + Math.sin(this.elapsed * 4) * 14;
-        glow.alpha = 0.5;
-      } else if (e.def.id === 'bossSeraph') {
-        g.circle(e.x, e.y, r * 0.4).fill(0x0c4a6e);
-        g.circle(e.x, e.y, r * 0.22).fill(0xbae6fd);
-        const glow = this.glowPool.get();
-        glow.tint = 0x38bdf8;
-        glow.position.set(e.x, e.y);
-        glow.width = glow.height = r * 4.2 + Math.sin(this.elapsed * 5) * 12;
-        glow.alpha = 0.55;
+        if (e.elite) {
+          const glow = this.glowPool.get();
+          glow.tint = 0xfbbf24;
+          glow.position.set(e.x, e.y);
+          glow.width = glow.height = r * 3.2;
+          glow.alpha = 0.55;
+        }
+        if (e.def.id === 'boss') {
+          const glow = this.glowPool.get();
+          glow.tint = 0xdc2626;
+          glow.position.set(e.x, e.y);
+          glow.width = glow.height = r * 4 + Math.sin(this.elapsed * 4) * 14;
+          glow.alpha = 0.45;
+        } else if (e.def.id === 'bossSeraph') {
+          const glow = this.glowPool.get();
+          glow.tint = 0x38bdf8;
+          glow.position.set(e.x, e.y);
+          glow.width = glow.height = r * 4.2 + Math.sin(this.elapsed * 5) * 12;
+          glow.alpha = 0.5;
+        }
+      } else {
+        // Graphics 폴백
+        const color = e.hitFlash > 0 ? 0xffffff : (e.elite ? 0xfbbf24 : hex(e.def.color));
+        let pts: number[] = [];
+        switch (e.def.id) {
+          case 'drone':
+            pts = [0, r, -r, -r * 0.7, r, -r * 0.7];
+            break;
+          case 'zigzag':
+            pts = [0, r, -r, 0, 0, -r, r, 0];
+            break;
+          case 'dasher':
+            pts = [e.dir * r, 0, -e.dir * r, -r * 0.8, -e.dir * r * 0.3, 0, -e.dir * r, r * 0.8];
+            break;
+          case 'rusher':
+            pts = [0, -r, -r * 0.9, r * 0.8, 0, r * 0.3, r * 0.9, r * 0.8];
+            break;
+          case 'tank':
+            pts = [-r * 0.9, -r * 0.9, r * 0.9, -r * 0.9, r * 0.9, r * 0.9, -r * 0.9, r * 0.9];
+            break;
+          case 'boss':
+          case 'bossSeraph': {
+            const sides = e.def.id === 'bossSeraph' ? 8 : 6;
+            for (let k = 0; k < sides; k++) {
+              const a = (k / sides) * Math.PI * 2 + e.age * 0.5;
+              pts.push(Math.cos(a) * r, Math.sin(a) * r);
+            }
+            break;
+          }
+        }
+        const abs: number[] = [];
+        for (let i = 0; i < pts.length; i += 2) abs.push(e.x + pts[i], e.y + pts[i + 1]);
+        g.poly(abs, true).fill(color).stroke({
+          width: e.elite ? 2.5 : 1.5,
+          color: e.elite ? 0xfde68a : 0xffffff,
+          alpha: e.elite ? 0.9 : 0.35,
+        });
       }
 
       if (e.hp < e.maxHp && !isBoss) {
@@ -661,17 +735,17 @@ export class Renderer {
     }
   }
 
-  /** 드롭 아이템: 회복(십자) / 자석(U자) / 폭탄(구체) */
+  /** 드롭 아이템 */
   private drawPickups(state: GameState): void {
     const g = this.pickupG;
     g.clear();
     for (const p of state.pickups) {
-      // 만료 직전 깜빡임
       if (p.life < 3 && Math.floor(this.elapsed * 8) % 2 === 0) continue;
 
       const bob = Math.sin(this.elapsed * 4 + p.x) * 3;
       const y = p.y + bob;
       const tint = p.kind === 'heal' ? 0x4ade80 : p.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
+      const tex = this.atlas.pickups[p.kind as PickupKind];
 
       const glow = this.glowPool.get();
       glow.tint = tint;
@@ -679,17 +753,25 @@ export class Renderer {
       glow.width = glow.height = 40 + Math.sin(this.elapsed * 6) * 6;
       glow.alpha = 0.7;
 
-      g.circle(p.x, y, PICKUPS.radius + 3).fill({ color: 0x0f172a, alpha: 0.85 }).stroke({ width: 2, color: tint });
-      if (p.kind === 'heal') {
-        g.rect(p.x - 6, y - 2, 12, 4).fill(tint);
-        g.rect(p.x - 2, y - 6, 4, 12).fill(tint);
-      } else if (p.kind === 'magnet') {
-        g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
-        g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
-        g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
+      if (tex) {
+        const spr = this.entityPool.get(tex);
+        spr.position.set(p.x, y);
+        const size = (PICKUPS.radius + 3) * 2.6;
+        spr.width = size;
+        spr.height = size;
       } else {
-        g.circle(p.x, y + 1, 6).fill(tint);
-        g.rect(p.x - 1, y - 8, 2, 5).fill(0xfde68a);
+        g.circle(p.x, y, PICKUPS.radius + 3).fill({ color: 0x0f172a, alpha: 0.85 }).stroke({ width: 2, color: tint });
+        if (p.kind === 'heal') {
+          g.rect(p.x - 6, y - 2, 12, 4).fill(tint);
+          g.rect(p.x - 2, y - 6, 4, 12).fill(tint);
+        } else if (p.kind === 'magnet') {
+          g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
+          g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
+          g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
+        } else {
+          g.circle(p.x, y + 1, 6).fill(tint);
+          g.rect(p.x - 1, y - 8, 2, 5).fill(0xfde68a);
+        }
       }
     }
   }
