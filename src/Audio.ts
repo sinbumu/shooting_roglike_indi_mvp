@@ -196,6 +196,41 @@ export class AudioManager {
         );
         break;
 
+      case 'bossPhase':
+        this.noise(0.35, { gain: 0.16, freq: 200 });
+        this.tone(90, 0.4, { type: 'sawtooth', slideTo: 50, gain: 0.1 });
+        [440, 554, 659].forEach((f, i) =>
+          this.tone(f, 0.12, { type: 'square', gain: 0.05, delay: i * 0.06 }),
+        );
+        break;
+
+      case 'jackpot':
+        // 슬롯머신식 피치 급상승
+        [392, 523, 659, 784, 988, 1319, 1568].forEach((f, i) =>
+          this.tone(f, 0.09, { type: 'square', gain: 0.07, delay: i * 0.04 }),
+        );
+        this.tone(2093, 0.35, { type: 'triangle', gain: 0.09, delay: 0.32 });
+        this.noise(0.2, { gain: 0.08, freq: 2000, highpass: 1200, delay: 0.1 });
+        break;
+
+      case 'riftWarn':
+        for (let i = 0; i < 4; i++) {
+          this.tone(i % 2 === 0 ? 180 : 320, 0.14, {
+            type: 'sawtooth',
+            slideTo: i % 2 === 0 ? 90 : 200,
+            gain: 0.08,
+            delay: i * 0.14,
+          });
+        }
+        this.noise(0.45, { gain: 0.12, freq: 140 });
+        break;
+
+      case 'riftReward':
+        [523, 784, 1047].forEach((f, i) =>
+          this.tone(f, 0.14, { type: 'triangle', gain: 0.08, delay: i * 0.07 }),
+        );
+        break;
+
       case 'pickup':
         if (ev.kind === 'heal') {
           [660, 880, 1100].forEach((f, i) =>

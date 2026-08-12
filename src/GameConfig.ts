@@ -3,6 +3,7 @@ import type {
   ShipDef, ShipId, PassiveDef, PassiveId,
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
+  AffixId, StatBoostId, TacticalId,
 } from './types';
 
 // ============================================================
@@ -308,6 +309,118 @@ export const BOSS = {
   spiralSpeed: 200,
   /** 처치 보너스 점수 */
   score: 5000,
+  /** HP 비율 이하에서 페이즈 2 (1회) */
+  phaseHpRatio: 0.5,
+  /** 페이즈 전환 시 보석 수 = gemDrop * 이 값 */
+  phaseGemMul: 0.6,
+  /** 페이즈 2 탄막 간격 배율 (<1 = 더 빽빽) */
+  phaseFireRateMul: 0.75,
+} as const;
+
+export const COMBAT = {
+  baseCritChance: 0.08,
+  baseCritMul: 1.5,
+} as const;
+
+/** 한계 돌파 — 슬롯/강화 소진 후 레벨업 풀 */
+export const ENDGAME = {
+  stats: {
+    projSpeed: {
+      id: 'projSpeed' as StatBoostId,
+      title: '투사체 가속',
+      desc: '투사체 속도 +2%',
+      icon: '💨',
+      color: '#7dd3fc',
+      amount: 0.02,
+      weight: 40,
+    },
+    critMul: {
+      id: 'critMul' as StatBoostId,
+      title: '치명 증폭',
+      desc: '치명타 배율 +5%',
+      icon: '💥',
+      color: '#fbbf24',
+      amount: 0.05,
+      weight: 40,
+    },
+    moveSpeed: {
+      id: 'moveSpeed' as StatBoostId,
+      title: '기동 한계돌파',
+      desc: '이동 속도 +3%',
+      icon: '⚡',
+      color: '#a5b4fc',
+      amount: 0.03,
+      weight: 40,
+    },
+  },
+  /** Tier3 조합 성공 시 어픽스 부여 확률 */
+  tier3AffixChance: 0.4,
+} as const;
+
+export const TACTICAL: Record<TacticalId, {
+  id: TacticalId;
+  title: string;
+  desc: string;
+  icon: string;
+  color: string;
+  weight: number;
+  duration?: number;
+  magnetMul?: number;
+  expMul?: number;
+}> = {
+  emp: {
+    id: 'emp', title: 'EMP 폭발',
+    desc: '화면 적 탄 소멸 · 잡몹 제거 · 보스에 큰 피해',
+    icon: '📡', color: '#38bdf8', weight: 28,
+  },
+  shield: {
+    id: 'shield', title: '과충전 쉴드',
+    desc: '10초간 무적 (충돌·탄 피해 무시)',
+    icon: '🛡️', color: '#86efac', weight: 28, duration: 10,
+  },
+  magnetStorm: {
+    id: 'magnetStorm', title: '자기장 폭주',
+    desc: '15초간 자석 300% · 경험치 1.5배',
+    icon: '🧲', color: '#c084fc', weight: 28, duration: 15,
+    magnetMul: 3, expMul: 1.5,
+  },
+};
+
+export const AFFIXES: Record<AffixId, {
+  id: AffixId;
+  name: string;
+  label: string;
+  desc: string;
+  icon: string;
+  color: string;
+  weight: number;
+}> = {
+  split: {
+    id: 'split', name: '분열', label: '[분열]',
+    desc: '명중 소멸 시 3갈래로 쪼개짐',
+    icon: '✳️', color: '#f472b6', weight: 30,
+  },
+  pierce: {
+    id: 'pierce', name: '관통', label: '[관통]',
+    desc: '투사체 관통 횟수 +2',
+    icon: '➡️', color: '#4ade80', weight: 30,
+  },
+  chain: {
+    id: 'chain', name: '연쇄', label: '[연쇄]',
+    desc: '명중 시 가까운 적에게 전이',
+    icon: '🔗', color: '#fbbf24', weight: 30,
+  },
+};
+
+/** 돌발 균열 이벤트 웨이브 */
+export const RIFT_EVENT = {
+  firstAt: 50,
+  cooldown: 55,
+  /** 보스 스폰 전후 이 초 안이면 스킵 */
+  bossAvoidWindow: 8,
+  warnLead: 2.2,
+  eliteCount: 6,
+  elitePool: ['dasher', 'rusher', 'tank', 'zigzag'] as const satisfies readonly EnemyId[],
 } as const;
 
 // ------------------------------------------------------------
@@ -464,3 +577,6 @@ export const GEM = {
 } as const;
 
 export const HEAL_CARD_RATIO = 0.3;
+
+/** 엔드게임 폴백 풀에서 수리 카드 가중치 */
+export const HEAL_CARD_WEIGHT = 18;

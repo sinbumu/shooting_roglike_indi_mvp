@@ -302,6 +302,27 @@ export class Renderer {
           this.flashColor = 0xffffff;
           this.shake(10, 0.5);
           break;
+        case 'bossPhase':
+          this.flashAlpha = 0.4;
+          this.flashColor = 0xfbbf24;
+          this.shake(9, 0.45);
+          this.explode(ev.x, ev.y, 0xfbbf24, 36);
+          break;
+        case 'jackpot':
+          this.flashAlpha = 0.55;
+          this.flashColor = 0xfbbf24;
+          this.shake(14, 0.55);
+          break;
+        case 'riftWarn':
+          this.flashAlpha = 0.5;
+          this.flashColor = 0xef4444;
+          this.shake(8, 0.4);
+          break;
+        case 'riftReward':
+          this.flashAlpha = 0.35;
+          this.flashColor = 0xc084fc;
+          this.shake(7, 0.35);
+          break;
         case 'pickup': {
           const tint = ev.kind === 'heal' ? 0x4ade80 : ev.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
@@ -602,7 +623,7 @@ export class Renderer {
       });
     }
 
-    if (state.invincibleLeft > 0 && Math.floor(this.elapsed * 14) % 2 === 0) return;
+    if (state.invincibleLeft > 0 && state.shieldLeft <= 0 && Math.floor(this.elapsed * 14) % 2 === 0) return;
 
     const engine = this.glowPool.get();
     engine.tint = 0xfb923c;
@@ -611,6 +632,13 @@ export class Renderer {
     engine.alpha = 0.9;
 
     const shipTex = this.atlas.ships[state.shipId as ShipId];
+    if (state.shieldLeft > 0) {
+      const shield = this.glowPool.get();
+      shield.tint = 0x86efac;
+      shield.position.set(x, y);
+      shield.width = shield.height = PLAYER.radius * 4.2 + Math.sin(this.elapsed * 10) * 4;
+      shield.alpha = 0.55;
+    }
     if (shipTex) {
       if (!this.playerSprite) {
         this.playerSprite = new Sprite(shipTex);

@@ -168,6 +168,21 @@ function processEvents(): void {
         hitstop = Math.max(hitstop, 0.15);
         vibrate(300);
         break;
+      case 'bossPhase':
+        hitstop = Math.max(hitstop, 0.12);
+        vibrate(180);
+        break;
+      case 'jackpot':
+        hitstop = Math.max(hitstop, 0.5);
+        vibrate(220);
+        break;
+      case 'riftWarn':
+        vibrate(200);
+        break;
+      case 'riftReward':
+        hitstop = Math.max(hitstop, 0.1);
+        vibrate(120);
+        break;
       case 'bomb':
         hitstop = Math.max(hitstop, 0.08);
         vibrate(150);

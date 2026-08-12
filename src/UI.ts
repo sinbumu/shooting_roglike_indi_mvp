@@ -1,7 +1,7 @@
 import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
-  STAGES, CHALLENGES,
+  STAGES, CHALLENGES, AFFIXES,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -297,7 +297,7 @@ export class UI {
   }
 
   private renderSlots(state: GameState): void {
-    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}`).join(',');
+    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}`).join(',');
     if (key === this.lastSlotsKey) return;
     this.lastSlotsKey = key;
 
@@ -305,12 +305,13 @@ export class UI {
     for (let i = 0; i < state.maxWeaponSlots; i++) {
       const slot = state.weapons[i];
       const el = document.createElement('div');
-      el.className = 'weapon-slot' + (slot ? ' filled' : '');
+      el.className = 'weapon-slot' + (slot ? ' filled' : '') + (slot?.affix ? ' affix' : '');
       if (slot) {
         const def = WEAPONS[slot.weaponId];
         el.style.borderColor = def.color;
+        const affixMark = slot.affix ? '✦' : '';
         el.innerHTML = `
-          <span class="slot-tier">T${def.tier}</span>
+          <span class="slot-tier">T${def.tier}${affixMark}</span>
           <span class="slot-icon">${def.icon}</span>
           <span class="slot-level">Lv.${slot.level}</span>
         `;
@@ -352,9 +353,12 @@ export class UI {
     const dmgMul = this.lastState?.damageMul ?? 1;
     const dmg = (p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel) * dmgMul).toFixed(1);
     const cd = (def.cooldownMs * (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) / 1000).toFixed(2);
+    const affixLine = slot.affix
+      ? `<br/><span class="tt-affix">${AFFIXES[slot.affix].label} ${AFFIXES[slot.affix].desc}</span>`
+      : '';
     this.tooltipEl.innerHTML = `
       <b>${def.icon} ${def.name}</b> <span class="tt-tier">T${def.tier} · Lv.${slot.level}</span><br/>
-      <span class="tt-desc">${def.desc}</span><br/>
+      <span class="tt-desc">${def.desc}</span>${affixLine}<br/>
       데미지 <b>${dmg}</b> × ${p.count}발 · 쿨타임 <b>${cd}s</b>
     `;
     this.tooltipEl.classList.remove('hidden');
@@ -398,7 +402,9 @@ export class UI {
     this.cardContainer.innerHTML = '';
     for (const choice of choices) {
       const card = document.createElement('button');
-      card.className = 'choice-card' + (choice.kind === 'jackpot' ? ' jackpot' : '');
+      card.className = 'choice-card'
+        + (choice.kind === 'jackpot' ? ' jackpot' : '')
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' ? ' endgame' : '');
       card.style.setProperty('--card-color', choice.color);
       card.innerHTML = `
         <span class="card-icon">${choice.icon}</span>

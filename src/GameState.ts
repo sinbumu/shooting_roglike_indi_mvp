@@ -1,8 +1,11 @@
-import type { EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId } from './types';
+import type {
+  EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
+  AffixId, StatBoostId, TacticalId,
+} from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
-  BOSS, SCORE, PICKUPS,
+  BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -16,6 +19,7 @@ export interface WeaponSlot {
   weaponId: WeaponId;
   level: number;
   cooldownLeft: number; // ms
+  affix?: AffixId;
 }
 
 export interface Projectile {
@@ -29,6 +33,9 @@ export interface Projectile {
   life: number;
   color: string;
   hitIds: Set<number>;
+  affix?: AffixId;
+  /** 분열 자식탄 — 재분열 방지 */
+  noSplit?: boolean;
 }
 
 export interface Enemy {
@@ -46,6 +53,10 @@ export interface Enemy {
   ringCd?: number;
   aimedCd?: number;
   spiralAngle?: number;
+  /** 1 = 평시, 2 = 페이즈2 */
+  phase?: number;
+  /** 돌발 균열로 스폰된 엘리트 */
+  fromRift?: boolean;
 }
 
 export interface PassiveSlot {
@@ -105,12 +116,22 @@ export type FxEvent =
   | { type: 'bossWarn' }
   | { type: 'bossSpawned'; x: number; y: number }
   | { type: 'bossDied'; x: number; y: number }
+  | { type: 'bossPhase'; x: number; y: number }
   | { type: 'pickup'; kind: PickupKind; x: number; y: number }
   | { type: 'bomb' }
+  | { type: 'jackpot' }
+  | { type: 'riftWarn' }
+  | { type: 'riftReward' }
   | { type: 'victory' }
   | { type: 'gameover' }
   | { type: 'achievement'; id: string; name: string }
   | { type: 'story'; text: string };
+
+export interface RunStats {
+  projSpeedMul: number;
+  critMul: number;
+  moveSpeedMul: number;
+}
 
 // ============================================================
 
@@ -142,6 +163,16 @@ export class GameState {
   bgTop = 0x0b0e22;
   bgBottom = 0x070812;
   invincibleLeft = 0;
+  /** 과충전 쉴드 남은 시간(초) — 피격 i-frame과 별도 */
+  shieldLeft = 0;
+  /** 자기장 폭주 남은 시간(초) */
+  magnetStormLeft = 0;
+
+  runStats: RunStats = {
+    projSpeedMul: 1,
+    critMul: COMBAT.baseCritMul,
+    moveSpeedMul: 1,
+  };
 
   // 성장
   level = 1;
@@ -183,6 +214,11 @@ export class GameState {
   private storyBeats: { at: number; text: string }[] = [];
   private nextStoryIdx = 0;
 
+  private nextRiftAt: number = RIFT_EVENT.firstAt;
+  private riftWarnAt: number | null = null;
+  private riftActive = 0;
+  private baseExpMul = 1;
+
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
     const ship = SHIPS[shipId];
@@ -216,6 +252,16 @@ export class GameState {
     this.baseDamageMul = m.damageMul;
     this.dropChanceBonus = m.dropChanceAdd;
     this.passives = [];
+    this.runStats = {
+      projSpeedMul: 1,
+      critMul: COMBAT.baseCritMul,
+      moveSpeedMul: 1,
+    };
+    this.shieldLeft = 0;
+    this.magnetStormLeft = 0;
+    this.nextRiftAt = RIFT_EVENT.firstAt;
+    this.riftWarnAt = null;
+    this.riftActive = 0;
     this.applyPassiveEffects();
     this.weapons = [{ weaponId: ship.startingWeapon, level: 1, cooldownLeft: 300 }];
     this.status = 'playing';
@@ -230,7 +276,7 @@ export class GameState {
   private baseMagnet: number = PLAYER.magnetRadius;
   private baseDamageMul = 1;
 
-  /** 패시브 레벨 합산 → 런타임 스탯 재계산 */
+  /** 패시브 + 한계돌파 + 버프 타이머 → 런타임 스탯 재계산 */
   applyPassiveEffects(): void {
     let magnetAdd = 0;
     let speedAdd = 0;
@@ -247,11 +293,79 @@ export class GameState {
         case 'overcharge': dmgAdd += v; break;
       }
     }
-    this.magnetRadius = this.baseMagnet + magnetAdd;
-    this.moveSpeed = this.baseMoveSpeed * (1 + speedAdd);
+    this.baseExpMul = 1 + expAdd;
+    const storm = this.magnetStormLeft > 0;
+    const magnetMul = storm ? (TACTICAL.magnetStorm.magnetMul ?? 1) : 1;
+    const stormExp = storm ? (TACTICAL.magnetStorm.expMul ?? 1) : 1;
+    this.magnetRadius = (this.baseMagnet + magnetAdd) * magnetMul;
+    this.moveSpeed = this.baseMoveSpeed * (1 + speedAdd) * this.runStats.moveSpeedMul;
     this.armorReduce = Math.min(0.7, armor);
-    this.expMul = 1 + expAdd;
+    this.expMul = this.baseExpMul * stormExp;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
+  }
+
+  applyStatBoost(id: StatBoostId): void {
+    const def = ENDGAME.stats[id];
+    if (id === 'projSpeed') this.runStats.projSpeedMul *= 1 + def.amount;
+    else if (id === 'critMul') this.runStats.critMul += def.amount;
+    else if (id === 'moveSpeed') {
+      this.runStats.moveSpeedMul *= 1 + def.amount;
+      this.applyPassiveEffects();
+    }
+  }
+
+  applyAffix(weaponId: WeaponId, affixId: AffixId): void {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (slot) slot.affix = affixId;
+  }
+
+  /** 어픽스 없는 랜덤 무기에 부여. 성공 여부 반환 */
+  grantRandomAffix(): boolean {
+    const candidates = this.weapons.filter((w) => !w.affix);
+    if (candidates.length === 0) return false;
+    const slot = candidates[Math.floor(Math.random() * candidates.length)];
+    const ids = Object.keys(AFFIXES) as AffixId[];
+    slot.affix = ids[Math.floor(Math.random() * ids.length)];
+    const ax = AFFIXES[slot.affix];
+    this.events.push({
+      type: 'banner',
+      text: `${ax.label} ${WEAPONS[slot.weaponId].name}!`,
+    });
+    return true;
+  }
+
+  applyInstantJackpot(): void {
+    for (const slot of this.weapons) {
+      slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
+    }
+    this.events.push({ type: 'jackpot' });
+    this.events.push({ type: 'banner', text: '🎰 JACKPOT!' });
+  }
+
+  applyTactical(id: TacticalId): void {
+    switch (id) {
+      case 'emp': {
+        this.enemyProjectiles.length = 0;
+        for (const e of [...this.enemies]) {
+          const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+          if (isBoss) this.damageEnemy(e, PICKUPS.bombDamage * 1.2);
+          else this.damageEnemy(e, e.hp + 1);
+        }
+        this.events.push({ type: 'bomb' });
+        this.events.push({ type: 'banner', text: '📡 EMP!' });
+        break;
+      }
+      case 'shield':
+        this.shieldLeft = TACTICAL.shield.duration ?? 10;
+        this.events.push({ type: 'banner', text: '🛡️ 과충전 쉴드' });
+        break;
+      case 'magnetStorm':
+        this.magnetStormLeft = TACTICAL.magnetStorm.duration ?? 15;
+        for (const g of this.gems) g.magnetized = true;
+        this.applyPassiveEffects();
+        this.events.push({ type: 'banner', text: '🧲 자기장 폭주' });
+        break;
+    }
   }
 
   // ==========================================================
@@ -293,9 +407,11 @@ export class GameState {
     }
 
     this.updatePlayer(dt);
+    this.updateBuffs(dt);
     this.updateWeapons(dt);
     this.updateSpawns(dt);
     this.updateBossSchedule();
+    this.updateRiftEvent(dt);
     this.updateWarnings(dt);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
@@ -304,6 +420,17 @@ export class GameState {
     this.updatePickups(dt);
     this.checkPlayerCollision(dt);
     return this.status;
+  }
+
+  private updateBuffs(dt: number): void {
+    if (this.shieldLeft > 0) this.shieldLeft -= dt;
+    if (this.magnetStormLeft > 0) {
+      this.magnetStormLeft -= dt;
+      if (this.magnetStormLeft <= 0) {
+        this.magnetStormLeft = 0;
+        this.applyPassiveEffects();
+      }
+    }
   }
 
   // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
@@ -344,6 +471,9 @@ export class GameState {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
     const damage = p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel) * this.damageMul;
+    const speed = p.speed * this.runStats.projSpeedMul;
+    let pierce = p.pierce;
+    if (slot.affix === 'pierce') pierce += 2;
 
     const baseAngle = -Math.PI / 2; // 위쪽
     for (let i = 0; i < p.count; i++) {
@@ -359,16 +489,17 @@ export class GameState {
       this.projectiles.push({
         x: this.playerX,
         y: this.playerY - PLAYER.radius,
-        vx: Math.cos(angle) * p.speed,
-        vy: Math.sin(angle) * p.speed,
-        speed: p.speed,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        speed,
         damage,
         radius: p.radius,
         homingTurnRate: p.homingTurnRate,
-        pierceLeft: p.pierce,
+        pierceLeft: pierce,
         life: p.lifetime,
         color: def.color,
         hitIds: new Set(),
+        affix: slot.affix,
       });
     }
     this.events.push({ type: 'fired', x: this.playerX, y: this.playerY - PLAYER.radius, color: def.color });
@@ -449,12 +580,67 @@ export class GameState {
       const bossType = this.bossRoster[this.bossIndex % this.bossRoster.length];
       const boss = this.addEnemy(bossType, CANVAS.width / 2, -60, 1, false);
       boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth) * this.enemyHpMul;
+      boss.phase = 1;
       this.bossId = boss.id;
       this.bossIndex++;
       this.bossWarned = false;
       this.events.push({ type: 'bossSpawned', x: boss.x, y: boss.y });
       this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[bossType].name}` });
     }
+  }
+
+  private nearBossWindow(): boolean {
+    if (this.bossId != null) return true;
+    for (const t of this.bossTimes) {
+      if (Math.abs(this.time - t) < RIFT_EVENT.bossAvoidWindow) return true;
+    }
+    return false;
+  }
+
+  private updateRiftEvent(_dt: number): void {
+    if (this.riftWarnAt != null && this.time >= this.riftWarnAt) {
+      this.riftWarnAt = null;
+      this.spawnRiftElites();
+      return;
+    }
+
+    if (this.riftActive > 0) return;
+    if (this.time < this.nextRiftAt) return;
+    if (this.nearBossWindow()) {
+      this.nextRiftAt = this.time + 8;
+      return;
+    }
+
+    this.riftWarnAt = this.time + RIFT_EVENT.warnLead;
+    this.nextRiftAt = this.time + RIFT_EVENT.cooldown;
+    this.events.push({ type: 'riftWarn' });
+    this.events.push({ type: 'banner', text: '⚠ RIFT INCOMING' });
+  }
+
+  private spawnRiftElites(): void {
+    const pool = RIFT_EVENT.elitePool;
+    for (let i = 0; i < RIFT_EVENT.eliteCount; i++) {
+      const enemyId = pool[i % pool.length];
+      const def = ENEMIES[enemyId];
+      const x = def.radius + Math.random() * (CANVAS.width - def.radius * 2);
+      const y = -30 - i * 28;
+      const e = this.addEnemy(enemyId, x, y, 1, false, true);
+      e.fromRift = true;
+      this.riftActive++;
+    }
+    this.events.push({ type: 'banner', text: '🌀 돌발 균열!' });
+  }
+
+  private onRiftEliteKilled(): void {
+    this.riftActive = Math.max(0, this.riftActive - 1);
+    if (this.riftActive > 0) return;
+    this.events.push({ type: 'riftReward' });
+    if (Math.random() < 0.5 && this.grantRandomAffix()) {
+      // affix granted
+    } else {
+      this.applyInstantJackpot();
+    }
+    this.events.push({ type: 'banner', text: '✨ 균열 보상!' });
   }
 
   private updateWarnings(dt: number): void {
@@ -474,13 +660,15 @@ export class GameState {
     y: number,
     dir: number,
     allowElite = true,
+    forceElite = false,
   ): Enemy {
     const def = ENEMIES[enemyId];
     const isBoss = def.movePattern === 'boss' || def.movePattern === 'bossSeraph';
-    const elite = allowElite
-      && !isBoss
-      && this.time >= ELITE.unlockAt
-      && Math.random() < ELITE.chance;
+    const elite = forceElite
+      || (allowElite
+        && !isBoss
+        && this.time >= ELITE.unlockAt
+        && Math.random() < ELITE.chance);
 
     let hp = def.hp * enemyHpScale(this.time) * this.enemyHpMul;
     if (elite) hp *= ELITE.hpMul;
@@ -492,6 +680,7 @@ export class GameState {
       age: 0, baseX: x, dir,
       hitFlash: 0,
       elite,
+      phase: isBoss ? 1 : undefined,
     };
     this.enemies.push(enemy);
     return enemy;
@@ -548,10 +737,11 @@ export class GameState {
       return;
     }
     e.x = CANVAS.width / 2 + Math.sin(e.age * 0.7) * 150;
+    const fireMul = (e.phase ?? 1) >= 2 ? BOSS.phaseFireRateMul : 1;
 
     e.ringCd = (e.ringCd ?? 2.0) - dt;
     if (e.ringCd <= 0) {
-      e.ringCd = BOSS.ringInterval;
+      e.ringCd = BOSS.ringInterval * fireMul;
       for (let k = 0; k < BOSS.ringCount; k++) {
         const a = (Math.PI * 2 * k) / BOSS.ringCount + e.age;
         this.enemyProjectiles.push({
@@ -566,7 +756,7 @@ export class GameState {
 
     e.aimedCd = (e.aimedCd ?? 1.2) - dt;
     if (e.aimedCd <= 0) {
-      e.aimedCd = BOSS.aimedInterval;
+      e.aimedCd = BOSS.aimedInterval * fireMul;
       const base = Math.atan2(this.playerY - e.y, this.playerX - e.x);
       for (const off of [-0.22, 0, 0.22]) {
         this.enemyProjectiles.push({
@@ -588,10 +778,11 @@ export class GameState {
     }
     e.x = CANVAS.width / 2 + Math.sin(e.age * 1.1) * 170;
     e.spiralAngle = (e.spiralAngle ?? 0) + dt * 4.5;
+    const fireMul = (e.phase ?? 1) >= 2 ? BOSS.phaseFireRateMul : 1;
 
     e.ringCd = (e.ringCd ?? 0) - dt;
     if (e.ringCd <= 0) {
-      e.ringCd = BOSS.spiralInterval;
+      e.ringCd = BOSS.spiralInterval * fireMul;
       const a = e.spiralAngle;
       for (const off of [0, Math.PI]) {
         this.enemyProjectiles.push({
@@ -606,7 +797,7 @@ export class GameState {
 
     e.aimedCd = (e.aimedCd ?? 1.8) - dt;
     if (e.aimedCd <= 0) {
-      e.aimedCd = 2.0;
+      e.aimedCd = 2.0 * fireMul;
       const base = Math.atan2(this.playerY - e.y, this.playerX - e.x);
       this.enemyProjectiles.push({
         x: e.x, y: e.y,
@@ -631,7 +822,7 @@ export class GameState {
         this.enemyProjectiles.splice(i, 1);
         continue;
       }
-      if (this.invincibleLeft <= 0) {
+      if (this.invincibleLeft <= 0 && this.shieldLeft <= 0) {
         const rr = PLAYER.radius + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
           this.enemyProjectiles.splice(i, 1);
@@ -680,8 +871,18 @@ export class GameState {
         const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           p.hitIds.add(e.id);
-          this.damageEnemy(e, p.damage);
+          let dmg = p.damage;
+          if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
+          this.damageEnemy(e, dmg);
+
+          if (p.affix === 'chain') {
+            this.applyChain(p, e);
+          }
+
           if (p.pierceLeft <= 0) {
+            if (p.affix === 'split' && !p.noSplit) {
+              this.spawnSplitShards(p);
+            }
             this.projectiles.splice(i, 1);
             removed = true;
             break;
@@ -696,6 +897,47 @@ export class GameState {
         this.projectiles.splice(i, 1);
       }
     }
+  }
+
+  private spawnSplitShards(p: Projectile): void {
+    const base = Math.atan2(p.vy, p.vx);
+    for (const off of [-0.45, 0, 0.45]) {
+      const a = base + off;
+      const spd = p.speed * 0.85;
+      this.projectiles.push({
+        x: p.x,
+        y: p.y,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd,
+        speed: spd,
+        damage: p.damage * 0.45,
+        radius: Math.max(3, p.radius * 0.8),
+        homingTurnRate: 0,
+        pierceLeft: 0,
+        life: 0.55,
+        color: p.color,
+        hitIds: new Set(p.hitIds),
+        noSplit: true,
+      });
+    }
+  }
+
+  private applyChain(p: Projectile, from: Enemy): void {
+    let best: Enemy | null = null;
+    let bestD = 140 * 140;
+    for (const e of this.enemies) {
+      if (e.id === from.id || p.hitIds.has(e.id)) continue;
+      const d = (e.x - from.x) ** 2 + (e.y - from.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    if (!best) return;
+    p.hitIds.add(best.id);
+    let dmg = p.damage * 0.55;
+    if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
+    this.damageEnemy(best, dmg);
   }
 
   private nearestEnemy(x: number, y: number, exclude: Set<number>): Enemy | null {
@@ -713,9 +955,22 @@ export class GameState {
   }
 
   private damageEnemy(e: Enemy, dmg: number): void {
+    const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+    const prevRatio = e.hp / e.maxHp;
     e.hp -= dmg;
     e.hitFlash = 0.08;
-    this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color, damage: dmg });
+    this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color, damage: Math.round(dmg) });
+
+    if (
+      isBoss
+      && (e.phase ?? 1) < 2
+      && prevRatio > BOSS.phaseHpRatio
+      && e.hp / e.maxHp <= BOSS.phaseHpRatio
+      && e.hp > 0
+    ) {
+      this.triggerBossPhase(e);
+    }
+
     if (e.hp <= 0) {
       this.kills++;
       this.comboCount++;
@@ -728,11 +983,11 @@ export class GameState {
         Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul * this.scoreMul,
       );
 
-      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
       if (isBoss) {
         this.killBoss(e);
       } else {
         if (e.elite) this.eliteKills++;
+        if (e.fromRift) this.onRiftEliteKilled();
         this.events.push({
           type: 'enemyDied',
           x: e.x, y: e.y,
@@ -756,6 +1011,23 @@ export class GameState {
       const idx = this.enemies.indexOf(e);
       if (idx >= 0) this.enemies.splice(idx, 1);
     }
+  }
+
+  private triggerBossPhase(e: Enemy): void {
+    e.phase = 2;
+    this.enemyProjectiles.length = 0;
+    const gems = Math.round(BOSS.gemDrop * BOSS.phaseGemMul);
+    for (let k = 0; k < gems; k++) {
+      this.gems.push({
+        x: e.x + (Math.random() - 0.5) * 220,
+        y: e.y + Math.random() * 160 + 10,
+        exp: 3,
+        life: GEM.lifetime,
+        magnetized: false,
+      });
+    }
+    this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
+    this.events.push({ type: 'banner', text: '⚡ PHASE 2' });
   }
 
   private killBoss(e: Enemy): void {
@@ -858,7 +1130,7 @@ export class GameState {
   // ---------- 플레이어 피격 ----------
 
   private checkPlayerCollision(_dt: number): void {
-    if (this.invincibleLeft > 0) return;
+    if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
     for (const e of this.enemies) {
       const rr = PLAYER.radius + e.def.radius * (e.elite ? 1.15 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
@@ -870,7 +1142,7 @@ export class GameState {
   }
 
   private hurtPlayer(damage: number): void {
-    if (this.invincibleLeft > 0) return;
+    if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
     this.hp -= damage * (1 - this.armorReduce);
     this.invincibleLeft = PLAYER.invincibleMs;
     this.events.push({ type: 'playerHit' });

@@ -576,6 +576,20 @@ button.secondary {
   box-shadow: 0 0 24px rgba(251, 191, 36, 0.35);
 }
 
+.choice-card.endgame {
+  border-color: rgba(192, 132, 252, 0.7);
+  background: linear-gradient(135deg, rgba(76, 29, 149, 0.45), rgba(15, 23, 42, 0.95));
+}
+
+.weapon-slot.affix {
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.45);
+}
+
+.tt-affix {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
 /* ---------- 버튼 ---------- */
 
 button {

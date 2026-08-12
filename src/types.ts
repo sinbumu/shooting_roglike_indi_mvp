@@ -179,6 +179,15 @@ export type MovePattern =
 
 export type PickupKind = 'heal' | 'magnet' | 'bomb';
 
+/** Tier3 / 엔드게임 무기 접사 */
+export type AffixId = 'split' | 'pierce' | 'chain';
+
+/** 한계 돌파 미세 스탯 */
+export type StatBoostId = 'projSpeed' | 'critMul' | 'moveSpeed';
+
+/** 전술 폴백 소모품 */
+export type TacticalId = 'emp' | 'shield' | 'magnetStorm';
+
 export interface EnemyDef {
   id: EnemyId;
   name: string;
@@ -214,7 +223,10 @@ export type ChoiceKind =
   | 'jackpot'
   | 'heal'
   | 'passive'
-  | 'passiveUp';
+  | 'passiveUp'
+  | 'statBoost'
+  | 'tactical'
+  | 'affix';
 
 export interface LevelUpChoice {
   kind: ChoiceKind;
@@ -226,4 +238,7 @@ export interface LevelUpChoice {
   weaponIds?: WeaponId[];
   resultId?: WeaponId;
   passiveId?: PassiveId;
+  statId?: StatBoostId;
+  tacticalId?: TacticalId;
+  affixId?: AffixId;
 }
