@@ -53,7 +53,8 @@ npm run preview  # 빌드 결과 로컬 확인
 ## 배포
 
 - `main` 브랜치에 push하면 GitHub Actions(`.github/workflows/deploy.yml`)가 빌드 후 **GitHub Pages**로 자동 배포합니다.
-  - 최초 1회 저장소 Settings → Pages → Source를 **GitHub Actions**로 설정해야 합니다.
+  - 최초 1회: 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 선택해야 합니다.
+  - 이 설정이 없으면 `Get Pages site failed / HttpError: Not Found`로 실패합니다. 켠 뒤 Actions 탭에서 실패한 워크플로를 **Re-run jobs** 하면 됩니다.
 - 다른 정적 호스팅(Netlify, Vercel 등)을 쓸 경우 `npm run build` 결과물인 `dist/`를 올리면 됩니다. (`vite.config.ts`의 `base: './'` 덕분에 어떤 하위 경로에서도 동작)
 
 ## 기술 스택
