@@ -2,7 +2,7 @@ import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js
 import type { GameState } from './GameState';
 import { CANVAS, PLAYER, PICKUPS, SHIPS } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
-import type { EnemyId, PickupKind, ShipId } from './types';
+import type { EnemyId, ShipId } from './types';
 
 // ============================================================
 // PixiJS(WebGL) 렌더러 — GameState를 읽기만 하고 변경하지 않는다.
@@ -324,10 +324,33 @@ export class Renderer {
           this.shake(7, 0.35);
           break;
         case 'pickup': {
-          const tint = ev.kind === 'heal' ? 0x4ade80 : ev.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
+          const tint = ev.kind === 'heal' ? 0x4ade80
+            : ev.kind === 'magnet' ? 0x38bdf8
+            : ev.kind === 'cube' ? 0x67e8f9
+            : 0xfb923c;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
           break;
         }
+        case 'skill': {
+          const tint = ev.id === 'phaseDash' ? 0x7dd3fc
+            : ev.id === 'aegis' ? 0x86efac
+            : 0xc084fc;
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.4, sizeFrom: 20, sizeTo: 140, tint, alphaFrom: 0.9, ring: true });
+          if (ev.id === 'aegis') {
+            this.flashAlpha = 0.28;
+            this.flashColor = 0x86efac;
+          } else if (ev.id === 'timeDilation') {
+            this.flashAlpha = 0.22;
+            this.flashColor = 0xc084fc;
+          }
+          break;
+        }
+        case 'teleport':
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.32, sizeFrom: 12, sizeTo: 80, tint: 0xc084fc, alphaFrom: 0.85, ring: true });
+          break;
+        case 'shieldBlock':
+          this.hitSpark(ev.x, ev.y, 0x67e8f9);
+          break;
         case 'bomb':
           this.flashAlpha = 0.5;
           this.flashColor = 0xffffff;
@@ -711,7 +734,6 @@ export class Renderer {
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (e.elite) spr.tint = 0xfbbf24;
-        else if (e.def.id === 'splinter') spr.tint = 0xfb923c;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
         else if (e.mutation === 'burst') spr.tint = 0xe879f9;
@@ -837,7 +859,7 @@ export class Renderer {
         : p.kind === 'magnet' ? 0x38bdf8
         : p.kind === 'cube' ? 0x67e8f9
         : 0xfb923c;
-      const tex = p.kind === 'cube' ? undefined : this.atlas.pickups[p.kind as PickupKind];
+      const tex = this.atlas.pickups[p.kind];
 
       const glow = this.glowPool.get();
       glow.tint = tint;

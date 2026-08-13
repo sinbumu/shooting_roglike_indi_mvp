@@ -42,6 +42,7 @@ export class AudioManager {
   private lastShotAt = 0;
   private lastGemAt = 0;
   private lastHitAt = 0;
+  private lastShieldAt = 0;
 
   // BGM 스케줄러
   private bgmStep = 0;
@@ -112,9 +113,27 @@ export class AudioManager {
 
     switch (ev.type) {
       case 'fired': {
-        if (now - this.lastShotAt < 80) return;
+        const minGap = ev.weaponId === 'gatling' ? 38 : 80;
+        if (now - this.lastShotAt < minGap) return;
         this.lastShotAt = now;
         const bias = colorPitchBias(ev.color);
+        if (ev.weaponId === 'gatling') {
+          this.noise(0.028, { gain: 0.045, freq: 1900, highpass: 1000 });
+          this.tone(900 + bias * 0.4, 0.032, { type: 'sawtooth', slideTo: 220, gain: 0.016 });
+          break;
+        }
+        if (ev.weaponId === 'nova') {
+          this.noise(0.09, { gain: 0.07, freq: 720, highpass: 280 });
+          this.tone(480 + bias, 0.07, { type: 'square', slideTo: 160, gain: 0.028 });
+          this.tone(720, 0.05, { type: 'triangle', slideTo: 90, gain: 0.018, delay: 0.012 });
+          break;
+        }
+        if (ev.weaponId === 'mothership') {
+          this.noise(0.14, { gain: 0.08, freq: 160 });
+          this.tone(88, 0.2, { type: 'sawtooth', slideTo: 36, gain: 0.055 });
+          this.tone(176, 0.12, { type: 'triangle', slideTo: 70, gain: 0.03, delay: 0.02 });
+          break;
+        }
         const base = 620 + bias;
         const wave: OscillatorType = bias > 40 ? 'triangle' : bias < -40 ? 'sawtooth' : 'square';
         this.tone(base, 0.055, { type: wave, slideTo: 140 + bias * 0.2, gain: 0.02 });
@@ -239,7 +258,41 @@ export class AudioManager {
         } else if (ev.kind === 'magnet') {
           this.tone(280, 0.32, { type: 'sine', slideTo: 1500, gain: 0.055 });
           this.tone(420, 0.2, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.06 });
+        } else if (ev.kind === 'cube') {
+          [784, 988, 1175, 1568].forEach((f, i) =>
+            this.tone(f, 0.1, { type: 'sine', gain: 0.05, delay: i * 0.045 }),
+          );
+          this.tone(2093, 0.22, { type: 'triangle', gain: 0.04, delay: 0.2 });
         }
+        break;
+
+      case 'skill':
+        if (ev.id === 'phaseDash') {
+          this.noise(0.08, { gain: 0.07, freq: 1400, highpass: 800 });
+          this.tone(920, 0.12, { type: 'sine', slideTo: 1480, gain: 0.06 });
+          this.tone(480, 0.1, { type: 'triangle', slideTo: 200, gain: 0.03, delay: 0.02 });
+        } else if (ev.id === 'aegis') {
+          this.tone(180, 0.24, { type: 'triangle', slideTo: 90, gain: 0.08 });
+          this.tone(360, 0.18, { type: 'sine', gain: 0.05 });
+          this.noise(0.12, { gain: 0.06, freq: 400 });
+        } else if (ev.id === 'timeDilation') {
+          this.tone(440, 0.38, { type: 'sine', slideTo: 150, gain: 0.07 });
+          this.tone(220, 0.42, { type: 'triangle', slideTo: 70, gain: 0.05, delay: 0.04 });
+          this.noise(0.22, { gain: 0.05, freq: 180 });
+        }
+        break;
+
+      case 'teleport':
+        this.tone(640, 0.1, { type: 'sine', slideTo: 170, gain: 0.05 });
+        this.tone(980, 0.08, { type: 'triangle', slideTo: 400, gain: 0.03, delay: 0.02 });
+        this.noise(0.07, { gain: 0.05, freq: 900, highpass: 500 });
+        break;
+
+      case 'shieldBlock':
+        if (now - this.lastShieldAt < 70) return;
+        this.lastShieldAt = now;
+        this.tone(980, 0.04, { type: 'square', slideTo: 400, gain: 0.018 });
+        this.noise(0.03, { gain: 0.04, freq: 1600, highpass: 1000 });
         break;
 
       case 'bomb':

@@ -18,7 +18,7 @@ export const SPRITE_PATHS = {
     tank: `${base}/enemy_tank.png`,
     shielder: `${base}/enemy_shielder.png`,
     teleporter: `${base}/enemy_teleporter.png`,
-    splinter: `${base}/enemy_drone.png`,
+    splinter: `${base}/enemy_splinter.png`,
     boss: `${base}/boss_boss.png`,
     bossSeraph: `${base}/boss_bossSeraph.png`,
   } satisfies Record<EnemyId, string>,
@@ -26,7 +26,8 @@ export const SPRITE_PATHS = {
     heal: `${base}/pickup_heal.png`,
     magnet: `${base}/pickup_magnet.png`,
     bomb: `${base}/pickup_bomb.png`,
-  } satisfies Record<Exclude<PickupKind, 'cube'>, string>,
+    cube: `${base}/pickup_cube.png`,
+  } satisfies Record<PickupKind, string>,
 } as const;
 
 export interface SpriteAtlas {

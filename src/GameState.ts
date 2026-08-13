@@ -1,6 +1,6 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
-  AffixId, StatBoostId, TacticalId, MutationId,
+  AffixId, StatBoostId, TacticalId, MutationId, ActiveSkillId,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
@@ -121,7 +121,7 @@ export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover'
 export type FxEvent =
   | { type: 'enemyDied'; x: number; y: number; color: string; radius: number }
   | { type: 'enemyHit'; x: number; y: number; color: string; damage: number }
-  | { type: 'fired'; x: number; y: number; color: string }
+  | { type: 'fired'; x: number; y: number; color: string; weaponId?: WeaponId }
   | { type: 'gemPickup'; x: number; y: number }
   | { type: 'playerHit' }
   | { type: 'levelUp'; x: number; y: number }
@@ -138,7 +138,10 @@ export type FxEvent =
   | { type: 'victory' }
   | { type: 'gameover' }
   | { type: 'achievement'; id: string; name: string }
-  | { type: 'story'; text: string };
+  | { type: 'story'; text: string }
+  | { type: 'skill'; id: ActiveSkillId; x: number; y: number }
+  | { type: 'teleport'; x: number; y: number }
+  | { type: 'shieldBlock'; x: number; y: number };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -549,12 +552,15 @@ export class GameState {
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
       this.invincibleLeft = Math.max(this.invincibleLeft, skill.iframeMs ?? 250);
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     } else if (skill.id === 'aegis') {
       this.aegisPulseCd = 0;
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     } else if (skill.id === 'timeDilation') {
       this.worldSlow = skill.slowMul ?? 0.4;
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     }
     return true;
@@ -687,7 +693,12 @@ export class GameState {
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
       });
     }
-    this.events.push({ type: 'fired', x: this.playerX, y: this.playerY - PLAYER.radius, color: def.color });
+    this.events.push({
+      type: 'fired',
+      x: this.playerX, y: this.playerY - PLAYER.radius,
+      color: def.color,
+      weaponId: slot.weaponId,
+    });
   }
 
   // ---------- 적 스폰 (웨이브 스케줄) ----------
@@ -935,6 +946,7 @@ export class GameState {
       e.y = Math.max(r, Math.min(CANVAS.height - r, this.playerY + 40 + Math.random() * 28));
       e.teleportCd = TELEPORTER.cooldown;
       e.hitFlash = 0.15;
+      this.events.push({ type: 'teleport', x: e.x, y: e.y });
     }
   }
 
@@ -1089,6 +1101,7 @@ export class GameState {
           if (e.def.id === 'shielder' && !p.shieldPierce && this.isShielderFrontHit(p)) {
             p.hitIds.add(e.id);
             e.hitFlash = 0.05;
+            this.events.push({ type: 'shieldBlock', x: p.x, y: p.y });
             if (p.pierceLeft <= 0) {
               this.projectiles.splice(i, 1);
               removed = true;
