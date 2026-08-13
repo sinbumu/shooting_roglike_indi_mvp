@@ -253,23 +253,23 @@ export const DEFAULT_SHIP: ShipId = 'scout';
 export const PASSIVES: Record<PassiveId, PassiveDef> = {
   magnet: {
     id: 'magnet', name: '자력장', icon: '🧲', color: '#38bdf8',
-    desc: '보석 자석 반경 증가', perLevel: 35, maxLevel: 5,
+    desc: '보석 자석 반경 +35', perLevel: 35, maxLevel: 5,
   },
   thruster: {
     id: 'thruster', name: '추력 부스터', icon: '💨', color: '#a5b4fc',
-    desc: '이동 속도 증가', perLevel: 0.08, maxLevel: 5,
+    desc: '이동 속도 +8% 증가', perLevel: 0.08, maxLevel: 5,
   },
   plating: {
     id: 'plating', name: '반응장갑', icon: '🧱', color: '#94a3b8',
-    desc: '받는 피해 감소', perLevel: 0.08, maxLevel: 4,
+    desc: '받는 피해 -8% 감소', perLevel: 0.08, maxLevel: 4,
   },
   collector: {
     id: 'collector', name: '수집 모듈', icon: '📗', color: '#4ade80',
-    desc: '경험치 획득량 증가', perLevel: 0.15, maxLevel: 5,
+    desc: '경험치 획득량 +15% 증가', perLevel: 0.15, maxLevel: 5,
   },
   overcharge: {
     id: 'overcharge', name: '과충전', icon: '💢', color: '#fbbf24',
-    desc: '모든 무기 데미지 증가', perLevel: 0.12, maxLevel: 5,
+    desc: '모든 무기 데미지 +12% 증가', perLevel: 0.12, maxLevel: 5,
   },
   overload: {
     id: 'overload', name: '과부하 코어', icon: '☢️', color: '#f97316',

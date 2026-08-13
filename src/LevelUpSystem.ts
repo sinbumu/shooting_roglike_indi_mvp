@@ -205,7 +205,20 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   const useEndgame = pool.length === 0;
   const drawPool = useEndgame ? buildEndgamePool(state) : pool;
 
-  if (!useEndgame && Math.random() < LEVELING.jackpotChance && state.weapons.length > 0) {
+  /** 1·3·5번째 레벨업(Lv.2/4/6): 슬롯 여유 있으면 미보유 T1을 확정 등장 */
+  const guaranteeNew =
+    !useEndgame
+    && state.weapons.length < state.maxWeaponSlots
+    && (state.level === 2 || state.level === 4 || state.level === 6);
+  if (guaranteeNew) {
+    const idx = drawPool.findIndex((c) => c.kind === 'new' && !c.title.includes('복제'));
+    if (idx >= 0) {
+      const forced = drawPool.splice(idx, 1)[0];
+      choices.push(forced);
+    }
+  }
+
+  if (!useEndgame && Math.random() < LEVELING.jackpotChance && state.weapons.length > 0 && choices.length < 3) {
     choices.push({
       kind: 'jackpot',
       weight: 0,

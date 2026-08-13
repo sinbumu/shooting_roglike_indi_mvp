@@ -399,6 +399,7 @@ button.secondary {
   width: 100%;
   max-width: 340px;
   max-height: 38vh;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -441,6 +442,7 @@ button.secondary {
   width: 100%;
   max-width: 340px;
   max-height: 50vh;
+  overflow-x: hidden;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -521,6 +523,15 @@ button.secondary {
   z-index: 10;
   padding: 20px;
   text-align: center;
+  overflow: hidden;
+}
+
+#start-overlay {
+  overflow-x: hidden;
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 24px;
+  padding-bottom: 28px;
 }
 
 .overlay.hidden { display: none; }
@@ -589,11 +600,14 @@ button.secondary {
 }
 
 .choice-card.focused,
-.overlay button.focused,
+.overlay button.focused {
+  outline: 3px solid #facc15;
+  transform: scale(1.05);
+}
+
 .chip.focused,
 .ship-card.focused {
   outline: 3px solid #facc15;
-  transform: scale(1.05);
 }
 
 .choice-card .card-icon {
@@ -729,6 +743,23 @@ button {
 }
 
 button:hover { transform: scale(1.05); }
+
+.chip:hover,
+.ship-card:hover,
+.meta-row:hover,
+.achv-row:hover {
+  transform: none;
+}
+
+#start-overlay button:hover {
+  transform: none;
+}
+
+#start-btn:hover,
+#meta-btn:hover,
+#achv-btn:hover {
+  transform: scale(1.04);
+}
 
 #gameover-stats {
   font-size: 15px;

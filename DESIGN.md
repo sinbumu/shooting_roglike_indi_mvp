@@ -220,4 +220,5 @@
 | [docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md) | 초반 템포·동형 조합·후반 강적 (구현 완료) |
 | [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md) | 크래프팅 오브·기체 액티브·키보드 UX (구현 완료) |
 | [docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md) | Shift 저속·조이스틱 아날로그 (구현 완료) |
+| [docs/DESIGN_UPDATE_MINI_FEEDBACK.md](./docs/DESIGN_UPDATE_MINI_FEEDBACK.md) | 초반 무기 확정·패시브 수치·격납고 스크롤 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
