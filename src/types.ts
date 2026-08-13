@@ -105,19 +105,27 @@ export interface PassiveDef {
   cooldownMul?: number;
 }
 
-export type MetaUpgradeId = 'hull' | 'firepower' | 'thruster' | 'magnet' | 'fortune';
+export type MetaUpgradeId =
+  | 'hull' | 'firepower' | 'thruster' | 'magnet' | 'fortune'
+  | 'overclock' | 'lightArmor';
 
 export interface MetaUpgradeDef {
   id: MetaUpgradeId;
   name: string;
   icon: string;
   desc: string;
+  /** Infinity = 상한 없음 (파라곤) */
   maxLevel: number;
-  /** 레벨 n → n+1 비용 = baseCost * (n+1) */
+  /** 레벨 n → n+1 비용 = round(baseCost * costMul^n) */
   baseCost: number;
+  /** 기본 1.5 */
+  costMul?: number;
   /** 레벨당 보너스 (배율 또는 가산 — id별) */
   perLevel: number;
 }
+
+export type ShipSkinId = 'darkScout' | 'gildedFortress' | 'voidHunter';
+export type ProjSkinId = 'vulcanCrimson' | 'spreadIon' | 'homingNova';
 
 export type AchievementId =
   | 'first_blood'

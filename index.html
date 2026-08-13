@@ -86,6 +86,7 @@
         <div class="hangar-actions">
           <button id="start-btn">출격</button>
           <button id="meta-btn" class="secondary">영구 강화</button>
+          <button id="gacha-btn" class="secondary">블랙마켓</button>
           <button id="achv-btn" class="secondary">업적</button>
         </div>
       </div>
@@ -98,7 +99,16 @@
         <button id="meta-close-btn" class="secondary">닫기</button>
       </div>
 
-      <!-- ===== 업적 ===== -->
+      <!-- ===== 블랙마켓 ===== -->
+      <div id="gacha-overlay" class="overlay hidden">
+        <h2 class="overlay-title">BLACK MARKET</h2>
+        <p class="overlay-sub">1회 <b id="gacha-cost">10,000</b> 크레딧 · 확률형 스킨<br/>보유 💰 <span id="gacha-credits">0</span></p>
+        <div id="gacha-odds" class="gacha-odds"></div>
+        <div id="gacha-owned" class="gacha-owned"></div>
+        <div id="gacha-result" class="gacha-result hidden"></div>
+        <button id="gacha-open-btn">상자 열기</button>
+        <button id="gacha-close-btn" class="secondary">닫기</button>
+      </div>
       <div id="achv-overlay" class="overlay hidden">
         <h2 class="overlay-title">ACHIEVEMENTS</h2>
         <div id="achv-list"></div>

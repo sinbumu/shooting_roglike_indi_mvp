@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-13** — **로컬 MVP + 시각 온보딩(위험도 색·큐브 프리뷰)** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-13** — **로컬 MVP + 경제 동기화(디노미네이션·블랙마켓)** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -19,6 +19,7 @@
 | UX·액티브? | **완료** — 기체 액티브 스킬 · 키보드 UI 포커스 · 무기고 상점 삭제 |
 | 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
 | 시각·온보딩? | **완료** — 위험도 색상 · 보스 탄 시인성 · T3 없는 큐브 프리뷰 ([docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md)) |
+| 경제·로비? | **완료** — 격납고 크레딧 동기화 · 디노미네이션 · 블랙마켓 · 파라곤 ([docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -61,6 +62,7 @@
 - [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
 - [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
 - [x] 시각·온보딩: 접촉 피해 구간 색상 · 보스 탄 흰 코어/보라 테두리 · T3 미보유 크래프팅 프리뷰  
+- [x] 경제: 로비 크레딧 동기화 · 지수 비용 · 블랙마켓 가차 · 파라곤 무한 강화  
 
 ---
 
@@ -120,7 +122,7 @@
 | 도전 | 표준 / 제한무장 / 유리장갑 / 맨몸 |
 | 기체 | 스카웃(위상 대시) / 포트리스(절대 방벽) / 헌터(시간 왜곡) |
 | 패시브 | 자력장·추력·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
-| 메타 | 선체·화력·엔진·자석·행운 (크레딧, 로컬) |
+| 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한) · 블랙마켓 스킨 |
 | 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트 등 |
 
 ### 3-4. 아이템
@@ -226,4 +228,5 @@
 | [docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md) | Shift 저속·조이스틱 아날로그 (구현 완료) |
 | [docs/DESIGN_UPDATE_MINI_FEEDBACK.md](./docs/DESIGN_UPDATE_MINI_FEEDBACK.md) | 초반 무기 확정·패시브 수치·격납고 스크롤 (구현 완료) |
 | [docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md) | 위험도 색상·보스 탄 시인성·큐브 프리뷰 (구현 완료) |
+| [docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md) | 로비 동기화·경제 디노미네이션·블랙마켓 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

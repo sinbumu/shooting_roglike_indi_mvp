@@ -1,9 +1,11 @@
 import type {
   AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
+  ShipSkinId, ProjSkinId, WeaponId,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
   STAGES, DEFAULT_STAGE, DEFAULT_CHALLENGE,
+  GACHA, SHIP_SKINS, PROJ_SKINS,
 } from './GameConfig';
 import type { GameState } from './GameState';
 import { WEAPONS } from './GameConfig';
@@ -27,12 +29,16 @@ export interface MetaSave {
   selectedChallenge: ChallengeId;
   bestScore: number;
   stats: RunStats;
+  unlockedShipSkins: ShipSkinId[];
+  unlockedProjSkins: ProjSkinId[];
+  equippedShipSkins: Partial<Record<ShipId, ShipSkinId>>;
+  equippedProjSkins: Partial<Record<WeaponId, ProjSkinId>>;
 }
 
 function defaultSave(): MetaSave {
   return {
     credits: 0,
-    upgrades: { hull: 0, firepower: 0, thruster: 0, magnet: 0, fortune: 0 },
+    upgrades: { hull: 0, firepower: 0, thruster: 0, magnet: 0, fortune: 0, overclock: 0, lightArmor: 0 },
     unlockedShips: ['scout'],
     unlockedStages: ['orbit'],
     clearedStages: [],
@@ -42,6 +48,10 @@ function defaultSave(): MetaSave {
     selectedChallenge: DEFAULT_CHALLENGE,
     bestScore: 0,
     stats: { runs: 0, clears: 0, kills: 0, playTimeSec: 0 },
+    unlockedShipSkins: [],
+    unlockedProjSkins: [],
+    equippedShipSkins: {},
+    equippedProjSkins: {},
   };
 }
 
@@ -72,6 +82,10 @@ export function loadMeta(): MetaSave {
         : DEFAULT_STAGE,
       selectedChallenge: parsed.selectedChallenge ?? DEFAULT_CHALLENGE,
       stats: { ...base.stats, ...parsed.stats },
+      unlockedShipSkins: parsed.unlockedShipSkins ?? [],
+      unlockedProjSkins: parsed.unlockedProjSkins ?? [],
+      equippedShipSkins: parsed.equippedShipSkins ?? {},
+      equippedProjSkins: parsed.equippedProjSkins ?? {},
     };
   } catch {
     return defaultSave();
@@ -83,13 +97,15 @@ export function saveMeta(meta: MetaSave): void {
 }
 
 export function upgradeCost(id: MetaUpgradeId, currentLevel: number): number {
-  return META_UPGRADES[id].baseCost * (currentLevel + 1);
+  const def = META_UPGRADES[id];
+  const mul = def.costMul ?? 1.5;
+  return Math.round(def.baseCost * Math.pow(mul, currentLevel));
 }
 
 export function tryBuyUpgrade(meta: MetaSave, id: MetaUpgradeId): boolean {
   const def = META_UPGRADES[id];
-  const lv = meta.upgrades[id];
-  if (lv >= def.maxLevel) return false;
+  const lv = meta.upgrades[id] ?? 0;
+  if (Number.isFinite(def.maxLevel) && lv >= def.maxLevel) return false;
   const cost = upgradeCost(id, lv);
   if (meta.credits < cost) return false;
   meta.credits -= cost;
@@ -211,10 +227,70 @@ export function metaBonuses(meta: MetaSave): {
 } {
   const u = meta.upgrades;
   return {
-    hpMul: 1 + u.hull * META_UPGRADES.hull.perLevel,
-    damageMul: 1 + u.firepower * META_UPGRADES.firepower.perLevel,
-    speedMul: 1 + u.thruster * META_UPGRADES.thruster.perLevel,
-    magnetAdd: u.magnet * META_UPGRADES.magnet.perLevel,
-    dropChanceAdd: u.fortune * META_UPGRADES.fortune.perLevel,
+    hpMul: 1 + (u.hull ?? 0) * META_UPGRADES.hull.perLevel,
+    damageMul: 1
+      + (u.firepower ?? 0) * META_UPGRADES.firepower.perLevel
+      + (u.overclock ?? 0) * META_UPGRADES.overclock.perLevel,
+    speedMul: 1
+      + (u.thruster ?? 0) * META_UPGRADES.thruster.perLevel
+      + (u.lightArmor ?? 0) * META_UPGRADES.lightArmor.perLevel,
+    magnetAdd: (u.magnet ?? 0) * META_UPGRADES.magnet.perLevel,
+    dropChanceAdd: (u.fortune ?? 0) * META_UPGRADES.fortune.perLevel,
   };
+}
+
+const DUD_LINES = [
+  '상인이 비웃습니다. 잔돈이나 챙기시죠.',
+  '오늘은 별이 안 좋군요. 자선 환급입니다.',
+  '꽝. 상자 안에서 먼지와 500 크레딧이 나왔습니다.',
+];
+
+export type GachaTier = 'jackpot' | 'win' | 'dud';
+
+export interface GachaResult {
+  tier: GachaTier;
+  message: string;
+}
+
+export function tryOpenGacha(meta: MetaSave): GachaResult | null {
+  if (meta.credits < GACHA.cost) return null;
+  meta.credits -= GACHA.cost;
+
+  const roll = Math.random();
+  if (roll < GACHA.jackpotChance) {
+    const owned = new Set(meta.unlockedShipSkins);
+    const pool = (Object.keys(SHIP_SKINS) as ShipSkinId[]).filter((id) => !owned.has(id));
+    if (pool.length > 0) {
+      const id = pool[Math.floor(Math.random() * pool.length)];
+      const def = SHIP_SKINS[id];
+      meta.unlockedShipSkins.push(id);
+      meta.equippedShipSkins[def.shipId] = id;
+      saveMeta(meta);
+      return { tier: 'jackpot', message: `대성공! ${def.name} 스킨 해금` };
+    }
+    meta.credits += GACHA.jackpotFallback;
+    saveMeta(meta);
+    return { tier: 'jackpot', message: `대성공! 스킨은 전부 갖고 계시네요. ${GACHA.jackpotFallback.toLocaleString()} 크레딧 지급` };
+  }
+
+  if (roll < GACHA.jackpotChance + GACHA.winChance) {
+    const owned = new Set(meta.unlockedProjSkins);
+    const pool = (Object.keys(PROJ_SKINS) as ProjSkinId[]).filter((id) => !owned.has(id));
+    if (pool.length > 0) {
+      const id = pool[Math.floor(Math.random() * pool.length)];
+      const def = PROJ_SKINS[id];
+      meta.unlockedProjSkins.push(id);
+      meta.equippedProjSkins[def.weaponId] = id;
+      saveMeta(meta);
+      return { tier: 'win', message: `성공! ${def.name} 투사체 스킨 장착` };
+    }
+    meta.credits += GACHA.winFallback;
+    saveMeta(meta);
+    return { tier: 'win', message: `성공! 투사체 스킨은 전부 보유. ${GACHA.winFallback.toLocaleString()} 크레딧 지급` };
+  }
+
+  meta.credits += GACHA.dudRefund;
+  saveMeta(meta);
+  const line = DUD_LINES[Math.floor(Math.random() * DUD_LINES.length)];
+  return { tier: 'dud', message: `${line} (+${GACHA.dudRefund} 환급)` };
 }

@@ -695,6 +695,7 @@ export class Renderer {
       const size = PLAYER.radius * 3.2;
       this.playerSprite.width = size;
       this.playerSprite.height = size;
+      this.playerSprite.tint = state.shipSkinTint ? hex(state.shipSkinTint) : 0xffffff;
       if (state.isFocusing) {
         g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 });
         g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 });

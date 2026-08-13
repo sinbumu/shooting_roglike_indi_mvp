@@ -6,7 +6,7 @@ import { AudioManager } from './Audio';
 import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSystem';
 import {
   loadMeta, saveMeta, settleRun, tryBuyUpgrade, tryUnlockShip, selectShip,
-  selectStage, selectChallenge,
+  selectStage, selectChallenge, tryOpenGacha,
 } from './Meta';
 import type { ShipId, MetaUpgradeId } from './types';
 import './style.css';
@@ -174,6 +174,7 @@ function endRun(cleared: boolean): void {
   runSettled = true;
   const { newly, creditsGained } = settleRun(meta, state, cleared);
   meta = loadMeta();
+  ui.setMeta(meta);
   if (newly.length) ui.showAchievementToast(newly);
   if (cleared) ui.showVictory(state, creditsGained, newly);
   else ui.showGameOver(state, creditsGained, newly);
@@ -260,6 +261,7 @@ function loop(now: number): void {
 
 function beginRun(): void {
   meta = loadMeta();
+  ui.setMeta(meta);
   state = new GameState();
   state.start(meta.selectedShip, meta, meta.selectedStage, meta.selectedChallenge);
   runSettled = false;
@@ -273,14 +275,16 @@ function beginRun(): void {
 }
 
 function backToHangar(): void {
+  const from = ui.displayedCredits();
   meta = loadMeta();
+  ui.setMeta(meta);
   state = new GameState();
   runSettled = false;
   hitstop = 0;
   ui.hideGameOver();
   ui.hideVictory();
   ui.hidePause();
-  ui.showStart();
+  ui.showStart({ animateCreditsFrom: from });
 }
 
 ui.bindHangar(meta, () => {
@@ -309,6 +313,17 @@ ui.onUnlockShipRequest((id: ShipId) => {
 
 ui.onBuyUpgrade((id: MetaUpgradeId) => {
   if (!tryBuyUpgrade(meta, id)) ui.showBanner('구매 불가');
+});
+
+ui.onOpenGacha(() => {
+  audio.init();
+  const result = tryOpenGacha(meta);
+  if (!result) {
+    ui.showBanner('크레딧이 부족합니다');
+    return;
+  }
+  ui.showGachaResult(result.message, result.tier);
+  if (result.tier === 'jackpot') audio.handleEvent({ type: 'jackpot' });
 });
 
 ui.onStartClick(beginRun);

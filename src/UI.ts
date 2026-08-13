@@ -1,13 +1,17 @@
 import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
-  STAGES, CHALLENGES, AFFIXES, ARSENAL,
+  STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
 import type { MetaSave } from './Meta';
 import { upgradeCost } from './Meta';
 import { SPRITE_PATHS } from './assets';
+
+function fmtCredits(n: number): string {
+  return n.toLocaleString('en-US');
+}
 
 /**
  * DOM Overlay UI (HUD, 격납고, 메타 상점, 업적, 레벨업, 결과)
@@ -45,6 +49,7 @@ export class UI {
   private startOverlay = document.getElementById('start-overlay') as HTMLDivElement;
   private metaOverlay = document.getElementById('meta-overlay') as HTMLDivElement;
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
+  private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
@@ -54,6 +59,10 @@ export class UI {
   private metaShopCredits = document.getElementById('meta-shop-credits') as HTMLSpanElement;
   private metaShop = document.getElementById('meta-shop') as HTMLDivElement;
   private achvList = document.getElementById('achv-list') as HTMLDivElement;
+  private gachaCredits = document.getElementById('gacha-credits') as HTMLSpanElement;
+  private gachaOwned = document.getElementById('gacha-owned') as HTMLDivElement;
+  private gachaResult = document.getElementById('gacha-result') as HTMLDivElement;
+  private gachaOdds = document.getElementById('gacha-odds') as HTMLDivElement;
 
   private lastSlotsKey = '';
   private lastPassiveKey = '';
@@ -64,6 +73,8 @@ export class UI {
   private tooltipTimeout: number | null = null;
   private meta: MetaSave | null = null;
   private onHangarChange: (() => void) | null = null;
+  private lastShownCredits = 0;
+  private creditAnim = 0;
   private focusEls: HTMLElement[] = [];
   private focusIdx = 0;
   private hangarGroups: HTMLElement[][] = [];
@@ -109,11 +120,39 @@ export class UI {
     (document.getElementById('achv-close-btn') as HTMLButtonElement).onclick = () => {
       this.achvOverlay.classList.add('hidden');
     };
+    (document.getElementById('gacha-btn') as HTMLButtonElement).onclick = () => {
+      this.refreshGacha();
+      this.gachaOverlay.classList.remove('hidden');
+      this.setFocusGroup([
+        document.getElementById('gacha-open-btn') as HTMLButtonElement,
+        document.getElementById('gacha-close-btn') as HTMLButtonElement,
+      ]);
+    };
+    (document.getElementById('gacha-close-btn') as HTMLButtonElement).onclick = () => {
+      this.gachaOverlay.classList.add('hidden');
+      this.refreshHangar();
+    };
+    const costEl = document.getElementById('gacha-cost');
+    if (costEl) costEl.textContent = fmtCredits(GACHA.cost);
   }
 
-  refreshHangar(): void {
+  setMeta(meta: MetaSave): void {
+    this.meta = meta;
+  }
+
+  displayedCredits(): number {
+    return this.lastShownCredits;
+  }
+
+  refreshHangar(opts?: { animateFrom?: number }): void {
     if (!this.meta) return;
-    this.metaCredits.textContent = String(this.meta.credits);
+    const to = this.meta.credits;
+    if (opts?.animateFrom != null && opts.animateFrom !== to) {
+      this.animateCredits(opts.animateFrom, to);
+    } else {
+      this.metaCredits.textContent = fmtCredits(to);
+      this.lastShownCredits = to;
+    }
     const st = this.meta.stats;
     this.metaStats.textContent = `런 ${st.runs} · 클리어 ${st.clears} · 처치 ${st.kills}`;
 
@@ -152,17 +191,22 @@ export class UI {
     for (const ship of Object.values(SHIPS)) {
       const unlocked = this.meta.unlockedShips.includes(ship.id);
       const selected = this.meta.selectedShip === ship.id;
+      const skinId = this.meta.equippedShipSkins[ship.id];
+      const skin = skinId ? SHIP_SKINS[skinId] : null;
       const card = document.createElement('button');
       card.className = 'ship-card' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
-      card.style.setProperty('--ship-color', ship.color);
+      card.style.setProperty('--ship-color', skin?.tint ?? ship.color);
       card.innerHTML = `
-        <div class="ship-icon"><img src="${SPRITE_PATHS.ships[ship.id]}" alt="" width="48" height="48" /></div>
+        <div class="ship-icon${skin ? ' skinned' : ''}"${skin ? ` style="--skin:${skin.tint}"` : ''}>
+          <img src="${SPRITE_PATHS.ships[ship.id]}" alt="" width="48" height="48" />
+        </div>
         <div class="ship-name">${ship.name}</div>
         <div class="ship-desc">${ship.desc}</div>
         <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul}<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}<br/>스킬: ${ship.activeSkill.icon}${ship.activeSkill.name}</div>
+        ${skin ? `<div class="ship-skin">${skin.name}</div>` : ''}
         ${unlocked
           ? (selected ? '<div class="ship-status">선택됨</div>' : '<div class="ship-status">선택</div>')
-          : `<div class="ship-status">🔒 ${ship.unlockCost} 크레딧</div>`}
+          : `<div class="ship-status">🔒 ${fmtCredits(ship.unlockCost)} 크레딧</div>`}
       `;
       card.addEventListener('click', () => {
         if (!this.meta || !this.onHangarChange) return;
@@ -178,16 +222,18 @@ export class UI {
 
     const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
     const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
+    const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
     const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
     this.hangarGroups = [
       [...this.stageSelect.querySelectorAll('button')],
       [...this.challengeSelect.querySelectorAll('button')],
       [...this.shipSelect.querySelectorAll('button')],
-      [startBtn, metaBtn, achvBtn],
+      [startBtn, metaBtn, gachaBtn, achvBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
       && this.metaOverlay.classList.contains('hidden')
-      && this.achvOverlay.classList.contains('hidden')) {
+      && this.achvOverlay.classList.contains('hidden')
+      && this.gachaOverlay.classList.contains('hidden')) {
       this.hangarGroupIdx = 3;
       this.setFocusGroup(this.hangarGroups[3]);
     }
@@ -209,23 +255,33 @@ export class UI {
 
   private refreshMetaShop(): void {
     if (!this.meta) return;
-    this.metaShopCredits.textContent = String(this.meta.credits);
+    this.metaShopCredits.textContent = fmtCredits(this.meta.credits);
     this.metaShop.innerHTML = '';
+    let paragonHeader = false;
     for (const id of Object.keys(META_UPGRADES) as MetaUpgradeId[]) {
       const def = META_UPGRADES[id];
-      const lv = this.meta.upgrades[id];
-      const maxed = lv >= def.maxLevel;
+      if (!Number.isFinite(def.maxLevel) && !paragonHeader) {
+        const h = document.createElement('div');
+        h.className = 'shop-section';
+        h.textContent = '극한 강화 · 상한 없음';
+        this.metaShop.appendChild(h);
+        paragonHeader = true;
+      }
+      const lv = this.meta.upgrades[id] ?? 0;
+      const infinite = !Number.isFinite(def.maxLevel);
+      const maxed = !infinite && lv >= def.maxLevel;
       const cost = upgradeCost(id, lv);
       const row = document.createElement('button');
-      row.className = 'meta-row';
+      row.className = 'meta-row' + (infinite ? ' paragon' : '');
       row.disabled = maxed || this.meta.credits < cost;
+      const lvLabel = infinite ? `Lv.${lv}` : `Lv.${lv}/${def.maxLevel}`;
       row.innerHTML = `
         <span class="meta-icon">${def.icon}</span>
         <span class="meta-body">
-          <b>${def.name}</b> Lv.${lv}/${def.maxLevel}<br/>
+          <b>${def.name}</b> ${lvLabel}<br/>
           <span class="tt-desc">${def.desc}</span>
         </span>
-        <span class="meta-cost">${maxed ? 'MAX' : `💰 ${cost}`}</span>
+        <span class="meta-cost">${maxed ? 'MAX' : `💰 ${fmtCredits(cost)}`}</span>
       `;
       row.addEventListener('click', () => {
         row.dispatchEvent(new CustomEvent('buy-upgrade', { bubbles: true, detail: id }));
@@ -240,6 +296,51 @@ export class UI {
       this.refreshMetaShop();
       this.refreshHangar();
     }) as EventListener);
+  }
+
+  onOpenGacha(fn: () => void): void {
+    (document.getElementById('gacha-open-btn') as HTMLButtonElement).addEventListener('click', fn);
+  }
+
+  showGachaResult(message: string, tier: 'jackpot' | 'win' | 'dud'): void {
+    this.gachaResult.textContent = message;
+    this.gachaResult.className = `gacha-result ${tier}`;
+    this.gachaResult.classList.remove('hidden');
+    this.refreshGacha();
+    this.refreshHangar();
+  }
+
+  private refreshGacha(): void {
+    if (!this.meta) return;
+    this.gachaCredits.textContent = fmtCredits(this.meta.credits);
+    const openBtn = document.getElementById('gacha-open-btn') as HTMLButtonElement;
+    openBtn.disabled = this.meta.credits < GACHA.cost;
+    this.gachaOdds.innerHTML = `
+      <div>🎰 대성공 10% — 기체 스킨</div>
+      <div>🔫 성공 30% — 투사체 스킨</div>
+      <div>💨 꽝 60% — ${fmtCredits(GACHA.dudRefund)} 크레딧 환급</div>
+    `;
+    const ships = this.meta.unlockedShipSkins.map((id) => SHIP_SKINS[id].name);
+    const projs = this.meta.unlockedProjSkins.map((id) => PROJ_SKINS[id].name);
+    const owned = [...ships, ...projs];
+    this.gachaOwned.textContent = owned.length
+      ? `보유: ${owned.join(' · ')}`
+      : '보유 스킨 없음';
+  }
+
+  private animateCredits(from: number, to: number): void {
+    cancelAnimationFrame(this.creditAnim);
+    const start = performance.now();
+    const dur = 700;
+    const tick = (now: number): void => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - (1 - t) ** 3;
+      const val = Math.round(from + (to - from) * eased);
+      this.metaCredits.textContent = fmtCredits(val);
+      if (t < 1) this.creditAnim = requestAnimationFrame(tick);
+      else this.lastShownCredits = to;
+    };
+    this.creditAnim = requestAnimationFrame(tick);
   }
 
   private refreshAchievements(): void {
@@ -553,9 +654,9 @@ export class UI {
     this.clearFocus();
   }
 
-  showStart(): void {
+  showStart(opts?: { animateCreditsFrom?: number }): void {
     this.startOverlay.classList.remove('hidden');
-    this.refreshHangar();
+    this.refreshHangar({ animateFrom: opts?.animateCreditsFrom });
   }
 
   setMuted(muted: boolean): void {
@@ -607,12 +708,21 @@ export class UI {
     }
 
     if (!this.metaOverlay.classList.contains('hidden')
-      || !this.achvOverlay.classList.contains('hidden')) {
+      || !this.achvOverlay.classList.contains('hidden')
+      || !this.gachaOverlay.classList.contains('hidden')) {
       if (e.code === 'Escape') return false;
       if (confirm) {
-        const closeId = !this.metaOverlay.classList.contains('hidden') ? 'meta-close-btn' : 'achv-close-btn';
+        const closeId = !this.metaOverlay.classList.contains('hidden')
+          ? 'meta-close-btn'
+          : !this.gachaOverlay.classList.contains('hidden')
+            ? 'gacha-close-btn'
+            : 'achv-close-btn';
         (document.getElementById(closeId) as HTMLButtonElement)?.click();
         return true;
+      }
+      if (!this.gachaOverlay.classList.contains('hidden')) {
+        if (left || up) { this.moveFocus(-1); return true; }
+        if (right || down) { this.moveFocus(1); return true; }
       }
       return false;
     }

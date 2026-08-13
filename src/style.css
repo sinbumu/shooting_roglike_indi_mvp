@@ -427,7 +427,90 @@ button.secondary {
   object-fit: contain;
   image-rendering: auto;
 }
+.ship-icon.skinned {
+  background: color-mix(in srgb, var(--skin, #818cf8) 35%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 0 12px var(--skin, #818cf8);
+}
 .ship-name { font-size: 15px; font-weight: 800; margin: 2px 0; }
+.ship-desc, .ship-meta { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+.ship-status { font-size: 11px; font-weight: 800; margin-top: 4px; color: #7dd3fc; }
+.ship-skin {
+  font-size: 11px;
+  font-weight: 800;
+  color: #c4b5fd;
+  margin-top: 2px;
+}
+
+.shop-section {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #c4b5fd;
+  padding: 8px 4px 2px;
+  text-align: left;
+}
+
+.meta-row.paragon {
+  border-color: rgba(196, 181, 253, 0.45);
+}
+
+#gacha-overlay {
+  overflow-x: hidden;
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+
+.gacha-odds {
+  width: 100%;
+  max-width: 340px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+.gacha-owned {
+  width: 100%;
+  max-width: 340px;
+  font-size: 11px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.gacha-result {
+  width: 100%;
+  max-width: 340px;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 12px;
+  border-radius: 12px;
+  line-height: 1.5;
+}
+
+.gacha-result.jackpot {
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid #fbbf24;
+}
+
+.gacha-result.win {
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.12);
+  border: 1px solid #22d3ee;
+}
+
+.gacha-result.dud {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid #ef4444;
+}
 .ship-desc, .ship-meta { font-size: 11px; color: #94a3b8; line-height: 1.4; }
 .ship-status { font-size: 11px; font-weight: 800; margin-top: 4px; color: #7dd3fc; }
 

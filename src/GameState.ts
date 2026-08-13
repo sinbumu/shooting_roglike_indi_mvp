@@ -7,6 +7,7 @@ import {
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
+  SHIP_SKINS, PROJ_SKINS,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -164,6 +165,10 @@ export class GameState {
   shipId: ShipId = 'scout';
   stageId: StageId = 'orbit';
   challengeId: ChallengeId = 'standard';
+  /** 블랙마켓 기체 스킨 (CSS hex) */
+  shipSkinTint: string | null = null;
+  /** 무기별 투사체 스킨 색 */
+  projSkinColors: Partial<Record<WeaponId, string>> = {};
   maxHp: number = PLAYER.maxHp;
   hp: number = PLAYER.maxHp;
   moveSpeed: number = PLAYER.moveSpeed;
@@ -257,6 +262,13 @@ export class GameState {
     this.shipId = shipId;
     this.stageId = stage.id;
     this.challengeId = challenge.id;
+    const skinId = meta.equippedShipSkins?.[shipId];
+    this.shipSkinTint = skinId ? SHIP_SKINS[skinId].tint : null;
+    this.projSkinColors = {};
+    for (const [wid, pid] of Object.entries(meta.equippedProjSkins ?? {})) {
+      const def = PROJ_SKINS[pid as keyof typeof PROJ_SKINS];
+      if (def) this.projSkinColors[wid as WeaponId] = def.color;
+    }
     this.waves = stage.waves;
     this.bossTimes = stage.bossTimes;
     this.bossRoster = stage.bossRoster;
@@ -685,7 +697,7 @@ export class GameState {
         homingTurnRate: p.homingTurnRate,
         pierceLeft: pierce,
         life: p.lifetime,
-        color: def.color,
+        color: this.projSkinColors[slot.weaponId] ?? def.color,
         hitIds: new Set(),
         affix: slot.affix,
         pierceHits: 0,
@@ -696,7 +708,7 @@ export class GameState {
     this.events.push({
       type: 'fired',
       x: this.playerX, y: this.playerY - PLAYER.radius,
-      color: def.color,
+      color: this.projSkinColors[slot.weaponId] ?? def.color,
       weaponId: slot.weaponId,
     });
   }

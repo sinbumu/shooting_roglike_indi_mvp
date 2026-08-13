@@ -4,6 +4,7 @@ import type {
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
   AffixId, StatBoostId, TacticalId,
+  ShipSkinId, ProjSkinId,
 } from './types';
 
 // ============================================================
@@ -238,7 +239,7 @@ export const SHIPS: Record<ShipId, ShipDef> = {
   fortress: {
     id: 'fortress', name: '포트리스', icon: '🛡️', color: '#86efac',
     desc: '두꺼운 장갑. 느리지만 맞아도 버팁니다. 스프레드로 시작.',
-    hpMul: 1.35, speedMul: 0.82, startingWeapon: 'spread', unlockCost: 120,
+    hpMul: 1.35, speedMul: 0.82, startingWeapon: 'spread', unlockCost: 1200,
     activeSkill: {
       id: 'aegis', name: '절대 방벽', icon: '🛡️',
       cooldown: 12, duration: 2.5, radius: 72,
@@ -248,7 +249,7 @@ export const SHIPS: Record<ShipId, ShipDef> = {
   hunter: {
     id: 'hunter', name: '헌터', icon: '🎯', color: '#fdba74',
     desc: '균형형. 호밍으로 시작해 추격전에 강합니다.',
-    hpMul: 1.0, speedMul: 1.0, startingWeapon: 'homing', unlockCost: 120,
+    hpMul: 1.0, speedMul: 1.0, startingWeapon: 'homing', unlockCost: 1200,
     activeSkill: {
       id: 'timeDilation', name: '시간 왜곡', icon: '⏱️',
       cooldown: 15, duration: 4, slowMul: 0.4,
@@ -297,47 +298,82 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
 export const META_UPGRADES: Record<MetaUpgradeId, MetaUpgradeDef> = {
   hull: {
     id: 'hull', name: '선체 강화', icon: '❤️',
-    desc: '최대 체력 +10%/레벨', maxLevel: 5, baseCost: 40, perLevel: 0.1,
+    desc: '최대 체력 +10%/레벨', maxLevel: 5, baseCost: 900, perLevel: 0.1,
   },
   firepower: {
     id: 'firepower', name: '화력 보정', icon: '🔥',
-    desc: '무기 데미지 +8%/레벨', maxLevel: 5, baseCost: 45, perLevel: 0.08,
+    desc: '무기 데미지 +8%/레벨', maxLevel: 5, baseCost: 1200, perLevel: 0.08,
   },
   thruster: {
     id: 'thruster', name: '엔진 개조', icon: '🚀',
-    desc: '이동 속도 +6%/레벨', maxLevel: 5, baseCost: 35, perLevel: 0.06,
+    desc: '이동 속도 +6%/레벨', maxLevel: 5, baseCost: 700, perLevel: 0.06,
   },
   magnet: {
     id: 'magnet', name: '자석 코어', icon: '🧲',
-    desc: '자석 반경 +15px/레벨', maxLevel: 5, baseCost: 30, perLevel: 15,
+    desc: '자석 반경 +15px/레벨', maxLevel: 5, baseCost: 500, perLevel: 15,
   },
   fortune: {
     id: 'fortune', name: '행운 회로', icon: '🍀',
-    desc: '아이템 드롭률 +1%/레벨', maxLevel: 5, baseCost: 50, perLevel: 0.01,
+    desc: '아이템 드롭률 +1%/레벨', maxLevel: 5, baseCost: 1500, perLevel: 0.01,
+  },
+  overclock: {
+    id: 'overclock', name: '오버클럭', icon: '⚙️',
+    desc: '모든 무기 데미지 +0.2%/레벨 (상한 없음)',
+    maxLevel: Infinity, baseCost: 2000, costMul: 1.75, perLevel: 0.002,
+  },
+  lightArmor: {
+    id: 'lightArmor', name: '초경량 장갑', icon: '🪶',
+    desc: '이동 속도 +0.2%/레벨 (상한 없음)',
+    maxLevel: Infinity, baseCost: 2000, costMul: 1.75, perLevel: 0.002,
   },
 };
 
 export const META = {
   storageKey: 'stellar-meta-v2',
-  creditsPerScore: 0.01,
-  clearBonus: 40,
-  bossKillBonus: 25,
+  creditsPerScore: 0.001,
+  clearBonus: 400,
+  bossKillBonus: 250,
 } as const;
 
+export const GACHA = {
+  cost: 10000,
+  dudRefund: 500,
+  jackpotFallback: 5000,
+  winFallback: 2000,
+  jackpotChance: 0.1,
+  winChance: 0.3,
+} as const;
+
+export const SHIP_SKINS: Record<ShipSkinId, {
+  id: ShipSkinId; shipId: ShipId; name: string; tint: string;
+}> = {
+  darkScout: { id: 'darkScout', shipId: 'scout', name: '다크 매터 스카웃', tint: '#818cf8' },
+  gildedFortress: { id: 'gildedFortress', shipId: 'fortress', name: '도금 포트리스', tint: '#fbbf24' },
+  voidHunter: { id: 'voidHunter', shipId: 'hunter', name: '보이드 헌터', tint: '#22d3ee' },
+};
+
+export const PROJ_SKINS: Record<ProjSkinId, {
+  id: ProjSkinId; weaponId: WeaponId; name: string; color: string;
+}> = {
+  vulcanCrimson: { id: 'vulcanCrimson', weaponId: 'vulcan', name: '크림슨 레이저', color: '#ef4444' },
+  spreadIon: { id: 'spreadIon', weaponId: 'spread', name: '이온 스프레드', color: '#a3e635' },
+  homingNova: { id: 'homingNova', weaponId: 'homing', name: '노바 호밍', color: '#f472b6' },
+};
+
 export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
-  first_blood: { id: 'first_blood', name: '첫 격추', desc: '적을 1기 처치', icon: '✨', reward: 10 },
-  survive_60: { id: 'survive_60', name: '1분 생존', desc: '60초 이상 생존', icon: '⏱️', reward: 15 },
-  survive_180: { id: 'survive_180', name: '3분 생존', desc: '180초 이상 생존', icon: '⌛', reward: 30 },
-  clear_mission: { id: 'clear_mission', name: '미션 클리어', desc: '5분 생존 성공', icon: '🏆', reward: 80 },
-  boss_slayer: { id: 'boss_slayer', name: '보스 슬레이어', desc: '보스를 1기 이상 처치', icon: '💀', reward: 35 },
-  tier2: { id: 'tier2', name: '상위 무장', desc: 'Tier2 무기 획득', icon: '⚡', reward: 25 },
-  tier3: { id: 'tier3', name: '종결 무장', desc: 'Tier3 무기 획득', icon: '🌟', reward: 60 },
-  combo_20: { id: 'combo_20', name: '광란', desc: '콤보 20 달성', icon: '🔥', reward: 20 },
-  score_10k: { id: 'score_10k', name: '만점 비행사', desc: '한 판 10,000점', icon: '🎯', reward: 40 },
-  elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 20 },
-  nebula_clear: { id: 'nebula_clear', name: '성운 돌파', desc: '성운 전선 클리어', icon: '🌌', reward: 50 },
-  rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 70 },
-  challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 45 },
+  first_blood: { id: 'first_blood', name: '첫 격추', desc: '적을 1기 처치', icon: '✨', reward: 100 },
+  survive_60: { id: 'survive_60', name: '1분 생존', desc: '60초 이상 생존', icon: '⏱️', reward: 150 },
+  survive_180: { id: 'survive_180', name: '3분 생존', desc: '180초 이상 생존', icon: '⌛', reward: 300 },
+  clear_mission: { id: 'clear_mission', name: '미션 클리어', desc: '5분 생존 성공', icon: '🏆', reward: 800 },
+  boss_slayer: { id: 'boss_slayer', name: '보스 슬레이어', desc: '보스를 1기 이상 처치', icon: '💀', reward: 350 },
+  tier2: { id: 'tier2', name: '상위 무장', desc: 'Tier2 무기 획득', icon: '⚡', reward: 250 },
+  tier3: { id: 'tier3', name: '종결 무장', desc: 'Tier3 무기 획득', icon: '🌟', reward: 600 },
+  combo_20: { id: 'combo_20', name: '광란', desc: '콤보 20 달성', icon: '🔥', reward: 200 },
+  score_10k: { id: 'score_10k', name: '만점 비행사', desc: '한 판 10,000점', icon: '🎯', reward: 400 },
+  elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 200 },
+  nebula_clear: { id: 'nebula_clear', name: '성운 돌파', desc: '성운 전선 클리어', icon: '🌌', reward: 500 },
+  rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 700 },
+  challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 450 },
 };
 
 /** 엘리트 적 (일반 적의 강화 버전) */
