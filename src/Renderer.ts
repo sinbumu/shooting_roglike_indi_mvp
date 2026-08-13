@@ -682,6 +682,10 @@ export class Renderer {
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (e.elite) spr.tint = 0xfbbf24;
+        else if (e.def.id === 'splinter') spr.tint = 0xfb923c;
+        else if (e.mutation === 'explode') spr.tint = 0xfb923c;
+        else if (e.mutation === 'split') spr.tint = 0xa3e635;
+        else if (e.mutation === 'burst') spr.tint = 0xe879f9;
         else spr.tint = 0xffffff;
 
         if (e.elite) {
@@ -690,6 +694,13 @@ export class Renderer {
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.2;
           glow.alpha = 0.55;
+        }
+        if (e.def.id === 'teleporter') {
+          const glow = this.glowPool.get();
+          glow.tint = 0xc084fc;
+          glow.position.set(e.x, e.y);
+          glow.width = glow.height = r * 3.6 + Math.sin(this.elapsed * 8) * 8;
+          glow.alpha = 0.5;
         }
         if (e.def.id === 'boss') {
           const glow = this.glowPool.get();
@@ -724,6 +735,15 @@ export class Renderer {
           case 'tank':
             pts = [-r * 0.9, -r * 0.9, r * 0.9, -r * 0.9, r * 0.9, r * 0.9, -r * 0.9, r * 0.9];
             break;
+          case 'shielder':
+            pts = [-r * 0.85, -r * 0.7, r * 0.85, -r * 0.7, r, r * 0.85, 0, r, -r, r * 0.85];
+            break;
+          case 'teleporter':
+            pts = [0, -r, r * 0.7, 0, 0, r, -r * 0.7, 0];
+            break;
+          case 'splinter':
+            pts = [0, r * 0.9, -r * 0.7, -r * 0.6, r * 0.7, -r * 0.6];
+            break;
           case 'boss':
           case 'bossSeraph': {
             const sides = e.def.id === 'bossSeraph' ? 8 : 6;
@@ -741,6 +761,18 @@ export class Renderer {
           color: e.elite ? 0xfde68a : 0xffffff,
           alpha: e.elite ? 0.9 : 0.35,
         });
+      }
+
+      if (e.def.id === 'shielder') {
+        g.arc(e.x, e.y, r + 7, Math.PI * 0.18, Math.PI * 0.82)
+          .stroke({ width: 3.5, color: 0x67e8f9, alpha: 0.85 + Math.sin(this.elapsed * 6) * 0.1 });
+      }
+      if (e.mutation) {
+        const mutColor = e.mutation === 'explode' ? 0xfb923c
+          : e.mutation === 'split' ? 0xa3e635
+          : 0xe879f9;
+        g.circle(e.x, e.y, r + 4)
+          .stroke({ width: 2, color: mutColor, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
       }
 
       if (e.hp < e.maxHp && !isBoss) {

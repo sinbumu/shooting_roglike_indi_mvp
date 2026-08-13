@@ -1,12 +1,12 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
-  AffixId, StatBoostId, TacticalId,
+  AffixId, StatBoostId, TacticalId, MutationId,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
-  QUANTUM, ARSENAL, AFFIX_SYNERGY,
+  QUANTUM, ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -41,6 +41,9 @@ export interface Projectile {
   noSplit?: boolean;
   /** 관통 시너지: 몇 번 관통했는지 */
   pierceHits?: number;
+  explodeRadius?: number;
+  /** 실더 정면 쉴드 관통 (관통·스웜 등) */
+  shieldPierce?: boolean;
 }
 
 export interface Enemy {
@@ -62,6 +65,8 @@ export interface Enemy {
   phase?: number;
   /** 돌발 균열로 스폰된 엘리트 */
   fromRift?: boolean;
+  mutation?: MutationId;
+  teleportCd?: number;
 }
 
 export interface PassiveSlot {
@@ -102,6 +107,7 @@ export interface SpawnWarning {
   enemyId: EnemyId;
   dir: number;
   timer: number;
+  mutation?: MutationId;
 }
 
 export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'arsenal' | 'gameover' | 'victory';
@@ -159,6 +165,7 @@ export class GameState {
   armorReduce = 0;
   expMul = 1;
   dropChanceBonus = 0;
+  cooldownMul = 1;
   enemyHpMul = 1;
   scoreMul = 1;
   creditMul = 1;
@@ -252,7 +259,8 @@ export class GameState {
     this.creditMul = challenge.creditMul ?? 1;
 
     const hpMul = ship.hpMul * m.hpMul * (challenge.hpMul ?? 1);
-    this.maxHp = Math.round(PLAYER.maxHp * hpMul);
+    this.baseMaxHp = Math.round(PLAYER.maxHp * hpMul);
+    this.maxHp = this.baseMaxHp;
     this.hp = this.maxHp;
     this.baseMoveSpeed = PLAYER.moveSpeed * ship.speedMul * m.speedMul;
     this.baseMagnet = PLAYER.magnetRadius + m.magnetAdd;
@@ -284,6 +292,7 @@ export class GameState {
   private baseMoveSpeed: number = PLAYER.moveSpeed;
   private baseMagnet: number = PLAYER.magnetRadius;
   private baseDamageMul = 1;
+  private baseMaxHp: number = PLAYER.maxHp;
 
   /** 패시브 + 한계돌파 + 버프 타이머 → 런타임 스탯 재계산 */
   applyPassiveEffects(): void {
@@ -292,14 +301,21 @@ export class GameState {
     let armor = 0;
     let expAdd = 0;
     let dmgAdd = 0;
+    let hpMul = 1;
+    let cdMul = 1;
     for (const p of this.passives) {
-      const v = PASSIVES[p.passiveId].perLevel * p.level;
+      const def = PASSIVES[p.passiveId];
+      const v = def.perLevel * p.level;
       switch (p.passiveId) {
         case 'magnet': magnetAdd += v; break;
         case 'thruster': speedAdd += v; break;
         case 'plating': armor += v; break;
         case 'collector': expAdd += v; break;
         case 'overcharge': dmgAdd += v; break;
+        case 'overload':
+          hpMul *= def.hpMul ?? 1;
+          cdMul *= def.cooldownMul ?? 1;
+          break;
       }
     }
     this.baseExpMul = 1 + expAdd;
@@ -311,6 +327,13 @@ export class GameState {
     this.armorReduce = Math.min(0.7, armor);
     this.expMul = this.baseExpMul * stormExp;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
+    this.cooldownMul = cdMul;
+    const newMax = Math.max(1, Math.round(this.baseMaxHp * hpMul));
+    if (newMax !== this.maxHp) {
+      const ratio = this.maxHp > 0 ? this.hp / this.maxHp : 1;
+      this.maxHp = newMax;
+      this.hp = Math.min(newMax, Math.max(1, this.hp * ratio));
+    }
   }
 
   applyStatBoost(id: StatBoostId): void {
@@ -532,7 +555,7 @@ export class GameState {
       if (slot.cooldownLeft <= 0) {
         this.fireWeapon(slot);
         const def = WEAPONS[slot.weaponId];
-        const cdScale = 1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel);
+        const cdScale = (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) * this.cooldownMul;
         slot.cooldownLeft += def.cooldownMs * cdScale;
       }
     }
@@ -575,6 +598,8 @@ export class GameState {
         hitIds: new Set(),
         affix: slot.affix,
         pierceHits: 0,
+        explodeRadius: p.explodeRadius,
+        shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
       });
     }
     this.events.push({ type: 'fired', x: this.playerX, y: this.playerY - PLAYER.radius, color: def.color });
@@ -592,7 +617,7 @@ export class GameState {
         const interval = entry.interval * scale;
         if (t >= interval) {
           this.spawnTimers.set(key, t - interval);
-          this.spawnEnemy(entry.enemy);
+          this.spawnEnemy(entry.enemy, entry.mutation);
         } else {
           this.spawnTimers.set(key, t);
         }
@@ -600,19 +625,17 @@ export class GameState {
     });
   }
 
-  private spawnEnemy(enemyId: EnemyId): void {
+  private spawnEnemy(enemyId: EnemyId, mutation?: MutationId): void {
     const def = ENEMIES[enemyId];
     const W = CANVAS.width;
     const H = CANVAS.height;
 
     if (def.spawnEdge === 'top') {
-      // 일반 스폰: 화면 위에서 바로 등장
       const x = def.radius + Math.random() * (W - def.radius * 2);
-      this.addEnemy(enemyId, x, -def.radius * 2, 1);
+      this.addEnemy(enemyId, x, -def.radius * 2, 1, true, false, mutation);
       return;
     }
 
-    // 기습형: 화면 밖 좌표에 2초 대기 + 끝단에 경고 인디케이터
     if (def.spawnEdge === 'side') {
       const fromLeft = Math.random() < 0.5;
       const y = H * 0.15 + Math.random() * H * 0.55;
@@ -624,9 +647,9 @@ export class GameState {
         enemyId,
         dir: fromLeft ? 1 : -1,
         timer: WARNING_DURATION,
+        mutation,
       });
     } else {
-      // bottom
       const x = def.radius + Math.random() * (W - def.radius * 2);
       this.warnings.push({
         indicatorX: x,
@@ -636,6 +659,7 @@ export class GameState {
         enemyId,
         dir: 1,
         timer: WARNING_DURATION,
+        mutation,
       });
     }
   }
@@ -724,7 +748,7 @@ export class GameState {
       const w = this.warnings[i];
       w.timer -= dt;
       if (w.timer <= 0) {
-        this.addEnemy(w.enemyId, w.spawnX, w.spawnY, w.dir);
+        this.addEnemy(w.enemyId, w.spawnX, w.spawnY, w.dir, true, false, w.mutation);
         this.warnings.splice(i, 1);
       }
     }
@@ -737,12 +761,14 @@ export class GameState {
     dir: number,
     allowElite = true,
     forceElite = false,
+    mutation?: MutationId,
   ): Enemy {
     const def = ENEMIES[enemyId];
     const isBoss = def.movePattern === 'boss' || def.movePattern === 'bossSeraph';
     const elite = forceElite
       || (allowElite
         && !isBoss
+        && enemyId !== 'splinter'
         && this.time >= ELITE.unlockAt
         && Math.random() < ELITE.chance);
 
@@ -757,6 +783,7 @@ export class GameState {
       hitFlash: 0,
       elite,
       phase: isBoss ? 1 : undefined,
+      mutation: enemyId === 'splinter' ? undefined : mutation,
     };
     this.enemies.push(enemy);
     return enemy;
@@ -790,6 +817,12 @@ export class GameState {
         case 'dashUp':
           e.y -= e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
           break;
+        case 'shieldDown':
+          e.y += e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
+          break;
+        case 'teleport':
+          this.updateTeleporter(e, dt);
+          break;
         case 'boss':
           this.updateBoss(e, dt);
           break;
@@ -803,6 +836,21 @@ export class GameState {
         e.y > H + margin || e.y < -margin - 200 ||
         e.x < -margin - 200 || e.x > W + margin + 200;
       if (out && e.age > 1.5 && !isBoss) this.enemies.splice(i, 1);
+    }
+  }
+
+  private updateTeleporter(e: Enemy, dt: number): void {
+    const spd = e.def.speed * (e.elite ? ELITE.speedMul : 1);
+    e.y += spd * dt;
+    e.teleportCd = (e.teleportCd ?? 0) - dt;
+    const dist = Math.hypot(this.playerX - e.x, this.playerY - e.y);
+    if (e.teleportCd <= 0 && dist < TELEPORTER.triggerDist && dist > 24) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      const r = e.def.radius;
+      e.x = Math.max(r, Math.min(CANVAS.width - r, this.playerX + side * (38 + Math.random() * 36)));
+      e.y = Math.max(r, Math.min(CANVAS.height - r, this.playerY + 40 + Math.random() * 28));
+      e.teleportCd = TELEPORTER.cooldown;
+      e.hitFlash = 0.15;
     }
   }
 
@@ -946,6 +994,17 @@ export class GameState {
         const hitR = e.def.radius * (e.elite ? 1.15 : 1);
         const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
+          if (e.def.id === 'shielder' && !p.shieldPierce && this.isShielderFrontHit(p)) {
+            p.hitIds.add(e.id);
+            e.hitFlash = 0.05;
+            if (p.pierceLeft <= 0) {
+              this.projectiles.splice(i, 1);
+              removed = true;
+              break;
+            }
+            p.pierceLeft--;
+            continue;
+          }
           p.hitIds.add(e.id);
           let dmg = p.damage;
           if (p.affix === 'pierce') {
@@ -954,6 +1013,7 @@ export class GameState {
           }
           if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
           this.damageEnemy(e, dmg);
+          if (p.explodeRadius) this.explodeProjectile(p, e);
 
           if (p.affix === 'chain') {
             this.applyChain(p, e);
@@ -977,6 +1037,26 @@ export class GameState {
         this.projectiles.splice(i, 1);
       }
     }
+  }
+
+  private isShielderFrontHit(p: Projectile): boolean {
+    const spd = Math.hypot(p.vx, p.vy) || 1;
+    const incomingY = -p.vy / spd;
+    return incomingY > SHIELDER.frontDot;
+  }
+
+  private explodeProjectile(p: Projectile, origin: Enemy): void {
+    const r = p.explodeRadius ?? 0;
+    if (r <= 0) return;
+    const r2 = r * r;
+    for (const e of [...this.enemies]) {
+      if (e.id === origin.id || p.hitIds.has(e.id)) continue;
+      if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) {
+        p.hitIds.add(e.id);
+        this.damageEnemy(e, p.damage * 0.55);
+      }
+    }
+    this.events.push({ type: 'enemyDied', x: p.x, y: p.y, color: p.color, radius: r * 0.45 });
   }
 
   private pierceDamageMul(p: Projectile): number {
@@ -1100,6 +1180,7 @@ export class GameState {
       } else {
         if (e.elite) this.eliteKills++;
         if (e.fromRift) this.onRiftEliteKilled();
+        this.applyDeathMutation(e);
         this.events.push({
           type: 'enemyDied',
           x: e.x, y: e.y,
@@ -1122,6 +1203,32 @@ export class GameState {
 
       const idx = this.enemies.indexOf(e);
       if (idx >= 0) this.enemies.splice(idx, 1);
+    }
+  }
+
+  private applyDeathMutation(e: Enemy): void {
+    if (!e.mutation) return;
+    if (e.mutation === 'explode') {
+      const rr = MUTATIONS.explodeRadius;
+      if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
+        this.hurtPlayer(MUTATIONS.explodeDamage);
+      }
+      this.events.push({ type: 'enemyDied', x: e.x, y: e.y, color: '#fb923c', radius: rr * 0.5 });
+    } else if (e.mutation === 'split') {
+      for (const ox of [-18, 18]) {
+        this.addEnemy('splinter', e.x + ox, e.y, 1, false);
+      }
+    } else if (e.mutation === 'burst') {
+      for (let k = 0; k < MUTATIONS.burstCount; k++) {
+        const a = (Math.PI * 2 * k) / MUTATIONS.burstCount;
+        this.enemyProjectiles.push({
+          x: e.x, y: e.y,
+          vx: Math.cos(a) * MUTATIONS.burstSpeed,
+          vy: Math.sin(a) * MUTATIONS.burstSpeed,
+          radius: 5,
+          damage: MUTATIONS.burstDamage,
+        });
+      }
     }
   }
 

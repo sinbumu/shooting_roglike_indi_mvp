@@ -26,7 +26,7 @@ export const PLAYER = {
   magnetRadius: 90,
   maxWeaponSlots: 5,
   /** 런 중 패시브 슬롯 최대 */
-  maxPassiveSlots: 3,
+  maxPassiveSlots: 4,
 } as const;
 
 /** 가상 조이스틱 설정 (CSS px 기준) */
@@ -37,7 +37,8 @@ export const JOYSTICK = {
 
 export const LEVELING = {
   /** 레벨 n → n+1에 필요한 경험치 */
-  expForLevel: (level: number): number => 8 + Math.floor(level * 4.5),
+  expForLevel: (level: number): number =>
+    8 + Math.floor(level * 3) + Math.floor((level / 5) ** 2),
   /** 무기 최대 레벨 */
   maxWeaponLevel: 8,
   /** 레벨당 데미지 배율 증가 */
@@ -51,7 +52,8 @@ export const LEVELING = {
 // ------------------------------------------------------------
 // 무기 트리
 //   Tier1: vulcan(직사) / spread(방사) / homing(유도)
-//   Tier2: laser = vulcan+spread / railgun = vulcan+homing / swarm = spread+homing
+//   Tier2 이종: laser = vulcan+spread / railgun = vulcan+homing / swarm = spread+homing
+//   Tier2 동형: gatling = vulcan+vulcan / nova = spread+spread / mothership = homing+homing
 //   Tier3: omega = laser+railgun / starfall = laser+swarm / genesis = railgun+swarm
 // ------------------------------------------------------------
 
@@ -96,6 +98,29 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     projectile: { damage: 10, speed: 430, radius: 5, count: 6, spreadDeg: 360, homingTurnRate: 5.2, pierce: 0, lifetime: 2.8 },
   },
 
+  // ---------- Tier 2 동형 조합 ----------
+  gatling: {
+    id: 'gatling', name: '가틀링 건', tier: 2, icon: '🔥', color: '#facc15',
+    desc: '[벌컨+벌컨] 퍼짐 없는 한 점 집중 초고속 연사',
+    cooldownMs: 95,
+    projectile: { damage: 5, speed: 920, radius: 3.5, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 1.4 },
+  },
+  nova: {
+    id: 'nova', name: '노바 캐논', tier: 2, icon: '💥', color: '#22d3ee',
+    desc: '[스프레드+스프레드] 초광각 산탄. 짧은 사거리 고화력',
+    cooldownMs: 640,
+    projectile: { damage: 8, speed: 460, radius: 5, count: 12, spreadDeg: 170, homingTurnRate: 0, pierce: 0, lifetime: 0.85 },
+  },
+  mothership: {
+    id: 'mothership', name: '모선 호출', tier: 2, icon: '🛸', color: '#fb7185',
+    desc: '[호밍+호밍] 느린 초대형 유도 폭탄. 명중 시 광역 폭발',
+    cooldownMs: 1450,
+    projectile: {
+      damage: 52, speed: 210, radius: 14, count: 1, spreadDeg: 0,
+      homingTurnRate: 2.4, pierce: 0, lifetime: 3.6, explodeRadius: 92,
+    },
+  },
+
   // ---------- Tier 3 (종결 무기) ----------
   omega: {
     id: 'omega', name: '오메가 캐논', tier: 3, icon: '☀️', color: '#fbbf24',
@@ -121,10 +146,16 @@ export const RECIPES: Recipe[] = [
   { materials: ['vulcan', 'spread'], result: 'laser' },
   { materials: ['vulcan', 'homing'], result: 'railgun' },
   { materials: ['spread', 'homing'], result: 'swarm' },
+  { materials: ['vulcan', 'vulcan'], result: 'gatling' },
+  { materials: ['spread', 'spread'], result: 'nova' },
+  { materials: ['homing', 'homing'], result: 'mothership' },
   { materials: ['laser', 'railgun'], result: 'omega' },
   { materials: ['laser', 'swarm'], result: 'starfall' },
   { materials: ['railgun', 'swarm'], result: 'genesis' },
 ];
+
+/** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
+export const T1_DUPLICATE_CAP = 2;
 
 /** 시작 시 지급되는 무기 */
 export const STARTING_WEAPON: WeaponId = 'vulcan';
@@ -153,6 +184,18 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   tank: {
     id: 'tank', name: '탱크', hp: 210, speed: 42, radius: 26, color: '#94a3b8',
     contactDamage: 25, exp: 10, spawnEdge: 'top', movePattern: 'slowDown',
+  },
+  shielder: {
+    id: 'shielder', name: '실더', hp: 160, speed: 55, radius: 20, color: '#22d3ee',
+    contactDamage: 18, exp: 8, spawnEdge: 'top', movePattern: 'shieldDown',
+  },
+  teleporter: {
+    id: 'teleporter', name: '텔레포터', hp: 70, speed: 90, radius: 14, color: '#c084fc',
+    contactDamage: 22, exp: 6, spawnEdge: 'top', movePattern: 'teleport',
+  },
+  splinter: {
+    id: 'splinter', name: '파편', hp: 10, speed: 170, radius: 8, color: '#fb923c',
+    contactDamage: 8, exp: 1, spawnEdge: 'top', movePattern: 'down',
   },
   boss: {
     id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: '#dc2626',
@@ -212,6 +255,11 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
   overcharge: {
     id: 'overcharge', name: '과충전', icon: '💢', color: '#fbbf24',
     desc: '모든 무기 데미지 증가', perLevel: 0.12, maxLevel: 5,
+  },
+  overload: {
+    id: 'overload', name: '과부하 코어', icon: '☢️', color: '#f97316',
+    desc: '쿨타임 30% 감소, 최대 체력 40% 감소',
+    perLevel: 0, maxLevel: 1, hpMul: 0.6, cooldownMul: 0.7,
   },
 };
 
@@ -278,6 +326,26 @@ export const ELITE = {
   scoreMul: 3,
   /** 처치 시 아이템 확정 드롭 */
   guaranteedPickup: true,
+} as const;
+
+/** 후반 돌연변이 (180초~) */
+export const MUTATIONS = {
+  unlockAt: 180,
+  explodeRadius: 52,
+  explodeDamage: 22,
+  burstCount: 8,
+  burstSpeed: 120,
+  burstDamage: 10,
+} as const;
+
+export const SHIELDER = {
+  /** 정면(아래쪽) 판정: 입사 방향과 하향 벡터 내적 임계 */
+  frontDot: 0.35,
+} as const;
+
+export const TELEPORTER = {
+  triggerDist: 115,
+  cooldown: 2.4,
 } as const;
 
 // ------------------------------------------------------------
@@ -508,6 +576,13 @@ const ORBIT_WAVES: Wave[] = [
   { from: 55, to: Infinity, entries: [{ enemy: 'rusher', interval: 6.0 }] },
   { from: 75, to: Infinity, entries: [{ enemy: 'tank', interval: 9.0 }] },
   { from: 120, to: Infinity, entries: [{ enemy: 'drone', interval: 0.9 }, { enemy: 'dasher', interval: 5.0 }] },
+  { from: 180, to: Infinity, entries: [
+    { enemy: 'shielder', interval: 7.2 },
+    { enemy: 'teleporter', interval: 6.8 },
+    { enemy: 'drone', interval: 1.6, mutation: 'explode' },
+    { enemy: 'zigzag', interval: 3.4, mutation: 'split' },
+    { enemy: 'tank', interval: 14, mutation: 'burst' },
+  ] },
 ];
 
 const NEBULA_WAVES: Wave[] = [
@@ -517,6 +592,12 @@ const NEBULA_WAVES: Wave[] = [
   { from: 45, to: Infinity, entries: [{ enemy: 'rusher', interval: 5.0 }] },
   { from: 60, to: Infinity, entries: [{ enemy: 'tank', interval: 7.5 }] },
   { from: 100, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.0 }, { enemy: 'zigzag', interval: 1.2 }] },
+  { from: 165, to: Infinity, entries: [
+    { enemy: 'shielder', interval: 6.4 },
+    { enemy: 'teleporter', interval: 5.8 },
+    { enemy: 'drone', interval: 1.3, mutation: 'burst' },
+    { enemy: 'zigzag', interval: 2.8, mutation: 'explode' },
+  ] },
 ];
 
 const RIFT_WAVES: Wave[] = [
@@ -526,6 +607,13 @@ const RIFT_WAVES: Wave[] = [
   { from: 35, to: Infinity, entries: [{ enemy: 'tank', interval: 6.5 }] },
   { from: 50, to: Infinity, entries: [{ enemy: 'zigzag', interval: 1.1 }] },
   { from: 90, to: Infinity, entries: [{ enemy: 'dasher', interval: 2.4 }, { enemy: 'rusher', interval: 3.8 }, { enemy: 'drone', interval: 0.7 }] },
+  { from: 150, to: Infinity, entries: [
+    { enemy: 'shielder', interval: 5.5 },
+    { enemy: 'teleporter', interval: 4.8 },
+    { enemy: 'drone', interval: 1.1, mutation: 'split' },
+    { enemy: 'tank', interval: 10, mutation: 'burst' },
+    { enemy: 'zigzag', interval: 2.4, mutation: 'explode' },
+  ] },
 ];
 
 export const STAGES: Record<StageId, StageDef> = {
@@ -595,7 +683,7 @@ export const WAVES = STAGES.orbit.waves;
 export const CHALLENGES: Record<ChallengeId, ChallengeDef> = {
   standard: {
     id: 'standard', name: '표준', icon: '⭐',
-    desc: '기본 규칙. 슬롯 5·패시브 3.',
+    desc: '기본 규칙. 슬롯 5·패시브 4.',
   },
   tight: {
     id: 'tight', name: '제한 무장', icon: '🔒',

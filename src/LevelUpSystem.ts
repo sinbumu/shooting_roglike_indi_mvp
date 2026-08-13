@@ -3,7 +3,7 @@ import type {
 } from './types';
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
-  ENDGAME, TACTICAL, AFFIXES, ARSENAL, QUANTUM,
+  ENDGAME, TACTICAL, AFFIXES, ARSENAL, QUANTUM, T1_DUPLICATE_CAP,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -23,6 +23,16 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
   return KIND_LABEL[kind];
+}
+
+/** 같은 ID가 여러 슬롯이면 레벨이 가장 낮은 슬롯만 (강화·동형 조합용) */
+function lowestSlots(weapons: WeaponSlot[]): WeaponSlot[] {
+  const best = new Map<WeaponId, WeaponSlot>();
+  for (const slot of weapons) {
+    const cur = best.get(slot.weaponId);
+    if (!cur || slot.level < cur.level) best.set(slot.weaponId, slot);
+  }
+  return [...best.values()];
 }
 
 function pickWeighted(pool: LevelUpChoice[]): LevelUpChoice | null {
@@ -114,37 +124,52 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
 
   for (const recipe of RECIPES) {
     const [a, b] = recipe.materials;
-    if (owned.includes(a) && owned.includes(b)) {
-      const result = WEAPONS[recipe.result];
-      pool.push({
-        kind: 'merge',
-        weight: 100,
-        title: result.name,
-        desc: `${WEAPONS[a].icon}${WEAPONS[a].name} + ${WEAPONS[b].icon}${WEAPONS[b].name} → ${result.desc}`,
-        icon: result.icon,
-        color: result.color,
-        weaponIds: [a, b],
-        resultId: recipe.result,
-      });
-    }
+    const countA = owned.filter((id) => id === a).length;
+    const countB = a === b ? countA : owned.filter((id) => id === b).length;
+    const ready = a === b ? countA >= 2 : countA >= 1 && countB >= 1;
+    if (!ready) continue;
+    const result = WEAPONS[recipe.result];
+    pool.push({
+      kind: 'merge',
+      weight: 100,
+      title: result.name,
+      desc: `${WEAPONS[a].icon}${WEAPONS[a].name} + ${WEAPONS[b].icon}${WEAPONS[b].name} → ${result.desc}`,
+      icon: result.icon,
+      color: result.color,
+      weaponIds: [a, b],
+      resultId: recipe.result,
+    });
   }
 
   if (state.weapons.length < state.maxWeaponSlots) {
     for (const def of Object.values(WEAPONS)) {
-      if (def.tier !== 1 || owned.includes(def.id)) continue;
-      pool.push({
-        kind: 'new',
-        weight: 25,
-        title: def.name,
-        desc: def.desc,
-        icon: def.icon,
-        color: def.color,
-        weaponIds: [def.id],
-      });
+      if (def.tier !== 1) continue;
+      const count = owned.filter((id) => id === def.id).length;
+      if (count === 0) {
+        pool.push({
+          kind: 'new',
+          weight: 25,
+          title: def.name,
+          desc: def.desc,
+          icon: def.icon,
+          color: def.color,
+          weaponIds: [def.id],
+        });
+      } else if (count < T1_DUPLICATE_CAP) {
+        pool.push({
+          kind: 'new',
+          weight: 18,
+          title: `${def.name} 복제`,
+          desc: `같은 ${def.name}을 하나 더 장착합니다. 동형 조합에 사용.`,
+          icon: def.icon,
+          color: def.color,
+          weaponIds: [def.id],
+        });
+      }
     }
   }
 
-  for (const slot of state.weapons) {
+  for (const slot of lowestSlots(state.weapons)) {
     if (slot.level >= LEVELING.maxWeaponLevel) continue;
     const def = WEAPONS[slot.weaponId];
     pool.push({
@@ -154,7 +179,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
       desc: `데미지 +${Math.round(LEVELING.damagePerLevel * 100)}%, 쿨타임 -${Math.round(LEVELING.cooldownPerLevel * 100)}%`,
       icon: def.icon,
       color: def.color,
-      weaponIds: [def.id],
+      weaponIds: [slot.weaponId],
     });
   }
 
@@ -240,8 +265,9 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
   switch (choice.kind) {
     case 'merge': {
       const [a, b] = choice.weaponIds as [WeaponId, WeaponId];
-      const slotA = state.weapons.find((w) => w.weaponId === a) as WeaponSlot;
-      const slotB = state.weapons.find((w) => w.weaponId === b) as WeaponSlot;
+      const slotA = state.weapons.find((w) => w.weaponId === a);
+      const slotB = state.weapons.find((w) => w.weaponId === b && w !== slotA);
+      if (!slotA || !slotB) break;
       const inheritLevel = Math.min(slotA.level, slotB.level);
       state.weapons = state.weapons.filter((w) => w !== slotA && w !== slotB);
       const resultId = choice.resultId as WeaponId;
@@ -268,7 +294,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
     }
     case 'upgrade': {
       const id = (choice.weaponIds as WeaponId[])[0];
-      const slot = state.weapons.find((w) => w.weaponId === id);
+      const slot = lowestSlots(state.weapons).find((w) => w.weaponId === id);
       if (slot) slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
       break;
     }

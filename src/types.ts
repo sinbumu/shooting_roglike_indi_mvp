@@ -9,6 +9,9 @@ export type WeaponId =
   | 'laser'
   | 'railgun'
   | 'swarm'
+  | 'gatling'
+  | 'nova'
+  | 'mothership'
   | 'omega'
   | 'starfall'
   | 'genesis';
@@ -25,6 +28,8 @@ export interface ProjectileSpec {
   homingTurnRate: number;
   pierce: number;
   lifetime: number;
+  /** 명중 시 범위 폭발 반경 (모선 등) */
+  explodeRadius?: number;
 }
 
 export interface WeaponDef {
@@ -64,7 +69,7 @@ export interface ShipDef {
   unlockCost: number;
 }
 
-export type PassiveId = 'magnet' | 'thruster' | 'plating' | 'collector' | 'overcharge';
+export type PassiveId = 'magnet' | 'thruster' | 'plating' | 'collector' | 'overcharge' | 'overload';
 
 export interface PassiveDef {
   id: PassiveId;
@@ -75,6 +80,10 @@ export interface PassiveDef {
   /** 레벨당 효과 수치 (의미는 id별 상이) */
   perLevel: number;
   maxLevel: number;
+  /** 있으면 최대 체력에 곱함 (과부하 코어) */
+  hpMul?: number;
+  /** 있으면 무기 쿨타임에 곱함 */
+  cooldownMul?: number;
 }
 
 export type MetaUpgradeId = 'hull' | 'firepower' | 'thruster' | 'magnet' | 'fortune';
@@ -163,6 +172,9 @@ export type EnemyId =
   | 'dasher'
   | 'rusher'
   | 'tank'
+  | 'shielder'
+  | 'teleporter'
+  | 'splinter'
   | 'boss'
   | 'bossSeraph';
 
@@ -174,8 +186,13 @@ export type MovePattern =
   | 'dashAcross'
   | 'dashUp'
   | 'slowDown'
+  | 'shieldDown'
+  | 'teleport'
   | 'boss'
   | 'bossSeraph';
+
+/** 후반 돌연변이 */
+export type MutationId = 'explode' | 'split' | 'burst';
 
 export type PickupKind = 'heal' | 'magnet' | 'bomb';
 
@@ -204,6 +221,7 @@ export interface EnemyDef {
 export interface WaveEntry {
   enemy: EnemyId;
   interval: number;
+  mutation?: MutationId;
 }
 
 export interface Wave {

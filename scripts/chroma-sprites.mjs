@@ -16,6 +16,7 @@ const outDir = path.join(root, 'public/assets/sprites');
 const NAMES = [
   'ship_scout', 'ship_fortress', 'ship_hunter',
   'enemy_drone', 'enemy_zigzag', 'enemy_dasher', 'enemy_rusher', 'enemy_tank',
+  'enemy_shielder', 'enemy_teleporter',
   'boss_boss', 'boss_bossSeraph',
   'pickup_heal', 'pickup_magnet', 'pickup_bomb',
 ];
