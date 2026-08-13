@@ -1,7 +1,7 @@
 import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
-  STAGES, CHALLENGES, AFFIXES,
+  STAGES, CHALLENGES, AFFIXES, ARSENAL,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -35,6 +35,7 @@ export class UI {
   private levelupOverlay = document.getElementById('levelup-overlay') as HTMLDivElement;
   private levelupTitle = document.getElementById('levelup-title') as HTMLHeadingElement;
   private levelupSub = document.getElementById('levelup-sub') as HTMLParagraphElement;
+  private levelupPreview = document.getElementById('levelup-preview') as HTMLDivElement;
   private cardContainer = document.getElementById('card-container') as HTMLDivElement;
   private gameoverOverlay = document.getElementById('gameover-overlay') as HTMLDivElement;
   private gameoverStats = document.getElementById('gameover-stats') as HTMLDivElement;
@@ -453,10 +454,19 @@ export class UI {
   showLevelUp(
     choices: LevelUpChoice[],
     onPick: (choice: LevelUpChoice) => void,
-    labels?: { title: string; sub: string },
+    labels?: { title: string; sub: string; previewHtml?: string },
   ): void {
     this.levelupTitle.textContent = labels?.title ?? 'LEVEL UP!';
     this.levelupSub.textContent = labels?.sub ?? '강화를 선택하세요';
+    if (labels?.previewHtml) {
+      this.levelupPreview.innerHTML = labels.previewHtml;
+      this.levelupPreview.classList.remove('hidden');
+      this.levelupOverlay.classList.add('has-preview');
+    } else {
+      this.levelupPreview.innerHTML = '';
+      this.levelupPreview.classList.add('hidden');
+      this.levelupOverlay.classList.remove('has-preview');
+    }
     this.cardContainer.innerHTML = '';
     for (const choice of choices) {
       const card = document.createElement('button');
@@ -481,6 +491,9 @@ export class UI {
 
   hideLevelUp(): void {
     this.levelupOverlay.classList.add('hidden');
+    this.levelupOverlay.classList.remove('has-preview');
+    this.levelupPreview.innerHTML = '';
+    this.levelupPreview.classList.add('hidden');
     this.clearFocus();
   }
 
@@ -652,4 +665,19 @@ export class UI {
     this.hangarGroupIdx = (this.hangarGroupIdx + delta + this.hangarGroups.length) % this.hangarGroups.length;
     this.setFocusGroup(this.hangarGroups[this.hangarGroupIdx]);
   }
+}
+
+/** T3 미보유 시 크래프팅 창에 띄우는 종결 보상 프리뷰 */
+export function craftLockedPreviewHtml(): string {
+  const dmgPct = Math.round(ARSENAL.buffDamage * 100);
+  return `
+    <p>현재 장착 중인 종결(Tier 3) 무기가 없습니다.</p>
+    <p>💡 Tier 3 무기를 획득하면 퀀텀 큐브를 소모하여 아래의 특수 능력을 부여할 수 있습니다:</p>
+    <ul>
+      <li>${AFFIXES.split.icon} ${AFFIXES.split.label} 투사체 분열</li>
+      <li>${AFFIXES.pierce.icon} ${AFFIXES.pierce.label} 관통 횟수 증가</li>
+      <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 적중 시 전이</li>
+      <li>💪 [강화] 무기 기본 데미지 영구 +${dmgPct}% 증가</li>
+    </ul>
+  `;
 }

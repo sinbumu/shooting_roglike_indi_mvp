@@ -1,7 +1,7 @@
-import { CANVAS, JOYSTICK } from './GameConfig';
+import { CANVAS, JOYSTICK, WEAPONS } from './GameConfig';
 import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
-import { UI } from './UI';
+import { UI, craftLockedPreviewHtml } from './UI';
 import { AudioManager } from './Audio';
 import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSystem';
 import {
@@ -148,12 +148,19 @@ function openLevelUpUI(): void {
 
 function openCraftUI(): void {
   const choices = generateCraftChoices(state);
+  const hasT3 = state.weapons.some((s) => WEAPONS[s.weaponId].tier === 3);
   ui.showLevelUp(choices, (choice) => {
     applyChoice(state, choice);
     ui.hideLevelUp();
     state.pendingCrafts--;
     continueAfterChoice();
-  }, { title: 'CRAFTING', sub: '무기를 깎으세요' });
+  }, hasT3
+    ? { title: 'CRAFTING', sub: '종결 무기를 깎으세요' }
+    : {
+      title: 'CRAFTING',
+      sub: '[!] 퀀텀 큐브 크래프팅 비활성화',
+      previewHtml: craftLockedPreviewHtml(),
+    });
 }
 
 function continueAfterChoice(): void {

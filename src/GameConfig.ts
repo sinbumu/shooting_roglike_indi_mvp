@@ -163,48 +163,60 @@ export const T1_DUPLICATE_CAP = 2;
 export const STARTING_WEAPON: WeaponId = 'vulcan';
 
 // ------------------------------------------------------------
+// 위험도 색상 — contactDamage / 보스 탄막 기준
+// Low <15 · Medium 15–24 · High 25+ · Fatal = 보스 탄막
+// ------------------------------------------------------------
+
+export const DANGER = {
+  low: '#4ade80',
+  medium: '#f97316',
+  high: '#ef4444',
+  fatal: '#c084fc',
+} as const;
+
+// ------------------------------------------------------------
 // 적 데이터
 // ------------------------------------------------------------
 
 export const ENEMIES: Record<EnemyId, EnemyDef> = {
   drone: {
-    id: 'drone', name: '드론', hp: 18, speed: 95, radius: 14, color: '#f87171',
+    id: 'drone', name: '드론', hp: 18, speed: 95, radius: 14, color: DANGER.low,
     contactDamage: 10, exp: 1, spawnEdge: 'top', movePattern: 'down',
   },
   zigzag: {
-    id: 'zigzag', name: '지그재그', hp: 28, speed: 120, radius: 15, color: '#fb923c',
+    id: 'zigzag', name: '지그재그', hp: 28, speed: 120, radius: 15, color: DANGER.low,
     contactDamage: 12, exp: 2, spawnEdge: 'top', movePattern: 'zigzag',
   },
   dasher: {
-    id: 'dasher', name: '대셔', hp: 26, speed: 280, radius: 13, color: '#e879f9',
+    id: 'dasher', name: '대셔', hp: 26, speed: 280, radius: 13, color: DANGER.medium,
     contactDamage: 16, exp: 3, spawnEdge: 'side', movePattern: 'dashAcross',
   },
   rusher: {
-    id: 'rusher', name: '러셔', hp: 42, speed: 220, radius: 16, color: '#f43f5e',
+    id: 'rusher', name: '러셔', hp: 42, speed: 220, radius: 16, color: DANGER.medium,
     contactDamage: 20, exp: 4, spawnEdge: 'bottom', movePattern: 'dashUp',
   },
   tank: {
-    id: 'tank', name: '탱크', hp: 210, speed: 42, radius: 26, color: '#94a3b8',
+    id: 'tank', name: '탱크', hp: 210, speed: 42, radius: 26, color: DANGER.high,
     contactDamage: 25, exp: 10, spawnEdge: 'top', movePattern: 'slowDown',
   },
   shielder: {
-    id: 'shielder', name: '실더', hp: 160, speed: 55, radius: 20, color: '#22d3ee',
+    id: 'shielder', name: '실더', hp: 160, speed: 55, radius: 20, color: DANGER.medium,
     contactDamage: 18, exp: 8, spawnEdge: 'top', movePattern: 'shieldDown',
   },
   teleporter: {
-    id: 'teleporter', name: '텔레포터', hp: 70, speed: 90, radius: 14, color: '#c084fc',
+    id: 'teleporter', name: '텔레포터', hp: 70, speed: 90, radius: 14, color: DANGER.medium,
     contactDamage: 22, exp: 6, spawnEdge: 'top', movePattern: 'teleport',
   },
   splinter: {
-    id: 'splinter', name: '파편', hp: 10, speed: 170, radius: 8, color: '#fb923c',
+    id: 'splinter', name: '파편', hp: 10, speed: 170, radius: 8, color: DANGER.low,
     contactDamage: 8, exp: 1, spawnEdge: 'top', movePattern: 'down',
   },
   boss: {
-    id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: '#dc2626',
+    id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: DANGER.high,
     contactDamage: 30, exp: 0, spawnEdge: 'top', movePattern: 'boss',
   },
   bossSeraph: {
-    id: 'bossSeraph', name: '세라프', hp: 800, speed: 70, radius: 38, color: '#38bdf8',
+    id: 'bossSeraph', name: '세라프', hp: 800, speed: 70, radius: 38, color: DANGER.high,
     contactDamage: 28, exp: 0, spawnEdge: 'top', movePattern: 'bossSeraph',
   },
 };

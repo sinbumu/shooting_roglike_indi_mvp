@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-13** — **로컬 MVP + 엔드게임·시너지 + 다양성/템포 + UX/액티브** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-13** — **로컬 MVP + 시각 온보딩(위험도 색·큐브 프리뷰)** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -18,6 +18,7 @@
 | 다양성·초반 템포? | **완료** — EXP 곡선 · 동형 조합 3종 · 패시브 4 · 실더/텔레포터 · 돌연변이 ([docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md)) |
 | UX·액티브? | **완료** — 기체 액티브 스킬 · 키보드 UI 포커스 · 무기고 상점 삭제 |
 | 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
+| 시각·온보딩? | **완료** — 위험도 색상 · 보스 탄 시인성 · T3 없는 큐브 프리뷰 ([docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -59,6 +60,7 @@
 - [x] 다양성·템포: EXP 곡선 완화 · T1 복제 · 동형 T2 3종 · 과부하 코어 · 실더/텔레포터 · 후반 돌연변이  
 - [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
 - [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
+- [x] 시각·온보딩: 접촉 피해 구간 색상 · 보스 탄 흰 코어/보라 테두리 · T3 미보유 크래프팅 프리뷰  
 
 ---
 
@@ -103,8 +105,10 @@
 | `splinter` | 파편 | 분열 돌연변이 처치 시 등장 (추가 분열 없음) |
 | (엘리트) | 동일 풀 + 강화 | 금색 tint, 보상↑ |
 | (돌연변이) | 자폭 / 분열 / 탄막 | 후반 웨이브 속성 |
-| `boss` | 드레드노트 | 탄막 + 조준 |
+| `boss` | 드레드노트 | 탄막 + 조준. 탄환은 흰 코어+보라 테두리 |
 | `bossSeraph` | 세라프 | 2번째 보스 패턴 |
+
+적 `color`는 접촉 피해 구간: Low(`#4ade80`) / Medium(`#f97316`) / High(`#ef4444`) (`DANGER`).
 
 스테이지마다 `bossRoster`·웨이브·배경·스토리 비트가 다름 (`STAGES`).
 
@@ -221,4 +225,5 @@
 | [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md) | 크래프팅 오브·기체 액티브·키보드 UX (구현 완료) |
 | [docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md) | Shift 저속·조이스틱 아날로그 (구현 완료) |
 | [docs/DESIGN_UPDATE_MINI_FEEDBACK.md](./docs/DESIGN_UPDATE_MINI_FEEDBACK.md) | 초반 무기 확정·패시브 수치·격납고 스크롤 (구현 완료) |
+| [docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md) | 위험도 색상·보스 탄 시인성·큐브 프리뷰 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

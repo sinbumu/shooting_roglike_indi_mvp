@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -745,26 +745,20 @@ export class Renderer {
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.2;
           glow.alpha = 0.55;
+        } else {
+          const glow = this.glowPool.get();
+          glow.tint = hex(e.def.color);
+          glow.position.set(e.x, e.y);
+          const pulse = isBoss ? Math.sin(this.elapsed * 4.5) * 12 : 0;
+          glow.width = glow.height = r * (isBoss ? 4.1 : 2.85) + pulse;
+          glow.alpha = isBoss ? 0.5 : e.def.contactDamage >= 15 ? 0.42 : 0.22;
         }
         if (e.def.id === 'teleporter') {
           const glow = this.glowPool.get();
-          glow.tint = 0xc084fc;
+          glow.tint = hex(DANGER.fatal);
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.6 + Math.sin(this.elapsed * 8) * 8;
-          glow.alpha = 0.5;
-        }
-        if (e.def.id === 'boss') {
-          const glow = this.glowPool.get();
-          glow.tint = 0xdc2626;
-          glow.position.set(e.x, e.y);
-          glow.width = glow.height = r * 4 + Math.sin(this.elapsed * 4) * 14;
-          glow.alpha = 0.45;
-        } else if (e.def.id === 'bossSeraph') {
-          const glow = this.glowPool.get();
-          glow.tint = 0x38bdf8;
-          glow.position.set(e.x, e.y);
-          glow.width = glow.height = r * 4.2 + Math.sin(this.elapsed * 5) * 12;
-          glow.alpha = 0.5;
+          glow.alpha = 0.35;
         }
       } else {
         // Graphics 폴백
@@ -834,15 +828,17 @@ export class Renderer {
     }
   }
 
-  /** 보스 탄환 (마젠타 글로우) */
+  /** 보스·적 탄환 — 흰 코어 + 보라 테두리 (치명 탄 시인성) */
   private drawEnemyProjectiles(state: GameState): void {
+    const outline = hex(DANGER.fatal);
     for (const p of state.enemyProjectiles) {
       const glow = this.glowPool.get();
-      glow.tint = 0xff4d6d;
+      glow.tint = outline;
       glow.position.set(p.x, p.y);
       glow.width = glow.height = p.radius * 5.5;
-      glow.alpha = 1;
-      this.coreG.circle(p.x, p.y, p.radius * 0.6).fill(0xffd7de);
+      glow.alpha = 0.9;
+      this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: outline });
+      this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
     }
   }
 
