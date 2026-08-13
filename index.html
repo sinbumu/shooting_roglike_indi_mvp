@@ -74,6 +74,7 @@
 
       <!-- ===== 시작 / 격납고 Overlay ===== -->
       <div id="start-overlay" class="overlay">
+        <button id="patch-notes-btn" class="patch-notes-btn" type="button" title="패치 노트">v1.2.0</button>
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
         <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>이전 스테이지 클리어로 다음 전선이 열립니다.</p>
         <div id="meta-bar">💰 <span id="meta-credits">0</span> · <span id="meta-stats"></span></div>
@@ -89,6 +90,13 @@
           <button id="gacha-btn" class="secondary">블랙마켓</button>
           <button id="achv-btn" class="secondary">업적</button>
         </div>
+      </div>
+
+      <!-- ===== 패치 노트 ===== -->
+      <div id="patch-overlay" class="overlay hidden">
+        <h2 class="overlay-title">PATCH NOTES</h2>
+        <div id="patch-list"></div>
+        <button id="patch-close-btn" class="secondary">닫기</button>
       </div>
 
       <!-- ===== 메타 상점 ===== -->

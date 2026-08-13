@@ -617,6 +617,77 @@ button.secondary {
   padding-bottom: 28px;
 }
 
+.patch-notes-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em;
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  background: rgba(15, 23, 42, 0.9) !important;
+  border: 1px solid rgba(250, 204, 21, 0.55) !important;
+  color: #fde68a !important;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.25) !important;
+}
+
+#patch-overlay {
+  overflow-x: hidden;
+  overflow-y: auto;
+  justify-content: flex-start;
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+
+#patch-list {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+  max-height: 58vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.patch-block {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.patch-head {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fde68a;
+  margin-bottom: 8px;
+}
+
+.patch-head span {
+  font-weight: 600;
+  color: #94a3b8;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.patch-block ul {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.patch-block li {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
 .overlay.hidden { display: none; }
 
 .overlay-title {

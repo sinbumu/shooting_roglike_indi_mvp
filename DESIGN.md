@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-13** — **로컬 MVP + 경제 동기화(디노미네이션·블랙마켓)** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-13** — **로컬 MVP + 인게임 패치 노트** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -20,6 +20,7 @@
 | 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
 | 시각·온보딩? | **완료** — 위험도 색상 · 보스 탄 시인성 · T3 없는 큐브 프리뷰 ([docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md)) |
 | 경제·로비? | **완료** — 격납고 크레딧 동기화 · 디노미네이션 · 블랙마켓 · 파라곤 ([docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md)) |
+| 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -63,6 +64,7 @@
 - [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
 - [x] 시각·온보딩: 접촉 피해 구간 색상 · 보스 탄 흰 코어/보라 테두리 · T3 미보유 크래프팅 프리뷰  
 - [x] 경제: 로비 크레딧 동기화 · 지수 비용 · 블랙마켓 가차 · 파라곤 무한 강화  
+- [x] 패치 노트: 격납고 버전 버튼 · 인게임 변경 내역 모달  
 
 ---
 
@@ -229,4 +231,5 @@
 | [docs/DESIGN_UPDATE_MINI_FEEDBACK.md](./docs/DESIGN_UPDATE_MINI_FEEDBACK.md) | 초반 무기 확정·패시브 수치·격납고 스크롤 (구현 완료) |
 | [docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md) | 위험도 색상·보스 탄 시인성·큐브 프리뷰 (구현 완료) |
 | [docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md) | 로비 동기화·경제 디노미네이션·블랙마켓 (구현 완료) |
+| [docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md) | 인게임 패치 노트 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

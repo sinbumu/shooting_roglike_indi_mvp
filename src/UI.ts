@@ -8,6 +8,7 @@ import type { GameState } from './GameState';
 import type { MetaSave } from './Meta';
 import { upgradeCost } from './Meta';
 import { SPRITE_PATHS } from './assets';
+import { PATCH_NOTES, LATEST_VERSION } from './PatchNotes';
 
 function fmtCredits(n: number): string {
   return n.toLocaleString('en-US');
@@ -50,6 +51,9 @@ export class UI {
   private metaOverlay = document.getElementById('meta-overlay') as HTMLDivElement;
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
   private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
+  private patchOverlay = document.getElementById('patch-overlay') as HTMLDivElement;
+  private patchList = document.getElementById('patch-list') as HTMLDivElement;
+  private patchNotesBtn = document.getElementById('patch-notes-btn') as HTMLButtonElement;
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
@@ -134,6 +138,17 @@ export class UI {
     };
     const costEl = document.getElementById('gacha-cost');
     if (costEl) costEl.textContent = fmtCredits(GACHA.cost);
+
+    this.patchNotesBtn.textContent = LATEST_VERSION;
+    this.renderPatchNotes();
+    this.patchNotesBtn.onclick = () => {
+      this.patchOverlay.classList.remove('hidden');
+      this.setFocusGroup([document.getElementById('patch-close-btn') as HTMLButtonElement]);
+    };
+    (document.getElementById('patch-close-btn') as HTMLButtonElement).onclick = () => {
+      this.patchOverlay.classList.add('hidden');
+      this.refreshHangar();
+    };
   }
 
   setMeta(meta: MetaSave): void {
@@ -228,12 +243,13 @@ export class UI {
       [...this.stageSelect.querySelectorAll('button')],
       [...this.challengeSelect.querySelectorAll('button')],
       [...this.shipSelect.querySelectorAll('button')],
-      [startBtn, metaBtn, gachaBtn, achvBtn],
+      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, achvBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
       && this.metaOverlay.classList.contains('hidden')
       && this.achvOverlay.classList.contains('hidden')
-      && this.gachaOverlay.classList.contains('hidden')) {
+      && this.gachaOverlay.classList.contains('hidden')
+      && this.patchOverlay.classList.contains('hidden')) {
       this.hangarGroupIdx = 3;
       this.setFocusGroup(this.hangarGroups[3]);
     }
@@ -288,6 +304,15 @@ export class UI {
       });
       this.metaShop.appendChild(row);
     }
+  }
+
+  private renderPatchNotes(): void {
+    this.patchList.innerHTML = PATCH_NOTES.map((note) => `
+      <article class="patch-block">
+        <h3 class="patch-head">${note.version} <span>${note.date}</span></h3>
+        <ul>${note.changes.map((c) => `<li>${c}</li>`).join('')}</ul>
+      </article>
+    `).join('');
   }
 
   onBuyUpgrade(fn: (id: MetaUpgradeId) => void): void {
@@ -709,14 +734,17 @@ export class UI {
 
     if (!this.metaOverlay.classList.contains('hidden')
       || !this.achvOverlay.classList.contains('hidden')
-      || !this.gachaOverlay.classList.contains('hidden')) {
+      || !this.gachaOverlay.classList.contains('hidden')
+      || !this.patchOverlay.classList.contains('hidden')) {
       if (e.code === 'Escape') return false;
       if (confirm) {
         const closeId = !this.metaOverlay.classList.contains('hidden')
           ? 'meta-close-btn'
           : !this.gachaOverlay.classList.contains('hidden')
             ? 'gacha-close-btn'
-            : 'achv-close-btn';
+            : !this.patchOverlay.classList.contains('hidden')
+              ? 'patch-close-btn'
+              : 'achv-close-btn';
         (document.getElementById(closeId) as HTMLButtonElement)?.click();
         return true;
       }
