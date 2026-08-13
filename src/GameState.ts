@@ -6,7 +6,7 @@ import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
-  QUANTUM, ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
+  ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -21,8 +21,10 @@ export interface WeaponSlot {
   level: number;
   cooldownLeft: number; // ms
   affix?: AffixId;
-  /** 무기고 강화로 누적되는 데미지 보너스 (0.1 = +10%) */
+  /** 크래프팅 강화로 누적되는 데미지 보너스 (0.15 = +15%) */
   damageBonus?: number;
+  /** 크래프팅 강화로 누적되는 투사체 속도 보너스 */
+  speedBonus?: number;
 }
 
 export interface Projectile {
@@ -110,7 +112,7 @@ export interface SpawnWarning {
   mutation?: MutationId;
 }
 
-export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'arsenal' | 'gameover' | 'victory';
+export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover' | 'victory';
 
 /**
  * 1회성 게임 이벤트. GameState는 push만 하고,
@@ -179,7 +181,15 @@ export class GameState {
   shieldLeft = 0;
   /** 자기장 폭주 남은 시간(초) */
   magnetStormLeft = 0;
-  quantumCubes = 0;
+  pendingCrafts = 0;
+
+  /** 마지막 이동 방향 (대시용, 기본 위) */
+  lastAimX = 0;
+  lastAimY = -1;
+  skillCdLeft = 0;
+  skillActiveLeft = 0;
+  worldSlow = 1;
+  private aegisPulseCd = 0;
 
   runStats: RunStats = {
     projSpeedMul: 1,
@@ -231,7 +241,6 @@ export class GameState {
   private riftWarnAt: number | null = null;
   private riftActive = 0;
   private baseExpMul = 1;
-  private arsenalOpened = new Set<number>();
 
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
@@ -274,8 +283,13 @@ export class GameState {
     };
     this.shieldLeft = 0;
     this.magnetStormLeft = 0;
-    this.quantumCubes = 0;
-    this.arsenalOpened.clear();
+    this.pendingCrafts = 0;
+    this.lastAimX = 0;
+    this.lastAimY = -1;
+    this.skillCdLeft = 0;
+    this.skillActiveLeft = 0;
+    this.worldSlow = 1;
+    this.aegisPulseCd = 0;
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
@@ -370,28 +384,24 @@ export class GameState {
     for (const slot of this.weapons) {
       slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
     }
-    this.addQuantumCubes(QUANTUM.jackpotDrop);
+    this.dropCube(this.playerX, this.playerY);
     this.events.push({ type: 'jackpot' });
     this.events.push({ type: 'banner', text: '🎰 JACKPOT!' });
   }
 
-  addQuantumCubes(n: number): void {
-    if (n <= 0) return;
-    this.quantumCubes += n;
-    this.events.push({ type: 'banner', text: `🧊 퀀텀 큐브 +${n}` });
-  }
-
-  openArsenal(): void {
-    this.status = 'arsenal';
-    this.events.push({ type: 'banner', text: '🛠️ 무기고' });
+  dropCube(x: number, y: number): void {
+    this.pickups.push({
+      kind: 'cube',
+      x: Math.max(24, Math.min(CANVAS.width - 24, x)),
+      y: Math.max(24, Math.min(CANVAS.height - 24, y)),
+      life: PICKUPS.lifetime,
+    });
   }
 
   /** 어픽스 리롤 (T3 + 기존 어픽스) */
   rerollAffix(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
     if (!slot || WEAPONS[weaponId].tier !== 3 || !slot.affix) return false;
-    if (this.quantumCubes < ARSENAL.costs.reroll) return false;
-    this.quantumCubes -= ARSENAL.costs.reroll;
     const ids = (Object.keys(AFFIXES) as AffixId[]).filter((id) => id !== slot.affix);
     slot.affix = ids[Math.floor(Math.random() * ids.length)] ?? slot.affix;
     this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 리롤!` });
@@ -402,24 +412,30 @@ export class GameState {
   grantAffix(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
     if (!slot || WEAPONS[weaponId].tier !== 3 || slot.affix) return false;
-    if (this.quantumCubes < ARSENAL.costs.grant) return false;
-    this.quantumCubes -= ARSENAL.costs.grant;
     const ids = Object.keys(AFFIXES) as AffixId[];
     slot.affix = ids[Math.floor(Math.random() * ids.length)];
     this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 부여!` });
     return true;
   }
 
-  /** 깡스탯 +10% */
-  buffWeapon(weaponId: WeaponId): boolean {
+  buffWeaponDamage(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
-    if (!slot || WEAPONS[weaponId].tier !== 3) return false;
-    if (this.quantumCubes < ARSENAL.costs.buff) return false;
-    this.quantumCubes -= ARSENAL.costs.buff;
+    if (!slot) return false;
     slot.damageBonus = (slot.damageBonus ?? 0) + ARSENAL.buffDamage;
     this.events.push({
       type: 'banner',
-      text: `${WEAPONS[weaponId].name} +${Math.round((slot.damageBonus) * 100)}%`,
+      text: `${WEAPONS[weaponId].name} 데미지 +${Math.round(slot.damageBonus * 100)}%`,
+    });
+    return true;
+  }
+
+  buffWeaponSpeed(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot) return false;
+    slot.speedBonus = (slot.speedBonus ?? 0) + ARSENAL.buffSpeed;
+    this.events.push({
+      type: 'banner',
+      text: `${WEAPONS[weaponId].name} 투속 +${Math.round(slot.speedBonus * 100)}%`,
     });
     return true;
   }
@@ -490,30 +506,20 @@ export class GameState {
 
     this.updatePlayer(dt);
     this.updateBuffs(dt);
+    this.updateSkills(dt);
     this.updateWeapons(dt);
     this.updateSpawns(dt);
     this.updateBossSchedule();
     this.updateRiftEvent(dt);
-    this.updateArsenalSchedule();
     this.updateWarnings(dt);
-    this.updateEnemies(dt);
+    const edt = dt * this.worldSlow;
+    this.updateEnemies(edt);
     this.updateProjectiles(dt);
-    this.updateEnemyProjectiles(dt);
+    this.updateEnemyProjectiles(edt);
     this.updateGems(dt);
     this.updatePickups(dt);
     this.checkPlayerCollision(dt);
     return this.status;
-  }
-
-  private updateArsenalSchedule(): void {
-    if (this.quantumCubes <= 0) return;
-    for (const t of ARSENAL.openTimes) {
-      if (this.time >= t && !this.arsenalOpened.has(t)) {
-        this.arsenalOpened.add(t);
-        this.openArsenal();
-        return;
-      }
-    }
   }
 
   private updateBuffs(dt: number): void {
@@ -527,6 +533,69 @@ export class GameState {
     }
   }
 
+  tryUseSkill(): boolean {
+    if (this.status !== 'playing') return false;
+    if (this.skillCdLeft > 0) return false;
+    const skill = SHIPS[this.shipId].activeSkill;
+    this.skillCdLeft = skill.cooldown;
+    this.skillActiveLeft = skill.duration ?? 0;
+
+    if (skill.id === 'phaseDash') {
+      const dist = skill.dashDist ?? 110;
+      const r = PLAYER.radius;
+      this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
+      this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
+      this.invincibleLeft = Math.max(this.invincibleLeft, skill.iframeMs ?? 250);
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+    } else if (skill.id === 'aegis') {
+      this.aegisPulseCd = 0;
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+    } else if (skill.id === 'timeDilation') {
+      this.worldSlow = skill.slowMul ?? 0.4;
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+    }
+    return true;
+  }
+
+  private updateSkills(dt: number): void {
+    if (this.skillCdLeft > 0) this.skillCdLeft = Math.max(0, this.skillCdLeft - dt);
+    if (this.skillActiveLeft > 0) {
+      this.skillActiveLeft = Math.max(0, this.skillActiveLeft - dt);
+      if (this.skillActiveLeft <= 0) {
+        this.worldSlow = 1;
+      }
+    }
+    const skill = SHIPS[this.shipId].activeSkill;
+    if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis(dt, skill);
+  }
+
+  private tickAegis(dt: number, skill: typeof SHIPS[ShipId]['activeSkill']): void {
+    const radius = skill.radius ?? 72;
+    const r2 = radius * radius;
+    for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
+      const p = this.enemyProjectiles[i];
+      if ((p.x - this.playerX) ** 2 + (p.y - this.playerY) ** 2 <= r2) {
+        this.enemyProjectiles.splice(i, 1);
+      }
+    }
+    this.aegisPulseCd -= dt;
+    if (this.aegisPulseCd > 0) return;
+    this.aegisPulseCd = skill.pulseInterval ?? 0.3;
+    const knock = skill.knockback ?? 46;
+    const dmg = skill.pulseDamage ?? 38;
+    for (const e of [...this.enemies]) {
+      const dx = e.x - this.playerX;
+      const dy = e.y - this.playerY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > radius + e.def.radius) continue;
+      const nx = dx / (dist || 1);
+      const ny = dy / (dist || 1);
+      e.x += nx * knock;
+      e.y += ny * knock;
+      this.damageEnemy(e, dmg);
+    }
+  }
+
   // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
 
   private updatePlayer(dt: number): void {
@@ -534,15 +603,23 @@ export class GameState {
     let my = this.moveY;
     const mag = Math.hypot(mx, my);
     if (mag > 1) {
-      // 대각선 이동이 더 빨라지지 않도록 정규화
       mx /= mag;
       my /= mag;
     }
-    this.playerX += mx * this.moveSpeed * dt;
-    this.playerY += my * this.moveSpeed * dt;
-    const r = PLAYER.radius;
-    this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
-    this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
+    if (mag > 0.15) {
+      this.lastAimX = mx;
+      this.lastAimY = my;
+    }
+
+    const skill = SHIPS[this.shipId].activeSkill;
+    const locked = this.skillActiveLeft > 0 && skill.id === 'aegis';
+    if (!locked) {
+      this.playerX += mx * this.moveSpeed * dt;
+      this.playerY += my * this.moveSpeed * dt;
+      const r = PLAYER.radius;
+      this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
+      this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
+    }
 
     if (this.invincibleLeft > 0) this.invincibleLeft -= dt * 1000;
   }
@@ -568,7 +645,7 @@ export class GameState {
       * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
       * this.damageMul
       * (1 + (slot.damageBonus ?? 0));
-    const speed = p.speed * this.runStats.projSpeedMul;
+    const speed = p.speed * this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
     let pierce = p.pierce;
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
 
@@ -731,7 +808,6 @@ export class GameState {
   }
 
   private onRiftEliteKilled(): void {
-    this.addQuantumCubes(QUANTUM.riftEliteDrop);
     this.riftActive = Math.max(0, this.riftActive - 1);
     if (this.riftActive > 0) return;
     this.events.push({ type: 'riftReward' });
@@ -946,7 +1022,15 @@ export class GameState {
         this.enemyProjectiles.splice(i, 1);
         continue;
       }
-      if (this.invincibleLeft <= 0 && this.shieldLeft <= 0) {
+      const aegis = this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis';
+      if (aegis) {
+        const ar = SHIPS[this.shipId].activeSkill.radius ?? 72;
+        if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= ar * ar) {
+          this.enemyProjectiles.splice(i, 1);
+          continue;
+        }
+      }
+      if (this.invincibleLeft <= 0 && this.shieldLeft <= 0 && !aegis) {
         const rr = PLAYER.radius + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
           this.enemyProjectiles.splice(i, 1);
@@ -1179,7 +1263,10 @@ export class GameState {
         this.killBoss(e);
       } else {
         if (e.elite) this.eliteKills++;
-        if (e.fromRift) this.onRiftEliteKilled();
+        if (e.fromRift) {
+          this.dropCube(e.x, e.y);
+          this.onRiftEliteKilled();
+        }
         this.applyDeathMutation(e);
         this.events.push({
           type: 'enemyDied',
@@ -1247,7 +1334,7 @@ export class GameState {
     }
     this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: '⚡ PHASE 2' });
-    this.addQuantumCubes(QUANTUM.phaseDrop);
+    this.dropCube(e.x, e.y);
   }
 
   private killBoss(e: Enemy): void {
@@ -1301,6 +1388,11 @@ export class GameState {
         for (const e of [...this.enemies]) this.damageEnemy(e, PICKUPS.bombDamage);
         break;
       }
+      case 'cube':
+        this.pendingCrafts++;
+        this.status = 'levelup';
+        this.events.push({ type: 'banner', text: '🧊 CRAFTING' });
+        break;
     }
   }
 
@@ -1351,6 +1443,7 @@ export class GameState {
 
   private checkPlayerCollision(_dt: number): void {
     if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
+    if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     for (const e of this.enemies) {
       const rr = PLAYER.radius + e.def.radius * (e.elite ? 1.15 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {

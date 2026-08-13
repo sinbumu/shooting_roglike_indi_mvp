@@ -3,7 +3,7 @@ import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
 import { UI } from './UI';
 import { AudioManager } from './Audio';
-import { generateChoices, applyChoice } from './LevelUpSystem';
+import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSystem';
 import {
   loadMeta, saveMeta, settleRun, tryBuyUpgrade, tryUnlockShip, selectShip,
   selectStage, selectChallenge,
@@ -93,7 +93,14 @@ const SCROLL_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']
 
 window.addEventListener('keydown', (e) => {
   if (SCROLL_KEYS.includes(e.code)) e.preventDefault();
-  if (e.code === 'Escape') togglePause();
+  if (e.code === 'Escape') {
+    togglePause();
+    return;
+  }
+  if (ui.handleKey(e)) return;
+  if (!e.repeat && (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) {
+    if (state.status === 'playing') state.tryUseSkill();
+  }
   pressedKeys.add(e.code);
 });
 window.addEventListener('keyup', (e) => pressedKeys.delete(e.code));
@@ -133,28 +140,24 @@ function openLevelUpUI(): void {
     applyChoice(state, choice);
     ui.hideLevelUp();
     state.pendingLevelUps--;
-    if (state.status === 'arsenal') {
-      openArsenalUI();
-      return;
-    }
-    if (state.pendingLevelUps > 0) openLevelUpUI();
-    else state.status = 'playing';
+    continueAfterChoice();
   });
 }
 
-function openArsenalUI(): void {
-  state.status = 'arsenal';
-  ui.showArsenal(
-    state,
-    () => {
-      ui.hideArsenal();
-      if (state.pendingLevelUps > 0) openLevelUpUI();
-      else state.status = 'playing';
-    },
-    () => {
-      ui.updateHUD(state);
-    },
-  );
+function openCraftUI(): void {
+  const choices = generateCraftChoices(state);
+  ui.showLevelUp(choices, (choice) => {
+    applyChoice(state, choice);
+    ui.hideLevelUp();
+    state.pendingCrafts--;
+    continueAfterChoice();
+  }, { title: 'CRAFTING', sub: '무기를 깎으세요' });
+}
+
+function continueAfterChoice(): void {
+  if (state.pendingCrafts > 0) openCraftUI();
+  else if (state.pendingLevelUps > 0) openLevelUpUI();
+  else state.status = 'playing';
 }
 
 function endRun(cleared: boolean): void {
@@ -230,8 +233,10 @@ function loop(now: number): void {
       hitstop -= dt;
     } else {
       const status: GameStatus = state.update(dt);
-      if (status === 'levelup') openLevelUpUI();
-      else if (status === 'arsenal') openArsenalUI();
+      if (status === 'levelup') {
+        if (state.pendingCrafts > 0) openCraftUI();
+        else openLevelUpUI();
+      }
       else if (status === 'gameover') endRun(false);
       else if (status === 'victory') endRun(true);
     }
@@ -301,6 +306,7 @@ ui.onStartClick(beginRun);
 ui.onRestartClick(backToHangar);
 ui.onPauseClick(togglePause);
 ui.onMuteClick(() => ui.setMuted(audio.toggleMute()));
+ui.onSkillClick(() => { if (state.status === 'playing') state.tryUseSkill(); });
 
 void (async () => {
   await renderer.init(canvas);

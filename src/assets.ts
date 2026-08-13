@@ -26,7 +26,7 @@ export const SPRITE_PATHS = {
     heal: `${base}/pickup_heal.png`,
     magnet: `${base}/pickup_magnet.png`,
     bomb: `${base}/pickup_bomb.png`,
-  } satisfies Record<PickupKind, string>,
+  } satisfies Record<Exclude<PickupKind, 'cube'>, string>,
 } as const;
 
 export interface SpriteAtlas {

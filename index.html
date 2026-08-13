@@ -22,7 +22,6 @@
             <span id="stat-time">00:00</span>
             <span id="stat-kills">☠ 0</span>
             <span id="stat-score">🏆 0</span>
-            <span id="stat-cubes">🧊 0</span>
           </div>
           <div id="boss-bar" class="hidden">
             <div id="boss-fill"></div>
@@ -33,6 +32,10 @@
           <button id="pause-btn" title="일시정지">⏸</button>
           <button id="mute-btn" title="음소거">🔊</button>
         </div>
+        <button id="skill-btn" title="액티브 스킬" type="button">
+          <span id="skill-icon">🌀</span>
+          <span id="skill-cd" class="hidden"></span>
+        </button>
         <div id="story-line" class="hidden"></div>
         <div id="combo" class="hidden"></div>
         <div id="slot-tooltip" class="hidden"></div>
@@ -42,17 +45,9 @@
 
       <!-- ===== 레벨업 3선택지 Overlay ===== -->
       <div id="levelup-overlay" class="overlay hidden">
-        <h2 class="overlay-title">LEVEL UP!</h2>
-        <p class="overlay-sub">강화를 선택하세요</p>
+        <h2 id="levelup-title" class="overlay-title">LEVEL UP!</h2>
+        <p id="levelup-sub" class="overlay-sub">강화를 선택하세요</p>
         <div id="card-container"></div>
-      </div>
-
-      <!-- ===== 무기고 (Arsenal) ===== -->
-      <div id="arsenal-overlay" class="overlay hidden">
-        <h2 class="overlay-title">ARSENAL</h2>
-        <p class="overlay-sub">퀀텀 큐브로 Tier3를 깎으세요 · 🧊 <span id="arsenal-cubes">0</span></p>
-        <div id="arsenal-list"></div>
-        <button id="arsenal-close-btn" class="secondary">닫기</button>
       </div>
 
       <!-- ===== 게임오버 Overlay ===== -->

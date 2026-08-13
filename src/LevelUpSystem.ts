@@ -1,9 +1,9 @@
 import type {
-  LevelUpChoice, WeaponId, PassiveId, AffixId, StatBoostId, TacticalId,
+  LevelUpChoice, WeaponId, PassiveId, AffixId, StatBoostId, TacticalId, CraftOp,
 } from './types';
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
-  ENDGAME, TACTICAL, AFFIXES, ARSENAL, QUANTUM, T1_DUPLICATE_CAP,
+  ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -18,7 +18,7 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   statBoost: 'BREAK — 한계 돌파',
   tactical: 'TACTICAL — 전술',
   affix: 'AFFIX — T0 접사',
-  arsenal: 'ARSENAL — 무기고',
+  craft: 'CRAFT — 크래프팅',
 };
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
@@ -85,17 +85,6 @@ function buildEndgamePool(state: GameState): LevelUpChoice[] {
     icon: '🔧',
     color: '#4ade80',
   });
-
-  if (state.quantumCubes > 0) {
-    pool.push({
-      kind: 'arsenal',
-      weight: ARSENAL.choiceWeight,
-      title: '무기고 접근',
-      desc: `퀀텀 큐브 ${state.quantumCubes}개로 어픽스 리롤·부여·강화`,
-      icon: '🛠️',
-      color: '#67e8f9',
-    });
-  }
 
   for (const slot of state.weapons) {
     if (slot.affix) continue;
@@ -256,6 +245,85 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   return choices.slice(0, 3);
 }
 
+function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
+  const def = WEAPONS[slot.weaponId];
+  if (op === 'affix') {
+    const reroll = !!slot.affix;
+    return {
+      kind: 'craft',
+      weight: 0,
+      title: `${def.name} 어픽스 ${reroll ? '리롤' : '부여'}`,
+      desc: reroll
+        ? `현재 접사를 다른 무작위 어픽스로 바꿉니다.`
+        : `무작위 T0 어픽스(분열/관통/연쇄)를 부여합니다.`,
+      icon: def.icon,
+      color: def.color,
+      weaponIds: [slot.weaponId],
+      craftOp: 'affix',
+    };
+  }
+  if (op === 'damage') {
+    const pct = Math.round(ARSENAL.buffDamage * 100);
+    return {
+      kind: 'craft',
+      weight: 0,
+      title: `${def.name} 데미지 +${pct}%`,
+      desc: `이 무기의 기본 데미지가 영구히 ${pct}% 증가합니다.`,
+      icon: def.icon,
+      color: def.color,
+      weaponIds: [slot.weaponId],
+      craftOp: 'damage',
+    };
+  }
+  const pct = Math.round(ARSENAL.buffSpeed * 100);
+  return {
+    kind: 'craft',
+    weight: 0,
+    title: `${def.name} 투속 +${pct}%`,
+    desc: `이 무기의 투사체 속도가 영구히 ${pct}% 증가합니다.`,
+    icon: def.icon,
+    color: def.color,
+    weaponIds: [slot.weaponId],
+    craftOp: 'speed',
+  };
+}
+
+export function generateCraftChoices(state: GameState): LevelUpChoice[] {
+  const heal = (): LevelUpChoice => ({
+    kind: 'heal',
+    weight: 0,
+    title: '긴급 수리',
+    desc: `최대 체력의 ${Math.round(HEAL_CARD_RATIO * 100)}%를 회복합니다.`,
+    icon: '🔧',
+    color: '#4ade80',
+  });
+
+  if (state.weapons.length === 0) return [heal(), heal(), heal()];
+
+  const t3 = state.weapons.filter((s) => WEAPONS[s.weaponId].tier === 3);
+  const maxTier = Math.max(...state.weapons.map((s) => WEAPONS[s.weaponId].tier));
+  const targets = t3.length > 0
+    ? t3
+    : state.weapons.filter((s) => WEAPONS[s.weaponId].tier === maxTier);
+
+  const cards: LevelUpChoice[] = [];
+  if (t3[0]) {
+    cards.push(craftCard(t3[0], 'affix'));
+    const dmgSlot = targets.find((s) => s !== t3[0]) ?? t3[0];
+    cards.push(craftCard(dmgSlot, 'damage'));
+    const spdSlot = targets.find((s) => s !== t3[0] && s !== dmgSlot) ?? t3[0];
+    cards.push(craftCard(spdSlot, 'speed'));
+  } else {
+    cards.push(craftCard(targets[0], 'damage'));
+    cards.push(craftCard(targets[0], 'speed'));
+    if (targets[1]) cards.push(craftCard(targets[1], 'damage'));
+    else cards.push(heal());
+  }
+
+  while (cards.length < 3) cards.push(heal());
+  return cards.slice(0, 3);
+}
+
 function randomAffix(): AffixId {
   const ids = Object.keys(AFFIXES) as AffixId[];
   return ids[Math.floor(Math.random() * ids.length)];
@@ -302,7 +370,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       for (const slot of state.weapons) {
         slot.level = Math.min(LEVELING.maxWeaponLevel, slot.level + 1);
       }
-      state.addQuantumCubes(QUANTUM.jackpotDrop);
+      state.dropCube(state.playerX, state.playerY);
       state.events.push({ type: 'jackpot' });
       break;
     }
@@ -338,8 +406,18 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       state.applyAffix(wid, choice.affixId as AffixId);
       break;
     }
-    case 'arsenal': {
-      state.openArsenal();
+    case 'craft': {
+      const wid = (choice.weaponIds as WeaponId[])[0];
+      const op = choice.craftOp as CraftOp;
+      if (op === 'affix') {
+        const slot = state.weapons.find((w) => w.weaponId === wid);
+        if (slot?.affix) state.rerollAffix(wid);
+        else state.grantAffix(wid);
+      } else if (op === 'damage') {
+        state.buffWeaponDamage(wid);
+      } else if (op === 'speed') {
+        state.buffWeaponSpeed(wid);
+      }
       break;
     }
   }

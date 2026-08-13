@@ -54,6 +54,24 @@ export interface Recipe {
 
 export type ShipId = 'scout' | 'fortress' | 'hunter';
 
+export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation';
+
+export interface ActiveSkillDef {
+  id: ActiveSkillId;
+  name: string;
+  icon: string;
+  cooldown: number;
+  duration?: number;
+  dashDist?: number;
+  iframeMs?: number;
+  radius?: number;
+  knockback?: number;
+  pulseDamage?: number;
+  pulseInterval?: number;
+  /** 적·적탄 속도 배율 (1보다 작으면 슬로우) */
+  slowMul?: number;
+}
+
 export interface ShipDef {
   id: ShipId;
   name: string;
@@ -67,6 +85,7 @@ export interface ShipDef {
   startingWeapon: WeaponId;
   /** 언락 비용 (0이면 처음부터 보유) */
   unlockCost: number;
+  activeSkill: ActiveSkillDef;
 }
 
 export type PassiveId = 'magnet' | 'thruster' | 'plating' | 'collector' | 'overcharge' | 'overload';
@@ -194,7 +213,7 @@ export type MovePattern =
 /** 후반 돌연변이 */
 export type MutationId = 'explode' | 'split' | 'burst';
 
-export type PickupKind = 'heal' | 'magnet' | 'bomb';
+export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube';
 
 /** Tier3 / 엔드게임 무기 접사 */
 export type AffixId = 'split' | 'pierce' | 'chain';
@@ -234,6 +253,8 @@ export interface Wave {
 // 레벨업 선택지
 // ------------------------------------------------------------
 
+export type CraftOp = 'affix' | 'damage' | 'speed';
+
 export type ChoiceKind =
   | 'merge'
   | 'new'
@@ -245,7 +266,7 @@ export type ChoiceKind =
   | 'statBoost'
   | 'tactical'
   | 'affix'
-  | 'arsenal';
+  | 'craft';
 
 export interface LevelUpChoice {
   kind: ChoiceKind;
@@ -260,4 +281,5 @@ export interface LevelUpChoice {
   statId?: StatBoostId;
   tacticalId?: TacticalId;
   affixId?: AffixId;
+  craftOp?: CraftOp;
 }

@@ -1,7 +1,7 @@
 import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
-  STAGES, CHALLENGES, AFFIXES, ARSENAL,
+  STAGES, CHALLENGES, AFFIXES,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -20,7 +20,6 @@ export class UI {
   private statTime = document.getElementById('stat-time') as HTMLSpanElement;
   private statKills = document.getElementById('stat-kills') as HTMLSpanElement;
   private statScore = document.getElementById('stat-score') as HTMLSpanElement;
-  private statCubes = document.getElementById('stat-cubes') as HTMLSpanElement;
   private slotsEl = document.getElementById('weapon-slots') as HTMLDivElement;
   private passiveSlotsEl = document.getElementById('passive-slots') as HTMLDivElement;
 
@@ -34,10 +33,9 @@ export class UI {
   private muteBtn = document.getElementById('mute-btn') as HTMLButtonElement;
 
   private levelupOverlay = document.getElementById('levelup-overlay') as HTMLDivElement;
+  private levelupTitle = document.getElementById('levelup-title') as HTMLHeadingElement;
+  private levelupSub = document.getElementById('levelup-sub') as HTMLParagraphElement;
   private cardContainer = document.getElementById('card-container') as HTMLDivElement;
-  private arsenalOverlay = document.getElementById('arsenal-overlay') as HTMLDivElement;
-  private arsenalList = document.getElementById('arsenal-list') as HTMLDivElement;
-  private arsenalCubes = document.getElementById('arsenal-cubes') as HTMLSpanElement;
   private gameoverOverlay = document.getElementById('gameover-overlay') as HTMLDivElement;
   private gameoverStats = document.getElementById('gameover-stats') as HTMLDivElement;
   private victoryOverlay = document.getElementById('victory-overlay') as HTMLDivElement;
@@ -65,6 +63,13 @@ export class UI {
   private tooltipTimeout: number | null = null;
   private meta: MetaSave | null = null;
   private onHangarChange: (() => void) | null = null;
+  private focusEls: HTMLElement[] = [];
+  private focusIdx = 0;
+  private hangarGroups: HTMLElement[][] = [];
+  private hangarGroupIdx = 0;
+  private skillBtn = document.getElementById('skill-btn') as HTMLButtonElement;
+  private skillIcon = document.getElementById('skill-icon') as HTMLSpanElement;
+  private skillCd = document.getElementById('skill-cd') as HTMLSpanElement;
 
   constructor() {
     this.slotsEl.addEventListener('click', (e) => {
@@ -153,7 +158,7 @@ export class UI {
         <div class="ship-icon"><img src="${SPRITE_PATHS.ships[ship.id]}" alt="" width="48" height="48" /></div>
         <div class="ship-name">${ship.name}</div>
         <div class="ship-desc">${ship.desc}</div>
-        <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul}<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}</div>
+        <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul}<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}<br/>스킬: ${ship.activeSkill.icon}${ship.activeSkill.name}</div>
         ${unlocked
           ? (selected ? '<div class="ship-status">선택됨</div>' : '<div class="ship-status">선택</div>')
           : `<div class="ship-status">🔒 ${ship.unlockCost} 크레딧</div>`}
@@ -168,6 +173,22 @@ export class UI {
         }
       });
       this.shipSelect.appendChild(card);
+    }
+
+    const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
+    const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
+    this.hangarGroups = [
+      [...this.stageSelect.querySelectorAll('button')],
+      [...this.challengeSelect.querySelectorAll('button')],
+      [...this.shipSelect.querySelectorAll('button')],
+      [startBtn, metaBtn, achvBtn],
+    ];
+    if (!this.startOverlay.classList.contains('hidden')
+      && this.metaOverlay.classList.contains('hidden')
+      && this.achvOverlay.classList.contains('hidden')) {
+      this.hangarGroupIdx = 3;
+      this.setFocusGroup(this.hangarGroups[3]);
     }
   }
 
@@ -265,8 +286,7 @@ export class UI {
     this.statTime.textContent = `${m}:${s}`;
     this.statKills.textContent = `☠ ${state.kills}`;
     this.statScore.textContent = `🏆 ${state.score.toLocaleString()}`;
-    this.statCubes.textContent = `🧊 ${state.quantumCubes}`;
-    this.statCubes.style.opacity = state.quantumCubes > 0 ? '1' : '0.45';
+    this.updateSkillBtn(state);
 
     this.updateBossBar(state);
     this.updateCombo(state);
@@ -302,8 +322,31 @@ export class UI {
     this.lastCombo = state.comboCount;
   }
 
+  private updateSkillBtn(state: GameState): void {
+    const skill = SHIPS[state.shipId].activeSkill;
+    this.skillIcon.textContent = skill.icon;
+    this.skillBtn.title = `${skill.name} (Space / Shift)`;
+    const playing = state.status === 'playing';
+    this.skillBtn.classList.toggle('hidden', state.status === 'ready');
+    if (!playing) {
+      this.skillBtn.classList.remove('ready', 'cooling');
+      this.skillCd.classList.add('hidden');
+      return;
+    }
+    if (state.skillCdLeft > 0) {
+      this.skillBtn.classList.add('cooling');
+      this.skillBtn.classList.remove('ready');
+      this.skillCd.textContent = String(Math.ceil(state.skillCdLeft));
+      this.skillCd.classList.remove('hidden');
+    } else {
+      this.skillBtn.classList.add('ready');
+      this.skillBtn.classList.remove('cooling');
+      this.skillCd.classList.add('hidden');
+    }
+  }
+
   private renderSlots(state: GameState): void {
-    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}:${w.damageBonus ?? 0}`).join(',');
+    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}:${w.damageBonus ?? 0}:${w.speedBonus ?? 0}`).join(',');
     if (key === this.lastSlotsKey) return;
     this.lastSlotsKey = key;
 
@@ -362,8 +405,8 @@ export class UI {
     const affixLine = slot.affix
       ? `<br/><span class="tt-affix">${AFFIXES[slot.affix].label} ${AFFIXES[slot.affix].desc}</span>`
       : '';
-    const buffLine = (slot.damageBonus ?? 0) > 0
-      ? `<br/><span class="tt-affix">무기고 강화 +${Math.round((slot.damageBonus ?? 0) * 100)}%</span>`
+    const buffLine = (slot.damageBonus ?? 0) > 0 || (slot.speedBonus ?? 0) > 0
+      ? `<br/><span class="tt-affix">크래프트 데미지 +${Math.round((slot.damageBonus ?? 0) * 100)}% · 투속 +${Math.round((slot.speedBonus ?? 0) * 100)}%</span>`
       : '';
     this.tooltipEl.innerHTML = `
       <b>${def.icon} ${def.name}</b> <span class="tt-tier">T${def.tier} · Lv.${slot.level}</span><br/>
@@ -407,13 +450,19 @@ export class UI {
     this.storyTimeout = window.setTimeout(() => this.storyEl.classList.add('hidden'), 4500);
   }
 
-  showLevelUp(choices: LevelUpChoice[], onPick: (choice: LevelUpChoice) => void): void {
+  showLevelUp(
+    choices: LevelUpChoice[],
+    onPick: (choice: LevelUpChoice) => void,
+    labels?: { title: string; sub: string },
+  ): void {
+    this.levelupTitle.textContent = labels?.title ?? 'LEVEL UP!';
+    this.levelupSub.textContent = labels?.sub ?? '강화를 선택하세요';
     this.cardContainer.innerHTML = '';
     for (const choice of choices) {
       const card = document.createElement('button');
       card.className = 'choice-card'
         + (choice.kind === 'jackpot' ? ' jackpot' : '')
-        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'arsenal' ? ' endgame' : '');
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' ? ' endgame' : '');
       card.style.setProperty('--card-color', choice.color);
       card.innerHTML = `
         <span class="card-icon">${choice.icon}</span>
@@ -427,77 +476,12 @@ export class UI {
       this.cardContainer.appendChild(card);
     }
     this.levelupOverlay.classList.remove('hidden');
+    this.setFocusGroup([...this.cardContainer.querySelectorAll('button')]);
   }
 
   hideLevelUp(): void {
     this.levelupOverlay.classList.add('hidden');
-  }
-
-  /**
-   * 무기고: Tier3 무기별 리롤/부여/강화.
-   * onAction 후 UI를 다시 그려야 하므로 호출측에서 refresh용으로 재호출하거나
-   * 내부에서 state를 다시 읽어 갱신한다.
-   */
-  showArsenal(
-    state: GameState,
-    onClose: () => void,
-    onChanged: () => void,
-  ): void {
-    this.renderArsenal(state, onChanged);
-    (document.getElementById('arsenal-close-btn') as HTMLButtonElement).onclick = () => {
-      this.hideArsenal();
-      onClose();
-    };
-    this.arsenalOverlay.classList.remove('hidden');
-  }
-
-  hideArsenal(): void {
-    this.arsenalOverlay.classList.add('hidden');
-  }
-
-  private renderArsenal(state: GameState, onChanged: () => void): void {
-    this.arsenalCubes.textContent = String(state.quantumCubes);
-    this.arsenalList.innerHTML = '';
-    const t3 = state.weapons.filter((w) => WEAPONS[w.weaponId].tier === 3);
-    if (t3.length === 0) {
-      this.arsenalList.innerHTML = '<p class="arsenal-empty">Tier 3 무기가 없습니다. 조합 후 다시 오세요.</p>';
-      return;
-    }
-    for (const slot of t3) {
-      const def = WEAPONS[slot.weaponId];
-      const row = document.createElement('div');
-      row.className = 'arsenal-row';
-      const affixTxt = slot.affix ? AFFIXES[slot.affix].label : '접사 없음';
-      const buffPct = Math.round((slot.damageBonus ?? 0) * 100);
-      row.innerHTML = `
-        <div class="arsenal-info">
-          <span class="arsenal-icon">${def.icon}</span>
-          <div>
-            <div class="arsenal-name">${def.name} · Lv.${slot.level}</div>
-            <div class="arsenal-meta">${affixTxt} · 강화 +${buffPct}%</div>
-          </div>
-        </div>
-        <div class="arsenal-actions"></div>
-      `;
-      const actions = row.querySelector('.arsenal-actions') as HTMLDivElement;
-      const addBtn = (label: string, cost: number, enabled: boolean, fn: () => boolean) => {
-        const btn = document.createElement('button');
-        btn.className = 'arsenal-btn';
-        btn.textContent = `${label} (${cost}🧊)`;
-        btn.disabled = !enabled || state.quantumCubes < cost;
-        btn.onclick = () => {
-          if (fn()) {
-            this.renderArsenal(state, onChanged);
-            onChanged();
-          }
-        };
-        actions.appendChild(btn);
-      };
-      addBtn('리롤', ARSENAL.costs.reroll, !!slot.affix, () => state.rerollAffix(slot.weaponId));
-      addBtn('부여', ARSENAL.costs.grant, !slot.affix, () => state.grantAffix(slot.weaponId));
-      addBtn('강화', ARSENAL.costs.buff, true, () => state.buffWeapon(slot.weaponId));
-      this.arsenalList.appendChild(row);
-    }
+    this.clearFocus();
   }
 
   private resultHtml(state: GameState, creditsGained: number, newAchv: AchievementId[]): string {
@@ -519,36 +503,46 @@ export class UI {
   showGameOver(state: GameState, creditsGained: number, newAchv: AchievementId[]): void {
     this.gameoverStats.innerHTML = this.resultHtml(state, creditsGained, newAchv);
     this.gameoverOverlay.classList.remove('hidden');
+    this.setFocusGroup([document.getElementById('restart-btn') as HTMLButtonElement]);
   }
 
   hideGameOver(): void {
     this.gameoverOverlay.classList.add('hidden');
+    this.clearFocus();
   }
 
   showVictory(state: GameState, creditsGained: number, newAchv: AchievementId[]): void {
     this.victoryStats.innerHTML = this.resultHtml(state, creditsGained, newAchv);
     this.victoryOverlay.classList.remove('hidden');
+    this.setFocusGroup([document.getElementById('victory-restart-btn') as HTMLButtonElement]);
   }
 
   hideVictory(): void {
     this.victoryOverlay.classList.add('hidden');
+    this.clearFocus();
   }
 
   showPause(): void {
     this.pauseOverlay.classList.remove('hidden');
+    this.setFocusGroup([
+      document.getElementById('resume-btn') as HTMLButtonElement,
+      document.getElementById('pause-restart-btn') as HTMLButtonElement,
+    ]);
   }
 
   hidePause(): void {
     this.pauseOverlay.classList.add('hidden');
+    this.clearFocus();
   }
 
   hideStart(): void {
     this.startOverlay.classList.add('hidden');
+    this.clearFocus();
   }
 
   showStart(): void {
-    this.refreshHangar();
     this.startOverlay.classList.remove('hidden');
+    this.refreshHangar();
   }
 
   setMuted(muted: boolean): void {
@@ -572,5 +566,90 @@ export class UI {
 
   onMuteClick(fn: () => void): void {
     this.muteBtn.addEventListener('click', fn);
+  }
+
+  onSkillClick(fn: () => void): void {
+    this.skillBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      fn();
+    });
+  }
+
+  handleKey(e: KeyboardEvent): boolean {
+    if (e.repeat && (e.code === 'Space' || e.code === 'Enter')) return true;
+    const left = e.code === 'ArrowLeft' || e.code === 'KeyA';
+    const right = e.code === 'ArrowRight' || e.code === 'KeyD';
+    const up = e.code === 'ArrowUp' || e.code === 'KeyW';
+    const down = e.code === 'ArrowDown' || e.code === 'KeyS';
+    const confirm = e.code === 'Enter' || e.code === 'Space';
+
+    if (!this.levelupOverlay.classList.contains('hidden')
+      || !this.pauseOverlay.classList.contains('hidden')
+      || !this.gameoverOverlay.classList.contains('hidden')
+      || !this.victoryOverlay.classList.contains('hidden')) {
+      if (left || up) { this.moveFocus(-1); return true; }
+      if (right || down) { this.moveFocus(1); return true; }
+      if (confirm) { this.activateFocus(); return true; }
+      return false;
+    }
+
+    if (!this.metaOverlay.classList.contains('hidden')
+      || !this.achvOverlay.classList.contains('hidden')) {
+      if (e.code === 'Escape') return false;
+      if (confirm) {
+        const closeId = !this.metaOverlay.classList.contains('hidden') ? 'meta-close-btn' : 'achv-close-btn';
+        (document.getElementById(closeId) as HTMLButtonElement)?.click();
+        return true;
+      }
+      return false;
+    }
+
+    if (!this.startOverlay.classList.contains('hidden')) {
+      if (up) { this.moveHangarGroup(-1); return true; }
+      if (down) { this.moveHangarGroup(1); return true; }
+      if (left) { this.moveFocus(-1); return true; }
+      if (right) { this.moveFocus(1); return true; }
+      if (confirm) { this.activateFocus(); return true; }
+    }
+    return false;
+  }
+
+  private setFocusGroup(els: HTMLElement[]): void {
+    this.clearFocus();
+    this.focusEls = els.filter(Boolean);
+    this.focusIdx = 0;
+    this.applyFocus();
+  }
+
+  private clearFocus(): void {
+    for (const el of this.focusEls) el.classList.remove('focused');
+    this.focusEls = [];
+    this.focusIdx = 0;
+  }
+
+  private moveFocus(delta: number): void {
+    if (this.focusEls.length === 0) return;
+    this.focusEls[this.focusIdx]?.classList.remove('focused');
+    this.focusIdx = (this.focusIdx + delta + this.focusEls.length) % this.focusEls.length;
+    this.applyFocus();
+  }
+
+  private applyFocus(): void {
+    const el = this.focusEls[this.focusIdx];
+    if (!el) return;
+    el.classList.add('focused');
+  }
+
+  private activateFocus(): boolean {
+    const el = this.focusEls[this.focusIdx];
+    if (!el) return false;
+    el.click();
+    return true;
+  }
+
+  private moveHangarGroup(delta: number): void {
+    if (this.hangarGroups.length === 0) return;
+    this.hangarGroupIdx = (this.hangarGroupIdx + delta + this.hangarGroups.length) % this.hangarGroups.length;
+    this.setFocusGroup(this.hangarGroups[this.hangarGroupIdx]);
   }
 }

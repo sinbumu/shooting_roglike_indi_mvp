@@ -216,16 +216,29 @@ export const SHIPS: Record<ShipId, ShipDef> = {
     id: 'scout', name: '스카웃', icon: '🛸', color: '#7dd3fc',
     desc: '빠른 기동. 체력은 낮지만 회피에 유리합니다.',
     hpMul: 0.85, speedMul: 1.2, startingWeapon: 'vulcan', unlockCost: 0,
+    activeSkill: {
+      id: 'phaseDash', name: '위상 대시', icon: '🌀',
+      cooldown: 6, dashDist: 110, iframeMs: 250,
+    },
   },
   fortress: {
     id: 'fortress', name: '포트리스', icon: '🛡️', color: '#86efac',
     desc: '두꺼운 장갑. 느리지만 맞아도 버팁니다. 스프레드로 시작.',
     hpMul: 1.35, speedMul: 0.82, startingWeapon: 'spread', unlockCost: 120,
+    activeSkill: {
+      id: 'aegis', name: '절대 방벽', icon: '🛡️',
+      cooldown: 12, duration: 2.5, radius: 72,
+      knockback: 46, pulseDamage: 38, pulseInterval: 0.3,
+    },
   },
   hunter: {
     id: 'hunter', name: '헌터', icon: '🎯', color: '#fdba74',
     desc: '균형형. 호밍으로 시작해 추격전에 강합니다.',
     hpMul: 1.0, speedMul: 1.0, startingWeapon: 'homing', unlockCost: 120,
+    activeSkill: {
+      id: 'timeDilation', name: '시간 왜곡', icon: '⏱️',
+      cooldown: 15, duration: 4, slowMul: 0.4,
+    },
   },
 };
 
@@ -491,20 +504,17 @@ export const RIFT_EVENT = {
   elitePool: ['dasher', 'rusher', 'tank', 'zigzag'] as const satisfies readonly EnemyId[],
 } as const;
 
-/** 런 전용 크래프팅 화폐 (퀀텀 큐브) */
+/** 퀀텀 큐브(오브) 드롭 — 획득 시 즉시 크래프팅 3선택지 */
 export const QUANTUM = {
   phaseDrop: 1,
   riftEliteDrop: 1,
   jackpotDrop: 1,
 } as const;
 
-/** 무기고 (Arsenal Terminal) */
+/** 크래프팅 강화 수치 (오브 3선택지) */
 export const ARSENAL = {
-  openTimes: [180, 270] as const,
-  costs: { reroll: 1, grant: 2, buff: 1 },
-  buffDamage: 0.1,
-  /** 엔드게임 레벨업 카드 가중치 */
-  choiceWeight: 22,
+  buffDamage: 0.15,
+  buffSpeed: 0.2,
 } as const;
 
 /** 어픽스 × 보조 스탯 시너지 수치 */

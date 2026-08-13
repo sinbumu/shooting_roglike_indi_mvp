@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, PickupKind, ShipId } from './types';
 
@@ -639,6 +639,23 @@ export class Renderer {
       shield.width = shield.height = PLAYER.radius * 4.2 + Math.sin(this.elapsed * 10) * 4;
       shield.alpha = 0.55;
     }
+    const skill = SHIPS[state.shipId].activeSkill;
+    if (state.skillActiveLeft > 0 && skill.id === 'aegis') {
+      const ar = skill.radius ?? 72;
+      const aegis = this.glowPool.get();
+      aegis.tint = 0x4ade80;
+      aegis.position.set(x, y);
+      aegis.width = aegis.height = ar * 2.5 + Math.sin(this.elapsed * 12) * 10;
+      aegis.alpha = 0.55;
+      this.coreG.circle(x, y, ar).stroke({ width: 3, color: 0x86efac, alpha: 0.8 });
+    }
+    if (state.skillActiveLeft > 0 && skill.id === 'timeDilation') {
+      const glow = this.glowPool.get();
+      glow.tint = 0xfdba74;
+      glow.position.set(x, y);
+      glow.width = glow.height = PLAYER.radius * 5 + Math.sin(this.elapsed * 8) * 6;
+      glow.alpha = 0.4;
+    }
     if (shipTex) {
       if (!this.playerSprite) {
         this.playerSprite = new Sprite(shipTex);
@@ -804,8 +821,11 @@ export class Renderer {
 
       const bob = Math.sin(this.elapsed * 4 + p.x) * 3;
       const y = p.y + bob;
-      const tint = p.kind === 'heal' ? 0x4ade80 : p.kind === 'magnet' ? 0x38bdf8 : 0xfb923c;
-      const tex = this.atlas.pickups[p.kind as PickupKind];
+      const tint = p.kind === 'heal' ? 0x4ade80
+        : p.kind === 'magnet' ? 0x38bdf8
+        : p.kind === 'cube' ? 0x67e8f9
+        : 0xfb923c;
+      const tex = p.kind === 'cube' ? undefined : this.atlas.pickups[p.kind as PickupKind];
 
       const glow = this.glowPool.get();
       glow.tint = tint;
@@ -828,6 +848,9 @@ export class Renderer {
           g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
           g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
           g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
+        } else if (p.kind === 'cube') {
+          const r = PICKUPS.radius + 2;
+          g.poly([p.x, y - r, p.x + r * 0.75, y, p.x, y + r, p.x - r * 0.75, y], true).fill(tint);
         } else {
           g.circle(p.x, y + 1, 6).fill(tint);
           g.rect(p.x - 1, y - 8, 2, 5).fill(0xfde68a);

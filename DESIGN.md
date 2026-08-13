@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-13** — **로컬 MVP + 엔드게임·시너지 + 다양성/템포 패치** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-13** — **로컬 MVP + 엔드게임·시너지 + 다양성/템포 + UX/액티브** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -14,8 +14,9 @@
 |---|---|
 | 기획상 **로컬 MVP**는 다 됐나? | **예.** 코어·메타·스테이지·도전·스프라이트·프로시저럴 사운드까지 구현됨 |
 | 엔드게임·도파민 패치? | **완료** — 한계 돌파 / 전술 / T0 어픽스 / 잭팟 / 보스 페이즈 / 돌발 균열 |
-| 크래프팅·시너지? | **완료** — 퀀텀 큐브 · 무기고 · 어픽스×자석/투속/이속 ([docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md)) |
+| 크래프팅·시너지? | **완료** — 큐브 오브 즉시 3선택지 · 어픽스×자석/투속/이속 ([docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md), [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md)) |
 | 다양성·초반 템포? | **완료** — EXP 곡선 · 동형 조합 3종 · 패시브 4 · 실더/텔레포터 · 돌연변이 ([docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md)) |
+| UX·액티브? | **완료** — 기체 액티브 스킬 · 키보드 UI 포커스 · 무기고 상점 삭제 |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -53,8 +54,9 @@
 - [x] 비주얼/오디오: Pixi 스프라이트 + Graphics 폴백, Web Audio 합성  
 - [x] 엔드게임: 한계 돌파 스탯 · 전술(EMP/쉴드/자석폭주) · T0 어픽스(분열/관통/연쇄)  
 - [x] 도파민: 잭팟 히트스톱·쉐이크·피치 SFX · 보스 50% 페이즈+보석 샤워 · 돌발 균열 웨이브  
-- [x] 크래프팅: 퀀텀 큐브 · 무기고(리롤/부여/강화) · 어픽스 교차 시너지  
+- [x] 크래프팅: 퀀텀 큐브 오브 → 즉시 3선택지 (어픽스/데미지/투속) · 어픽스 교차 시너지  
 - [x] 다양성·템포: EXP 곡선 완화 · T1 복제 · 동형 T2 3종 · 과부하 코어 · 실더/텔레포터 · 후반 돌연변이  
+- [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
 
 ---
 
@@ -110,14 +112,14 @@
 |---|---|
 | 스테이지 | `orbit` → `nebula` → `rift` (클리어 해금) |
 | 도전 | 표준 / 제한무장 / 유리장갑 / 맨몸 |
-| 기체 | 스카웃 / 포트리스 / 헌터 |
+| 기체 | 스카웃(위상 대시) / 포트리스(절대 방벽) / 헌터(시간 왜곡) |
 | 패시브 | 자력장·추력·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
 | 메타 | 선체·화력·엔진·자석·행운 (크레딧, 로컬) |
 | 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트 등 |
 
 ### 3-4. 아이템
 
-회복 / 자석 / 폭탄 (+ 선택지 폴백 수리 카드)
+회복 / 자석 / 폭탄 / 퀀텀 큐브(획득 시 크래프팅 3선택지) (+ 선택지 폴백 수리 카드)
 
 ### 3-5. 궤도 스테이지 리듬 (참고)
 
@@ -213,4 +215,5 @@
 | [docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md](./docs/DESIGN_UPDATE_STELLAR_SURVIVOR.md) | 엔드게임·도파민 기획 (구현 완료) |
 | [docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md) | 퀀텀·무기고·어픽스 시너지 (구현 완료) |
 | [docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md) | 초반 템포·동형 조합·후반 강적 (구현 완료) |
+| [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md) | 크래프팅 오브·기체 액티브·키보드 UX (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
