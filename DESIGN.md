@@ -17,6 +17,7 @@
 | 크래프팅·시너지? | **완료** — 큐브 오브 즉시 3선택지 · 어픽스×자석/투속/이속 ([docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md), [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md)) |
 | 다양성·초반 템포? | **완료** — EXP 곡선 · 동형 조합 3종 · 패시브 4 · 실더/텔레포터 · 돌연변이 ([docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md)) |
 | UX·액티브? | **완료** — 기체 액티브 스킬 · 키보드 UI 포커스 · 무기고 상점 삭제 |
+| 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
 | 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
@@ -57,6 +58,7 @@
 - [x] 크래프팅: 퀀텀 큐브 오브 → 즉시 3선택지 (어픽스/데미지/투속) · 어픽스 교차 시너지  
 - [x] 다양성·템포: EXP 곡선 완화 · T1 복제 · 동형 T2 3종 · 과부하 코어 · 실더/텔레포터 · 후반 돌연변이  
 - [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
+- [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
 
 ---
 
@@ -195,6 +197,7 @@
 | 느낌 | 상수 |
 |---|---|
 | 이속 | `PLAYER.moveSpeed` / 기체·메타 |
+| 정밀 비행 | `PLAYER.focusSpeedMul` (Shift) / 조이스틱 드래그 강도 |
 | 초반 허함 | `STAGES.*.waves`, `LEVELING.expForLevel` |
 | 보스 강약 | `BOSS` / 스테이지 `bossTimes`·`bossRoster` |
 | 조합 빈도 | `LevelUpSystem.ts` 가중치 |
@@ -216,4 +219,5 @@
 | [docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md) | 퀀텀·무기고·어픽스 시너지 (구현 완료) |
 | [docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md) | 초반 템포·동형 조합·후반 강적 (구현 완료) |
 | [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md) | 크래프팅 오브·기체 액티브·키보드 UX (구현 완료) |
+| [docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md) | Shift 저속·조이스틱 아날로그 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

@@ -325,7 +325,7 @@ export class UI {
   private updateSkillBtn(state: GameState): void {
     const skill = SHIPS[state.shipId].activeSkill;
     this.skillIcon.textContent = skill.icon;
-    this.skillBtn.title = `${skill.name} (Space / Shift)`;
+    this.skillBtn.title = `${skill.name} (Space)`;
     const playing = state.status === 'playing';
     this.skillBtn.classList.toggle('hidden', state.status === 'ready');
     if (!playing) {

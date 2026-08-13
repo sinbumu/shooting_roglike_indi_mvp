@@ -611,15 +611,16 @@ export class Renderer {
     if (state.status === 'ready' || state.status === 'gameover') return;
 
     if (state.status === 'playing' && dt > 0) {
+      const focus = state.isFocusing;
       this.spawnParticle({
-        x: x + (Math.random() - 0.5) * 6,
+        x: x + (Math.random() - 0.5) * (focus ? 3 : 6),
         y: y + 13,
-        vy: 130 + Math.random() * 60,
+        vy: (focus ? 70 : 130) + Math.random() * (focus ? 30 : 60),
         life: 0.22 + Math.random() * 0.1,
-        sizeFrom: 9 + Math.random() * 5,
+        sizeFrom: (focus ? 4 : 9) + Math.random() * (focus ? 2 : 5),
         sizeTo: 2,
         tint: 0xfb923c,
-        alphaFrom: 0.75,
+        alphaFrom: focus ? 0.4 : 0.75,
       });
     }
 
@@ -628,8 +629,11 @@ export class Renderer {
     const engine = this.glowPool.get();
     engine.tint = 0xfb923c;
     engine.position.set(x, y + 14);
-    engine.width = engine.height = 26 + Math.sin(this.elapsed * 28) * 7;
-    engine.alpha = 0.9;
+    const engineSize = state.isFocusing
+      ? 14 + Math.sin(this.elapsed * 20) * 3
+      : 26 + Math.sin(this.elapsed * 28) * 7;
+    engine.width = engine.height = engineSize;
+    engine.alpha = state.isFocusing ? 0.55 : 0.9;
 
     const shipTex = this.atlas.ships[state.shipId as ShipId];
     if (state.shieldLeft > 0) {
@@ -668,6 +672,10 @@ export class Renderer {
       const size = PLAYER.radius * 3.2;
       this.playerSprite.width = size;
       this.playerSprite.height = size;
+      if (state.isFocusing) {
+        g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 });
+        g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 });
+      }
       return;
     }
 
@@ -676,6 +684,10 @@ export class Renderer {
       .fill(0x7dd3fc)
       .stroke({ width: 1.5, color: 0xe0f2fe });
     g.circle(x, y - 2, 3.5).fill(0xf0f9ff);
+    if (state.isFocusing) {
+      g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 });
+      g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 });
+    }
   }
 
   private drawEnemies(state: GameState): void {

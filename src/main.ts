@@ -98,7 +98,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (ui.handleKey(e)) return;
-  if (!e.repeat && (e.code === 'Space' || e.code === 'ShiftLeft' || e.code === 'ShiftRight')) {
+  if (!e.repeat && e.code === 'Space') {
     if (state.status === 'playing') state.tryUseSkill();
   }
   pressedKeys.add(e.code);
@@ -110,6 +110,7 @@ function pollInput(): void {
   if (joyActive) {
     state.moveX = joyVecX;
     state.moveY = joyVecY;
+    state.isFocusing = false;
     return;
   }
   let x = 0;
@@ -120,6 +121,7 @@ function pollInput(): void {
   if (pressedKeys.has('KeyS') || pressedKeys.has('ArrowDown')) y += 1;
   state.moveX = x;
   state.moveY = y;
+  state.isFocusing = pressedKeys.has('ShiftLeft') || pressedKeys.has('ShiftRight');
 }
 
 function togglePause(): void {

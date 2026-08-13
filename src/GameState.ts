@@ -156,6 +156,8 @@ export class GameState {
   playerY = CANVAS.height * 0.78;
   moveX = 0;
   moveY = 0;
+  /** 키보드 Shift 정밀 비행 */
+  isFocusing = false;
   shipId: ShipId = 'scout';
   stageId: StageId = 'orbit';
   challengeId: ChallengeId = 'standard';
@@ -286,6 +288,7 @@ export class GameState {
     this.pendingCrafts = 0;
     this.lastAimX = 0;
     this.lastAimY = -1;
+    this.isFocusing = false;
     this.skillCdLeft = 0;
     this.skillActiveLeft = 0;
     this.worldSlow = 1;
@@ -599,23 +602,28 @@ export class GameState {
   // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
 
   private updatePlayer(dt: number): void {
-    let mx = this.moveX;
-    let my = this.moveY;
+    const mx = this.moveX;
+    const my = this.moveY;
     const mag = Math.hypot(mx, my);
-    if (mag > 1) {
-      mx /= mag;
-      my /= mag;
+    let dirX = 0;
+    let dirY = 0;
+    let analog = 0;
+    if (mag > 0.001) {
+      dirX = mx / mag;
+      dirY = my / mag;
+      analog = Math.min(1, mag);
+      if (mag > 0.15) {
+        this.lastAimX = dirX;
+        this.lastAimY = dirY;
+      }
     }
-    if (mag > 0.15) {
-      this.lastAimX = mx;
-      this.lastAimY = my;
-    }
+    if (this.isFocusing) analog *= PLAYER.focusSpeedMul;
 
     const skill = SHIPS[this.shipId].activeSkill;
     const locked = this.skillActiveLeft > 0 && skill.id === 'aegis';
     if (!locked) {
-      this.playerX += mx * this.moveSpeed * dt;
-      this.playerY += my * this.moveSpeed * dt;
+      this.playerX += dirX * this.moveSpeed * analog * dt;
+      this.playerY += dirY * this.moveSpeed * analog * dt;
       const r = PLAYER.radius;
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));

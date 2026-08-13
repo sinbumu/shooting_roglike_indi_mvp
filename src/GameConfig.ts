@@ -20,6 +20,8 @@ export const PLAYER = {
   maxHp: 100,
   /** px/초 — 조이스틱/키보드 방향 이동 속도 */
   moveSpeed: 430,
+  /** Shift 정밀 비행 시 이동 속도 배율 */
+  focusSpeedMul: 0.45,
   /** 피격 후 무적 시간(ms) */
   invincibleMs: 900,
   /** 보석 자석 반경 */
