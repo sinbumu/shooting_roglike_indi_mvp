@@ -19,6 +19,8 @@ export const SPRITE_PATHS = {
     shielder: `${base}/enemy_shielder.png`,
     teleporter: `${base}/enemy_teleporter.png`,
     splinter: `${base}/enemy_splinter.png`,
+    mirage: `${base}/enemy_mirage.png`,
+    guardian: `${base}/enemy_guardian.png`,
     boss: `${base}/boss_boss.png`,
     bossSeraph: `${base}/boss_bossSeraph.png`,
   } satisfies Record<EnemyId, string>,

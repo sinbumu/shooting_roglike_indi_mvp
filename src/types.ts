@@ -202,6 +202,8 @@ export type EnemyId =
   | 'shielder'
   | 'teleporter'
   | 'splinter'
+  | 'mirage'
+  | 'guardian'
   | 'boss'
   | 'bossSeraph';
 
@@ -215,6 +217,8 @@ export type MovePattern =
   | 'slowDown'
   | 'shieldDown'
   | 'teleport'
+  | 'cloakDown'
+  | 'auraDown'
   | 'boss'
   | 'bossSeraph';
 

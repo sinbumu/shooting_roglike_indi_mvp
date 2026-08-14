@@ -7,7 +7,7 @@ import {
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
-  SHIP_SKINS, PROJ_SKINS,
+  SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -70,6 +70,12 @@ export interface Enemy {
   fromRift?: boolean;
   mutation?: MutationId;
   teleportCd?: number;
+  /** 보스 등장 페이즈 남은 시간 */
+  introLeft?: number;
+  /** 등장 이후 유영 타이머 (스폰 age와 분리) */
+  swimAge?: number;
+  /** 실더 역장 남은 타격 횟수 */
+  shieldHits?: number;
 }
 
 export interface PassiveSlot {
@@ -90,6 +96,7 @@ export interface Pickup {
   kind: PickupKind;
   x: number; y: number;
   life: number;
+  magnetized?: boolean;
 }
 
 export interface Gem {
@@ -142,7 +149,8 @@ export type FxEvent =
   | { type: 'story'; text: string }
   | { type: 'skill'; id: ActiveSkillId; x: number; y: number }
   | { type: 'teleport'; x: number; y: number }
-  | { type: 'shieldBlock'; x: number; y: number };
+  | { type: 'shieldBlock'; x: number; y: number }
+  | { type: 'vacuum' };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -199,7 +207,6 @@ export class GameState {
   skillCdLeft = 0;
   skillActiveLeft = 0;
   worldSlow = 1;
-  private aegisPulseCd = 0;
 
   runStats: RunStats = {
     projSpeedMul: 1,
@@ -307,7 +314,6 @@ export class GameState {
     this.skillCdLeft = 0;
     this.skillActiveLeft = 0;
     this.worldSlow = 1;
-    this.aegisPulseCd = 0;
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
@@ -567,9 +573,9 @@ export class GameState {
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     } else if (skill.id === 'aegis') {
-      this.aegisPulseCd = 0;
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+      this.aegisShockwave(skill);
     } else if (skill.id === 'timeDilation') {
       this.worldSlow = skill.slowMul ?? 0.4;
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
@@ -580,18 +586,21 @@ export class GameState {
 
   private updateSkills(dt: number): void {
     if (this.skillCdLeft > 0) this.skillCdLeft = Math.max(0, this.skillCdLeft - dt);
+    const skill = SHIPS[this.shipId].activeSkill;
     if (this.skillActiveLeft > 0) {
+      const prev = this.skillActiveLeft;
       this.skillActiveLeft = Math.max(0, this.skillActiveLeft - dt);
-      if (this.skillActiveLeft <= 0) {
+      if (prev > 0 && this.skillActiveLeft <= 0) {
         this.worldSlow = 1;
+        if (skill.id === 'aegis') this.aegisShockwave(skill);
       }
     }
-    const skill = SHIPS[this.shipId].activeSkill;
-    if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis(dt, skill);
+    if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis();
   }
 
-  private tickAegis(dt: number, skill: typeof SHIPS[ShipId]['activeSkill']): void {
-    const radius = skill.radius ?? 72;
+  /** 지속 중에는 탄막만 소거. 데미지는 전개/종료 충격파만. */
+  private tickAegis(): void {
+    const radius = SHIPS[this.shipId].activeSkill.radius ?? 72;
     const r2 = radius * radius;
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
@@ -599,9 +608,10 @@ export class GameState {
         this.enemyProjectiles.splice(i, 1);
       }
     }
-    this.aegisPulseCd -= dt;
-    if (this.aegisPulseCd > 0) return;
-    this.aegisPulseCd = skill.pulseInterval ?? 0.3;
+  }
+
+  private aegisShockwave(skill: typeof SHIPS[ShipId]['activeSkill']): void {
+    const radius = skill.radius ?? 72;
     const knock = skill.knockback ?? 46;
     const dmg = skill.pulseDamage ?? 38;
     for (const e of [...this.enemies]) {
@@ -613,8 +623,10 @@ export class GameState {
       const ny = dy / (dist || 1);
       e.x += nx * knock;
       e.y += ny * knock;
+      if (this.tryAbsorbShield(e, true)) continue;
       this.damageEnemy(e, dmg);
     }
+    this.events.push({ type: 'skill', id: 'aegis', x: this.playerX, y: this.playerY });
   }
 
   // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
@@ -876,6 +888,7 @@ export class GameState {
       || (allowElite
         && !isBoss
         && enemyId !== 'splinter'
+        && enemyId !== 'guardian'
         && this.time >= ELITE.unlockAt
         && Math.random() < ELITE.chance);
 
@@ -891,6 +904,9 @@ export class GameState {
       elite,
       phase: isBoss ? 1 : undefined,
       mutation: enemyId === 'splinter' ? undefined : mutation,
+      introLeft: isBoss ? BOSS.introDuration : undefined,
+      swimAge: isBoss ? 0 : undefined,
+      shieldHits: enemyId === 'shielder' ? SHIELDER.hits : undefined,
     };
     this.enemies.push(enemy);
     return enemy;
@@ -925,6 +941,8 @@ export class GameState {
           e.y -= e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
           break;
         case 'shieldDown':
+        case 'cloakDown':
+        case 'auraDown':
           e.y += e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
           break;
         case 'teleport':
@@ -962,13 +980,21 @@ export class GameState {
     }
   }
 
-  /** 보스: 상단에 진입 후 좌우로 유영하며 탄막 + 조준 사격 */
+  private updateBossIntro(e: Enemy, dt: number): boolean {
+    if ((e.introLeft ?? 0) <= 0) return false;
+    e.introLeft = Math.max(0, (e.introLeft ?? 0) - dt);
+    e.x = CANVAS.width / 2;
+    const speed = (BOSS.introTargetY + 80) / BOSS.introDuration;
+    e.y += speed * dt;
+    if (e.y > BOSS.introTargetY) e.y = BOSS.introTargetY;
+    return e.introLeft > 0;
+  }
+
+  /** 보스: 등장 후 좌우 유영하며 탄막 + 조준 사격 */
   private updateBoss(e: Enemy, dt: number): void {
-    if (e.y < 130) {
-      e.y += 80 * dt;
-      return;
-    }
-    e.x = CANVAS.width / 2 + Math.sin(e.age * 0.7) * 150;
+    if (this.updateBossIntro(e, dt)) return;
+    e.swimAge = (e.swimAge ?? 0) + dt;
+    e.x = CANVAS.width / 2 + Math.sin(e.swimAge * 0.7) * 150;
     const fireMul = (e.phase ?? 1) >= 2 ? BOSS.phaseFireRateMul : 1;
 
     e.ringCd = (e.ringCd ?? 2.0) - dt;
@@ -1004,11 +1030,9 @@ export class GameState {
 
   /** 세라프: 좌우 유영 + 연속 나선 탄 */
   private updateBossSeraph(e: Enemy, dt: number): void {
-    if (e.y < 120) {
-      e.y += 90 * dt;
-      return;
-    }
-    e.x = CANVAS.width / 2 + Math.sin(e.age * 1.1) * 170;
+    if (this.updateBossIntro(e, dt)) return;
+    e.swimAge = (e.swimAge ?? 0) + dt;
+    e.x = CANVAS.width / 2 + Math.sin(e.swimAge * 1.1) * 170;
     e.spiralAngle = (e.spiralAngle ?? 0) + dt * 4.5;
     const fireMul = (e.phase ?? 1) >= 2 ? BOSS.phaseFireRateMul : 1;
 
@@ -1110,17 +1134,11 @@ export class GameState {
         const hitR = e.def.radius * (e.elite ? 1.15 : 1);
         const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
-          if (e.def.id === 'shielder' && !p.shieldPierce && this.isShielderFrontHit(p)) {
-            p.hitIds.add(e.id);
-            e.hitFlash = 0.05;
-            this.events.push({ type: 'shieldBlock', x: p.x, y: p.y });
-            if (p.pierceLeft <= 0) {
-              this.projectiles.splice(i, 1);
-              removed = true;
-              break;
-            }
-            p.pierceLeft--;
-            continue;
+          if (this.isCloaked(e)) continue;
+          if (this.tryAbsorbShield(e, this.isShielderFrontHit(p))) {
+            this.projectiles.splice(i, 1);
+            removed = true;
+            break;
           }
           p.hitIds.add(e.id);
           let dmg = p.damage;
@@ -1156,6 +1174,41 @@ export class GameState {
     }
   }
 
+  private isCloaked(e: Enemy): boolean {
+    if (e.def.id !== 'mirage') return false;
+    return Math.hypot(this.playerX - e.x, this.playerY - e.y) > MIRAGE.revealRadius;
+  }
+
+  private inGuardianAura(e: Enemy): boolean {
+    if (e.def.id === 'guardian') return false;
+    for (const g of this.enemies) {
+      if (g.def.id !== 'guardian' || g.id === e.id) continue;
+      if (Math.hypot(g.x - e.x, g.y - e.y) <= GUARDIAN.auraRadius + e.def.radius) return true;
+    }
+    return false;
+  }
+
+  /** 실더 정면 역장: 1타격 흡수 후 투사체 소멸. true면 HP 데미지 없음 */
+  private tryAbsorbShield(e: Enemy, fromFront: boolean): boolean {
+    if (e.def.id !== 'shielder') return false;
+    if ((e.shieldHits ?? 0) <= 0) return false;
+    if (!fromFront) return false;
+    e.shieldHits = (e.shieldHits ?? 1) - 1;
+    e.hitFlash = 0.07;
+    this.events.push({ type: 'shieldBlock', x: e.x, y: e.y + e.def.radius });
+    if (e.shieldHits <= 0) {
+      e.shieldHits = 0;
+      this.events.push({ type: 'banner', text: '🛡️ 역장 파괴' });
+    }
+    return true;
+  }
+
+  private vacuumDrops(): void {
+    for (const g of this.gems) g.magnetized = true;
+    for (const p of this.pickups) p.magnetized = true;
+    this.events.push({ type: 'vacuum' });
+  }
+
   private isShielderFrontHit(p: Projectile): boolean {
     const spd = Math.hypot(p.vx, p.vy) || 1;
     const incomingY = -p.vy / spd;
@@ -1170,6 +1223,8 @@ export class GameState {
       if (e.id === origin.id || p.hitIds.has(e.id)) continue;
       if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) {
         p.hitIds.add(e.id);
+        if (this.isCloaked(e)) continue;
+        if (this.tryAbsorbShield(e, p.y > e.y)) continue;
         this.damageEnemy(e, p.damage * 0.55);
       }
     }
@@ -1234,6 +1289,7 @@ export class GameState {
       let bestD = rangeSq;
       for (const e of this.enemies) {
         if (p.hitIds.has(e.id)) continue;
+        if (this.isCloaked(e)) continue;
         const d = (e.x - origin.x) ** 2 + (e.y - origin.y) ** 2;
         if (d < bestD) {
           bestD = d;
@@ -1242,6 +1298,10 @@ export class GameState {
       }
       if (!best) break;
       p.hitIds.add(best.id);
+      if (this.tryAbsorbShield(best, true)) {
+        origin = best;
+        continue;
+      }
       let dmg = p.damage * syn.damageMul;
       if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
       this.damageEnemy(best, dmg);
@@ -1254,6 +1314,7 @@ export class GameState {
     let bestD = Infinity;
     for (const e of this.enemies) {
       if (exclude.has(e.id)) continue;
+      if (this.isCloaked(e)) continue;
       const d = (e.x - x) ** 2 + (e.y - y) ** 2;
       if (d < bestD) {
         bestD = d;
@@ -1264,6 +1325,8 @@ export class GameState {
   }
 
   private damageEnemy(e: Enemy, dmg: number): void {
+    if (this.isCloaked(e)) return;
+    if (this.inGuardianAura(e)) dmg *= GUARDIAN.damageTakenMul;
     const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
     const prevRatio = e.hp / e.maxHp;
     e.hp -= dmg;
@@ -1319,6 +1382,7 @@ export class GameState {
           const kind: PickupKind = r < 0.45 ? 'heal' : r < 0.8 ? 'magnet' : 'bomb';
           this.pickups.push({ kind, x: e.x, y: e.y, life: PICKUPS.lifetime });
         }
+        if (e.elite) this.vacuumDrops();
       }
 
       const idx = this.enemies.indexOf(e);
@@ -1368,6 +1432,7 @@ export class GameState {
     this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: '⚡ PHASE 2' });
     this.dropCube(e.x, e.y);
+    this.vacuumDrops();
   }
 
   private killBoss(e: Enemy): void {
@@ -1391,13 +1456,24 @@ export class GameState {
 
   // ---------- 드롭 아이템 ----------
 
-  private updatePickups(_dt: number): void {
+  private updatePickups(dt: number): void {
+    const top = CANVAS.height * DROPS.topBand;
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
-      p.life -= _dt;
+      p.life -= dt;
       if (p.life <= 0) {
         this.pickups.splice(i, 1);
         continue;
+      }
+      if (p.magnetized) {
+        const dx = this.playerX - p.x;
+        const dy = this.playerY - p.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const step = GEM.magnetSpeed * dt;
+        p.x += (dx / dist) * step;
+        p.y += (dy / dist) * step;
+      } else if (p.y < top) {
+        p.y += DROPS.gravity * dt;
       }
       const rr = PLAYER.radius + PICKUPS.radius + 6;
       if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
@@ -1418,7 +1494,10 @@ export class GameState {
         break;
       case 'bomb': {
         this.events.push({ type: 'bomb' });
-        for (const e of [...this.enemies]) this.damageEnemy(e, PICKUPS.bombDamage);
+        for (const e of [...this.enemies]) {
+          if (this.tryAbsorbShield(e, true)) continue;
+          this.damageEnemy(e, PICKUPS.bombDamage);
+        }
         break;
       }
       case 'cube':
@@ -1448,6 +1527,8 @@ export class GameState {
         const step = GEM.magnetSpeed * dt;
         g.x += (dx / Math.max(dist, 1)) * step;
         g.y += (dy / Math.max(dist, 1)) * step;
+      } else if (g.y < CANVAS.height * DROPS.topBand) {
+        g.y += DROPS.gravity * dt;
       }
 
       if (dist < PLAYER.radius + GEM.radius + 4) {

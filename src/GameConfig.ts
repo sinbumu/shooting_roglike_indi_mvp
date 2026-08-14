@@ -212,6 +212,14 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     id: 'splinter', name: '파편', hp: 10, speed: 170, radius: 8, color: DANGER.low,
     contactDamage: 8, exp: 1, spawnEdge: 'top', movePattern: 'down',
   },
+  mirage: {
+    id: 'mirage', name: '미라지', hp: 55, speed: 135, radius: 15, color: DANGER.medium,
+    contactDamage: 18, exp: 7, spawnEdge: 'top', movePattern: 'cloakDown',
+  },
+  guardian: {
+    id: 'guardian', name: '가디언', hp: 420, speed: 38, radius: 28, color: DANGER.high,
+    contactDamage: 26, exp: 14, spawnEdge: 'top', movePattern: 'auraDown',
+  },
   boss: {
     id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: DANGER.high,
     contactDamage: 30, exp: 0, spawnEdge: 'top', movePattern: 'boss',
@@ -402,8 +410,25 @@ export const MUTATIONS = {
 } as const;
 
 export const SHIELDER = {
-  /** 정면(아래쪽) 판정: 입사 방향과 하향 벡터 내적 임계 */
-  frontDot: 0.35,
+  /** 정면(아래쪽) 판정: 입사 방향과 하향 벡터 내적 임계 (낮을수록 더 넓음) */
+  frontDot: 0.08,
+  /** 쉴드가 깨지려면 필요한 타격 횟수 (데미지 무관) */
+  hits: 300,
+} as const;
+
+export const MIRAGE = {
+  revealRadius: 200,
+} as const;
+
+export const GUARDIAN = {
+  auraRadius: 220,
+  damageTakenMul: 0.5,
+} as const;
+
+export const DROPS = {
+  /** 이 y비율 위에서 드롭은 아래로 흘러내림 */
+  topBand: 0.15,
+  gravity: 70,
 } as const;
 
 export const TELEPORTER = {
@@ -416,7 +441,9 @@ export const TELEPORTER = {
 // ------------------------------------------------------------
 
 export const BOSS = {
-  /** 보스 등장 시각(초) */
+  /** 등장 페이즈: 패턴/탄막 없이 중앙 상단으로 미끄러져 내려옴 (초) */
+  introDuration: 1.8,
+  introTargetY: 130,
   times: [75, 165, 255],
   /** 회차별 보스 종류 (순환) */
   roster: ['boss', 'bossSeraph', 'boss'] as const satisfies readonly EnemyId[],
@@ -639,6 +666,8 @@ const ORBIT_WAVES: Wave[] = [
   { from: 180, to: Infinity, entries: [
     { enemy: 'shielder', interval: 7.2 },
     { enemy: 'teleporter', interval: 6.8 },
+    { enemy: 'mirage', interval: 8.0 },
+    { enemy: 'guardian', interval: 18 },
     { enemy: 'drone', interval: 1.6, mutation: 'explode' },
     { enemy: 'zigzag', interval: 3.4, mutation: 'split' },
     { enemy: 'tank', interval: 14, mutation: 'burst' },
@@ -655,6 +684,8 @@ const NEBULA_WAVES: Wave[] = [
   { from: 165, to: Infinity, entries: [
     { enemy: 'shielder', interval: 6.4 },
     { enemy: 'teleporter', interval: 5.8 },
+    { enemy: 'mirage', interval: 7.2 },
+    { enemy: 'guardian', interval: 16 },
     { enemy: 'drone', interval: 1.3, mutation: 'burst' },
     { enemy: 'zigzag', interval: 2.8, mutation: 'explode' },
   ] },
@@ -670,6 +701,8 @@ const RIFT_WAVES: Wave[] = [
   { from: 150, to: Infinity, entries: [
     { enemy: 'shielder', interval: 5.5 },
     { enemy: 'teleporter', interval: 4.8 },
+    { enemy: 'mirage', interval: 6.4 },
+    { enemy: 'guardian', interval: 14 },
     { enemy: 'drone', interval: 1.1, mutation: 'split' },
     { enemy: 'tank', interval: 10, mutation: 'burst' },
     { enemy: 'zigzag', interval: 2.4, mutation: 'explode' },

@@ -266,6 +266,11 @@ export class AudioManager {
         }
         break;
 
+      case 'vacuum':
+        this.tone(240, 0.28, { type: 'sine', slideTo: 1400, gain: 0.05 });
+        this.tone(360, 0.18, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.04 });
+        break;
+
       case 'skill':
         if (ev.id === 'phaseDash') {
           this.noise(0.08, { gain: 0.07, freq: 1400, highpass: 800 });

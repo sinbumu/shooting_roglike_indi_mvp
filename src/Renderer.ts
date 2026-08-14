@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -350,6 +350,13 @@ export class Renderer {
           break;
         case 'shieldBlock':
           this.hitSpark(ev.x, ev.y, 0x67e8f9);
+          break;
+        case 'vacuum':
+          this.spawnParticle({
+            x: state.playerX, y: state.playerY,
+            life: 0.45, sizeFrom: 30, sizeTo: 200,
+            tint: 0x38bdf8, alphaFrom: 0.7, ring: true,
+          });
           break;
         case 'bomb':
           this.flashAlpha = 0.5;
@@ -740,6 +747,10 @@ export class Renderer {
         else if (e.mutation === 'burst') spr.tint = 0xe879f9;
         else spr.tint = 0xffffff;
 
+        const cloaked = e.def.id === 'mirage'
+          && Math.hypot(state.playerX - e.x, state.playerY - e.y) > MIRAGE.revealRadius;
+        spr.alpha = cloaked ? 0.2 : 1;
+
         if (e.elite) {
           const glow = this.glowPool.get();
           glow.tint = 0xfbbf24;
@@ -760,6 +771,13 @@ export class Renderer {
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.6 + Math.sin(this.elapsed * 8) * 8;
           glow.alpha = 0.35;
+        }
+        if (e.def.id === 'guardian') {
+          const aura = this.glowPool.get();
+          aura.tint = 0xa3e635;
+          aura.position.set(e.x, e.y);
+          aura.width = aura.height = GUARDIAN.auraRadius * 2 + Math.sin(this.elapsed * 3) * 10;
+          aura.alpha = 0.28;
         }
       } else {
         // Graphics 폴백
@@ -790,6 +808,12 @@ export class Renderer {
           case 'splinter':
             pts = [0, r * 0.9, -r * 0.7, -r * 0.6, r * 0.7, -r * 0.6];
             break;
+          case 'mirage':
+            pts = [0, -r, r * 0.55, 0, 0, r, -r * 0.55, 0];
+            break;
+          case 'guardian':
+            pts = [-r, -r * 0.6, r, -r * 0.6, r * 0.85, r, -r * 0.85, r];
+            break;
           case 'boss':
           case 'bossSeraph': {
             const sides = e.def.id === 'bossSeraph' ? 8 : 6;
@@ -809,9 +833,35 @@ export class Renderer {
         });
       }
 
-      if (e.def.id === 'shielder') {
-        g.arc(e.x, e.y, r + 7, Math.PI * 0.18, Math.PI * 0.82)
-          .stroke({ width: 3.5, color: 0x67e8f9, alpha: 0.85 + Math.sin(this.elapsed * 6) * 0.1 });
+      if (e.def.id === 'shielder' && (e.shieldHits ?? 0) > 0) {
+        const ratio = (e.shieldHits ?? 0) / SHIELDER.hits;
+        const col = ratio > 0.66 ? 0x67e8f9 : ratio > 0.33 ? 0xfb923c : 0xef4444;
+        const arcR = r + 14;
+        g.arc(e.x, e.y, arcR, Math.PI * 0.06, Math.PI * 0.94)
+          .stroke({ width: 5, color: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
+        if (ratio < 0.66) {
+          g.moveTo(e.x - 12, e.y + 8).lineTo(e.x - 3, e.y + arcR * 0.72)
+            .stroke({ width: 1.6, color: 0xfef3c7, alpha: 0.9 });
+          g.moveTo(e.x + 8, e.y + 6).lineTo(e.x + 14, e.y + arcR * 0.55)
+            .stroke({ width: 1.4, color: 0xfde68a, alpha: 0.8 });
+        }
+        if (ratio < 0.33) {
+          g.moveTo(e.x, e.y + 4).lineTo(e.x + 6, e.y + arcR * 0.85)
+            .stroke({ width: 2, color: 0xfca5a5, alpha: 0.95 });
+          g.moveTo(e.x - 16, e.y + 12).lineTo(e.x - 8, e.y + arcR * 0.5)
+            .stroke({ width: 1.8, color: 0xf87171, alpha: 0.9 });
+        }
+      }
+      if (e.def.id === 'guardian') {
+        g.circle(e.x, e.y, GUARDIAN.auraRadius)
+          .stroke({ width: 2, color: 0xa3e635, alpha: 0.32 + Math.sin(this.elapsed * 3) * 0.1 });
+      }
+      if (e.def.id === 'mirage') {
+        const cloaked = Math.hypot(state.playerX - e.x, state.playerY - e.y) > MIRAGE.revealRadius;
+        if (cloaked) {
+          g.circle(e.x, e.y, r + 6)
+            .stroke({ width: 1.2, color: 0x67e8f9, alpha: 0.25 + Math.sin(this.elapsed * 5) * 0.1 });
+        }
       }
       if (e.mutation) {
         const mutColor = e.mutation === 'explode' ? 0xfb923c

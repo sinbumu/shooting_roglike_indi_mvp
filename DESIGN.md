@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-13** — **로컬 MVP + 인게임 패치 노트** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-14** — **후반 텐션(에이지스/보스 등장·자석·강적 3종)** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -20,6 +20,7 @@
 | 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
 | 시각·온보딩? | **완료** — 위험도 색상 · 보스 탄 시인성 · T3 없는 큐브 프리뷰 ([docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md)) |
 | 경제·로비? | **완료** — 격납고 크레딧 동기화 · 디노미네이션 · 블랙마켓 · 파라곤 ([docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md)) |
+| 후반 텐션? | **완료** — 에이지스/보스 등장 픽스 · 전역 자석 · 미라지/가디언/실더 리워크 ([docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -65,6 +66,7 @@
 - [x] 시각·온보딩: 접촉 피해 구간 색상 · 보스 탄 흰 코어/보라 테두리 · T3 미보유 크래프팅 프리뷰  
 - [x] 경제: 로비 크레딧 동기화 · 지수 비용 · 블랙마켓 가차 · 파라곤 무한 강화  
 - [x] 패치 노트: 격납고 버전 버튼 · 인게임 변경 내역 모달  
+- [x] 후반 텐션: 에이지스 충격파 · 보스 등장 Lerp · 전역 자석/상단 중력 · 미라지·가디언·실더 역장  
 
 ---
 
@@ -104,9 +106,11 @@
 | ID | 이름 | 역할 |
 |---|---|---|
 | `drone` ~ `tank` | 드론·지그재그·대셔·러셔·탱크 | 일반 5종 |
-| `shielder` | 실더 | 정면 쉴드. 측면·관통·스웜·폭발로 대응 (180초~) |
+| `shielder` | 실더 | 정면 횟수제 역장(300히트). 관통 불가. 색/금이 파괴 단계 |
 | `teleporter` | 텔레포터 | 근접 시 플레이어 뒤/옆으로 워프 (180초~) |
 | `splinter` | 파편 | 분열 돌연변이 처치 시 등장 (추가 분열 없음) |
+| `mirage` | 미라지 | 200px 밖 은신·무적·유도 불가 |
+| `guardian` | 가디언 | 오라 안 아군 피감 50%. 우선 점사 대상 |
 | (엘리트) | 동일 풀 + 강화 | 금색 tint, 보상↑ |
 | (돌연변이) | 자폭 / 분열 / 탄막 | 후반 웨이브 속성 |
 | `boss` | 드레드노트 | 탄막 + 조준. 탄환은 흰 코어+보라 테두리 |
@@ -232,4 +236,5 @@
 | [docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md) | 위험도 색상·보스 탄 시인성·큐브 프리뷰 (구현 완료) |
 | [docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md) | 로비 동기화·경제 디노미네이션·블랙마켓 (구현 완료) |
 | [docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md) | 인게임 패치 노트 (구현 완료) |
+| [docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md) | 후반 텐션·강적 기믹 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
