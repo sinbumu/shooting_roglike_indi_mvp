@@ -1,7 +1,8 @@
-import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId } from './types';
+import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
   STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
+  COMBAT, RECIPES,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -52,8 +53,11 @@ export class UI {
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
   private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
   private patchOverlay = document.getElementById('patch-overlay') as HTMLDivElement;
+  private codexOverlay = document.getElementById('codex-overlay') as HTMLDivElement;
   private patchList = document.getElementById('patch-list') as HTMLDivElement;
   private patchNotesBtn = document.getElementById('patch-notes-btn') as HTMLButtonElement;
+  private pauseStats = document.getElementById('pause-stats') as HTMLParagraphElement;
+  private codexList = document.getElementById('codex-list') as HTMLDivElement;
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
@@ -123,6 +127,17 @@ export class UI {
     };
     (document.getElementById('achv-close-btn') as HTMLButtonElement).onclick = () => {
       this.achvOverlay.classList.add('hidden');
+    };
+    (document.getElementById('codex-btn') as HTMLButtonElement).onclick = () => {
+      this.showCodex();
+    };
+    (document.getElementById('codex-close-btn') as HTMLButtonElement).onclick = () => {
+      this.codexOverlay.classList.add('hidden');
+      if (!this.pauseOverlay.classList.contains('hidden')) this.showPause();
+      else this.refreshHangar();
+    };
+    (document.getElementById('pause-codex-btn') as HTMLButtonElement).onclick = () => {
+      this.showCodex(this.lastState ? [...this.lastState.seenThisRun] : undefined);
     };
     (document.getElementById('gacha-btn') as HTMLButtonElement).onclick = () => {
       this.refreshGacha();
@@ -217,7 +232,7 @@ export class UI {
         </div>
         <div class="ship-name">${ship.name}</div>
         <div class="ship-desc">${ship.desc}</div>
-        <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul}<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}<br/>스킬: ${ship.activeSkill.icon}${ship.activeSkill.name}</div>
+        <div class="ship-meta">HP×${ship.hpMul} · SPD×${ship.speedMul} · CRIT ${Math.round(COMBAT.baseCritChance * 100)}%<br/>시작: ${WEAPONS[ship.startingWeapon].icon}${WEAPONS[ship.startingWeapon].name}<br/>스킬: ${ship.activeSkill.icon}${ship.activeSkill.name}</div>
         ${skin ? `<div class="ship-skin">${skin.name}</div>` : ''}
         ${unlocked
           ? (selected ? '<div class="ship-status">선택됨</div>' : '<div class="ship-status">선택</div>')
@@ -239,17 +254,19 @@ export class UI {
     const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
     const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
     const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
+    const codexBtn = document.getElementById('codex-btn') as HTMLButtonElement;
     this.hangarGroups = [
       [...this.stageSelect.querySelectorAll('button')],
       [...this.challengeSelect.querySelectorAll('button')],
       [...this.shipSelect.querySelectorAll('button')],
-      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, achvBtn],
+      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, achvBtn, codexBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
       && this.metaOverlay.classList.contains('hidden')
       && this.achvOverlay.classList.contains('hidden')
       && this.gachaOverlay.classList.contains('hidden')
-      && this.patchOverlay.classList.contains('hidden')) {
+      && this.patchOverlay.classList.contains('hidden')
+      && this.codexOverlay.classList.contains('hidden')) {
       this.hangarGroupIdx = 3;
       this.setFocusGroup(this.hangarGroups[3]);
     }
@@ -385,6 +402,36 @@ export class UI {
       `;
       this.achvList.appendChild(row);
     }
+  }
+
+  showCodex(seenOverride?: WeaponId[]): void {
+    const seen = new Set(seenOverride ?? this.meta?.seenWeapons ?? []);
+    const byTier: Record<1 | 2 | 3, typeof WEAPONS[WeaponId][]> = { 1: [], 2: [], 3: [] };
+    for (const def of Object.values(WEAPONS)) byTier[def.tier].push(def);
+    const recipeOf = (id: WeaponId) => RECIPES.find((r) => r.result === id);
+
+    const block = (tier: 1 | 2 | 3): string => {
+      const rows = byTier[tier].map((def) => {
+        const unlocked = seen.has(def.id);
+        const rec = recipeOf(def.id);
+        const mats = rec
+          ? rec.materials.map((m) => (seen.has(m) ? `${WEAPONS[m].icon}${WEAPONS[m].name}` : '???')).join(' + ')
+          : '시작 무기 / 레벨업';
+        return `
+          <div class="codex-row${unlocked ? ' done' : ''}">
+            <span class="achv-icon">${unlocked ? def.icon : '🔒'}</span>
+            <span class="achv-body">
+              <b>${unlocked ? def.name : '???'}</b> T${tier}<br/>
+              <span class="tt-desc">${unlocked ? def.desc : '미해금'} · ${mats}</span>
+            </span>
+          </div>`;
+      }).join('');
+      return `<div class="codex-tier">Tier ${tier}</div>${rows}`;
+    };
+
+    this.codexList.innerHTML = block(1) + block(2) + block(3);
+    this.codexOverlay.classList.remove('hidden');
+    this.setFocusGroup([document.getElementById('codex-close-btn') as HTMLButtonElement]);
   }
 
   showAchievementToast(ids: AchievementId[]): void {
@@ -662,15 +709,20 @@ export class UI {
   }
 
   showPause(): void {
+    const critPct = Math.round(COMBAT.baseCritChance * 100);
+    const critMul = this.lastState?.runStats.critMul ?? COMBAT.baseCritMul;
+    this.pauseStats.textContent = `치명타 확률 ${critPct}% · 배율 ×${critMul.toFixed(2)}`;
     this.pauseOverlay.classList.remove('hidden');
     this.setFocusGroup([
       document.getElementById('resume-btn') as HTMLButtonElement,
+      document.getElementById('pause-codex-btn') as HTMLButtonElement,
       document.getElementById('pause-restart-btn') as HTMLButtonElement,
     ]);
   }
 
   hidePause(): void {
     this.pauseOverlay.classList.add('hidden');
+    this.codexOverlay.classList.add('hidden');
     this.clearFocus();
   }
 
@@ -815,7 +867,36 @@ export function craftLockedPreviewHtml(): string {
       <li>${AFFIXES.split.icon} ${AFFIXES.split.label} 투사체 분열</li>
       <li>${AFFIXES.pierce.icon} ${AFFIXES.pierce.label} 관통 횟수 증가</li>
       <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 적중 시 전이</li>
-      <li>💪 [강화] 무기 기본 데미지 영구 +${dmgPct}% 증가</li>
+      <li>💪 [강화] 무기 기본 데미지 이번 런 동안 +${dmgPct}% 증가</li>
     </ul>
   `;
+}
+
+/** T3 보유 시 크래프팅 창 상단에 장착 종결 무기 스펙 */
+export function craftArsenalPreviewHtml(state: GameState): string {
+  const slots = state.weapons.filter((s) => WEAPONS[s.weaponId].tier === 3);
+  if (!slots.length) return craftLockedPreviewHtml();
+  const rows = slots.map((slot) => {
+    const def = WEAPONS[slot.weaponId];
+    const p = def.projectile;
+    const dmg = (
+      p.damage
+      * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
+      * state.damageMul
+      * (1 + (slot.damageBonus ?? 0))
+    ).toFixed(1);
+    const cd = (
+      def.cooldownMs
+      * (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel))
+      * state.cooldownMul
+      / 1000
+    ).toFixed(2);
+    const affix = slot.affix ? AFFIXES[slot.affix].label : '없음';
+    const dmgB = Math.round((slot.damageBonus ?? 0) * 100);
+    const spdB = Math.round((slot.speedBonus ?? 0) * 100);
+    return `<li>${def.icon} <b>${def.name}</b> Lv.${slot.level}<br/>
+      데미지 ${dmg} × ${p.count} · 쿨 ${cd}s<br/>
+      어픽스 ${affix} · 누적 데미지 +${dmgB}% · 투속 +${spdB}%</li>`;
+  }).join('');
+  return `<p>장착 중 종결 무기</p><ul>${rows}</ul>`;
 }

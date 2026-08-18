@@ -14,7 +14,10 @@ export type WeaponId =
   | 'mothership'
   | 'omega'
   | 'starfall'
-  | 'genesis';
+  | 'genesis'
+  | 'tempest'
+  | 'rupture'
+  | 'solance';
 
 export type WeaponTier = 1 | 2 | 3;
 
@@ -30,6 +33,17 @@ export interface ProjectileSpec {
   lifetime: number;
   /** 명중 시 범위 폭발 반경 (모선 등) */
   explodeRadius?: number;
+  /** true면 탄마다 360° 무작위 각도 */
+  randomSpread?: boolean;
+  /** true면 실더 역장을 무시하고 HP에 피해 */
+  ignoreShield?: boolean;
+  /** 있으면 투사체 대신 지속 빔 */
+  beam?: {
+    duration: number;
+    tickInterval: number;
+    width: number;
+    length: number;
+  };
 }
 
 export interface WeaponDef {

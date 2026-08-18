@@ -128,8 +128,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   omega: {
     id: 'omega', name: '오메가 캐논', tier: 3, icon: '☀️', color: '#fbbf24',
     desc: '[레이저+레일건] 모든 것을 꿰뚫는 3연장 파멸 광선',
-    cooldownMs: 420,
-    projectile: { damage: 38, speed: 1150, radius: 9, count: 3, spreadDeg: 12, homingTurnRate: 0, pierce: 99, lifetime: 1.3 },
+    cooldownMs: 240,
+    projectile: { damage: 50, speed: 1150, radius: 9, count: 3, spreadDeg: 12, homingTurnRate: 0, pierce: 99, lifetime: 1.3 },
   },
   starfall: {
     id: 'starfall', name: '스타폴', tier: 3, icon: '🌟', color: '#67e8f9',
@@ -143,6 +143,35 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldownMs: 540,
     projectile: { damage: 30, speed: 820, radius: 8, count: 4, spreadDeg: 140, homingTurnRate: 6.0, pierce: 3, lifetime: 2.2 },
   },
+  // ---------- Tier 3 동형 T2 경로 ----------
+  tempest: {
+    id: 'tempest', name: '템페스트', tier: 3, icon: '🌪️', color: '#38bdf8',
+    desc: '[가틀링+노바] 전방위로 무작위 탄막을 뿌리는 근접 난사',
+    cooldownMs: 280,
+    projectile: {
+      damage: 9, speed: 640, radius: 4.5, count: 16, spreadDeg: 360,
+      homingTurnRate: 0, pierce: 0, lifetime: 0.85, randomSpread: true,
+    },
+  },
+  rupture: {
+    id: 'rupture', name: '파열핵', tier: 3, icon: '☢️', color: '#fb923c',
+    desc: '[가틀링+모선] 직격보다 폭발. 역장을 무시하는 광역탄',
+    cooldownMs: 560,
+    projectile: {
+      damage: 36, speed: 520, radius: 12, count: 2, spreadDeg: 22,
+      homingTurnRate: 0, pierce: 0, lifetime: 1.5, explodeRadius: 118, ignoreShield: true,
+    },
+  },
+  solance: {
+    id: 'solance', name: '솔라 랜스', tier: 3, icon: '🔆', color: '#fde68a',
+    desc: '[노바+모선] 정면으로 굵은 빔이 경로의 모든 적을 지짐',
+    cooldownMs: 680,
+    projectile: {
+      damage: 18, speed: 0, radius: 8, count: 1, spreadDeg: 0,
+      homingTurnRate: 0, pierce: 99, lifetime: 0.22,
+      beam: { duration: 0.22, tickInterval: 0.05, width: 20, length: 920 },
+    },
+  },
 };
 
 export const RECIPES: Recipe[] = [
@@ -155,6 +184,9 @@ export const RECIPES: Recipe[] = [
   { materials: ['laser', 'railgun'], result: 'omega' },
   { materials: ['laser', 'swarm'], result: 'starfall' },
   { materials: ['railgun', 'swarm'], result: 'genesis' },
+  { materials: ['gatling', 'nova'], result: 'tempest' },
+  { materials: ['gatling', 'mothership'], result: 'rupture' },
+  { materials: ['nova', 'mothership'], result: 'solance' },
 ];
 
 /** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
@@ -413,7 +445,7 @@ export const SHIELDER = {
   /** 정면(아래쪽) 판정: 입사 방향과 하향 벡터 내적 임계 (낮을수록 더 넓음) */
   frontDot: 0.08,
   /** 쉴드가 깨지려면 필요한 타격 횟수 (데미지 무관) */
-  hits: 300,
+  hits: 50,
 } as const;
 
 export const MIRAGE = {
@@ -429,6 +461,14 @@ export const DROPS = {
   /** 이 y비율 위에서 드롭은 아래로 흘러내림 */
   topBand: 0.15,
   gravity: 70,
+  /** 전역 진공 흡인 지속 시간(초) */
+  vacuumDuration: 1.2,
+} as const;
+
+/** 유도탄 AFK 억제 */
+export const HOMING = {
+  damageMul: 0.75,
+  maxSpeed: 640,
 } as const;
 
 export const TELEPORTER = {

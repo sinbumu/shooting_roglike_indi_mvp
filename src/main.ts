@@ -1,7 +1,7 @@
 import { CANVAS, JOYSTICK, WEAPONS } from './GameConfig';
 import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
-import { UI, craftLockedPreviewHtml } from './UI';
+import { UI, craftLockedPreviewHtml, craftArsenalPreviewHtml } from './UI';
 import { AudioManager } from './Audio';
 import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSystem';
 import {
@@ -155,7 +155,7 @@ function openCraftUI(): void {
     state.pendingCrafts--;
     continueAfterChoice();
   }, hasT3
-    ? { title: 'CRAFTING', sub: '종결 무기를 깎으세요' }
+    ? { title: 'CRAFTING', sub: '종결 무기를 깎으세요', previewHtml: craftArsenalPreviewHtml(state) }
     : {
       title: 'CRAFTING',
       sub: '[!] 퀀텀 큐브 크래프팅 비활성화',

@@ -7,7 +7,7 @@ import {
   STAGES, CHALLENGES, WARNING_DURATION, enemyHpScale, spawnIntervalScale,
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
-  SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS,
+  SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS, HOMING,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -47,6 +47,22 @@ export interface Projectile {
   explodeRadius?: number;
   /** 실더 정면 쉴드 관통 (관통·스웜 등) */
   shieldPierce?: boolean;
+  ignoreShield?: boolean;
+}
+
+export interface Beam {
+  x: number;
+  y: number;
+  angle: number;
+  width: number;
+  length: number;
+  damage: number;
+  life: number;
+  tickLeft: number;
+  tickInterval: number;
+  color: string;
+  ignoreShield: boolean;
+  affix?: AffixId;
 }
 
 export interface Enemy {
@@ -96,14 +112,12 @@ export interface Pickup {
   kind: PickupKind;
   x: number; y: number;
   life: number;
-  magnetized?: boolean;
 }
 
 export interface Gem {
   x: number; y: number;
   exp: number;
   life: number;
-  magnetized: boolean;
 }
 
 /** 기습 스폰 경고 — 2초 대기 후 실제 적으로 전환 */
@@ -199,7 +213,11 @@ export class GameState {
   shieldLeft = 0;
   /** 자기장 폭주 남은 시간(초) */
   magnetStormLeft = 0;
+  /** 전역 진공 흡인 남은 시간(초) */
+  vacuumLeft = 0;
   pendingCrafts = 0;
+  /** 이번 런에서 본 무기 (도감) */
+  seenThisRun: Set<WeaponId> = new Set();
 
   /** 마지막 이동 방향 (대시용, 기본 위) */
   lastAimX = 0;
@@ -226,6 +244,7 @@ export class GameState {
   // 월드
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
+  beams: Beam[] = [];
   enemyProjectiles: EnemyProjectile[] = [];
   gems: Gem[] = [];
   pickups: Pickup[] = [];
@@ -314,6 +333,9 @@ export class GameState {
     this.skillCdLeft = 0;
     this.skillActiveLeft = 0;
     this.worldSlow = 1;
+    this.vacuumLeft = 0;
+    this.seenThisRun = new Set(meta.seenWeapons ?? []);
+    this.seenThisRun.add(ship.startingWeapon);
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
@@ -422,6 +444,10 @@ export class GameState {
     });
   }
 
+  noteWeapon(id: WeaponId): void {
+    this.seenThisRun.add(id);
+  }
+
   /** 어픽스 리롤 (T3 + 기존 어픽스) */
   rerollAffix(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
@@ -483,7 +509,6 @@ export class GameState {
         break;
       case 'magnetStorm':
         this.magnetStormLeft = TACTICAL.magnetStorm.duration ?? 15;
-        for (const g of this.gems) g.magnetized = true;
         this.applyPassiveEffects();
         this.events.push({ type: 'banner', text: '🧲 자기장 폭주' });
         break;
@@ -539,6 +564,7 @@ export class GameState {
     const edt = dt * this.worldSlow;
     this.updateEnemies(edt);
     this.updateProjectiles(dt);
+    this.updateBeams(dt);
     this.updateEnemyProjectiles(edt);
     this.updateGems(dt);
     this.updatePickups(dt);
@@ -548,6 +574,7 @@ export class GameState {
 
   private updateBuffs(dt: number): void {
     if (this.shieldLeft > 0) this.shieldLeft -= dt;
+    if (this.vacuumLeft > 0) this.vacuumLeft = Math.max(0, this.vacuumLeft - dt);
     if (this.magnetStormLeft > 0) {
       this.magnetStormLeft -= dt;
       if (this.magnetStormLeft <= 0) {
@@ -679,18 +706,48 @@ export class GameState {
   private fireWeapon(slot: WeaponSlot): void {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
-    const damage = p.damage
+    let damage = p.damage
       * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
       * this.damageMul
       * (1 + (slot.damageBonus ?? 0));
-    const speed = p.speed * this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
+    let speed = p.speed * this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
+    if (p.homingTurnRate > 0) {
+      damage *= HOMING.damageMul;
+      speed = Math.min(speed, HOMING.maxSpeed);
+    }
     let pierce = p.pierce;
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
-
+    const color = this.projSkinColors[slot.weaponId] ?? def.color;
     const baseAngle = -Math.PI / 2; // 위쪽
+
+    if (p.beam) {
+      this.beams.push({
+        x: this.playerX,
+        y: this.playerY - PLAYER.radius,
+        angle: baseAngle,
+        width: p.beam.width,
+        length: p.beam.length,
+        damage,
+        life: p.beam.duration,
+        tickLeft: 0,
+        tickInterval: p.beam.tickInterval,
+        color,
+        ignoreShield: !!p.ignoreShield,
+        affix: slot.affix,
+      });
+      this.events.push({
+        type: 'fired',
+        x: this.playerX, y: this.playerY - PLAYER.radius,
+        color, weaponId: slot.weaponId,
+      });
+      return;
+    }
+
     for (let i = 0; i < p.count; i++) {
       let angle: number;
-      if (p.count === 1 || p.spreadDeg === 0) {
+      if (p.randomSpread) {
+        angle = Math.random() * Math.PI * 2;
+      } else if (p.count === 1 || p.spreadDeg === 0) {
         angle = baseAngle;
       } else if (p.spreadDeg >= 360) {
         angle = (Math.PI * 2 * i) / p.count + this.time; // 회전 살포
@@ -709,19 +766,19 @@ export class GameState {
         homingTurnRate: p.homingTurnRate,
         pierceLeft: pierce,
         life: p.lifetime,
-        color: this.projSkinColors[slot.weaponId] ?? def.color,
+        color,
         hitIds: new Set(),
         affix: slot.affix,
         pierceHits: 0,
         explodeRadius: p.explodeRadius,
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
+        ignoreShield: p.ignoreShield,
       });
     }
     this.events.push({
       type: 'fired',
       x: this.playerX, y: this.playerY - PLAYER.radius,
-      color: this.projSkinColors[slot.weaponId] ?? def.color,
-      weaponId: slot.weaponId,
+      color, weaponId: slot.weaponId,
     });
   }
 
@@ -1135,7 +1192,7 @@ export class GameState {
         const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           if (this.isCloaked(e)) continue;
-          if (this.tryAbsorbShield(e, this.isShielderFrontHit(p))) {
+          if (!p.ignoreShield && this.tryAbsorbShield(e, this.isShielderFrontHit(p))) {
             this.projectiles.splice(i, 1);
             removed = true;
             break;
@@ -1174,6 +1231,37 @@ export class GameState {
     }
   }
 
+  private updateBeams(dt: number): void {
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i];
+      b.x = this.playerX;
+      b.y = this.playerY - PLAYER.radius;
+      b.life -= dt;
+      b.tickLeft -= dt;
+      if (b.tickLeft <= 0) {
+        this.tickBeam(b);
+        b.tickLeft += b.tickInterval;
+      }
+      if (b.life <= 0) this.beams.splice(i, 1);
+    }
+  }
+
+  private tickBeam(b: Beam): void {
+    const x2 = b.x + Math.cos(b.angle) * b.length;
+    const y2 = b.y + Math.sin(b.angle) * b.length;
+    const half = b.width * 0.5;
+    for (const e of [...this.enemies]) {
+      if (this.isCloaked(e)) continue;
+      const hitR = e.def.radius * (e.elite ? 1.15 : 1) + half;
+      if (distToSegment(e.x, e.y, b.x, b.y, x2, y2) > hitR) continue;
+      const fromFront = Math.sin(b.angle) < -0.2;
+      if (!b.ignoreShield && this.tryAbsorbShield(e, fromFront)) continue;
+      let dmg = b.damage;
+      if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
+      this.damageEnemy(e, dmg);
+    }
+  }
+
   private isCloaked(e: Enemy): boolean {
     if (e.def.id !== 'mirage') return false;
     return Math.hypot(this.playerX - e.x, this.playerY - e.y) > MIRAGE.revealRadius;
@@ -1204,8 +1292,7 @@ export class GameState {
   }
 
   private vacuumDrops(): void {
-    for (const g of this.gems) g.magnetized = true;
-    for (const p of this.pickups) p.magnetized = true;
+    this.vacuumLeft = DROPS.vacuumDuration;
     this.events.push({ type: 'vacuum' });
   }
 
@@ -1224,7 +1311,7 @@ export class GameState {
       if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= r2) {
         p.hitIds.add(e.id);
         if (this.isCloaked(e)) continue;
-        if (this.tryAbsorbShield(e, p.y > e.y)) continue;
+        if (!p.ignoreShield && this.tryAbsorbShield(e, p.y > e.y)) continue;
         this.damageEnemy(e, p.damage * 0.55);
       }
     }
@@ -1374,7 +1461,6 @@ export class GameState {
           x: e.x, y: e.y,
           exp: Math.max(1, expDrop),
           life: GEM.lifetime,
-          magnetized: false,
         });
         const dropRate = PICKUPS.dropChance + this.dropChanceBonus;
         if ((e.elite && ELITE.guaranteedPickup) || Math.random() < dropRate) {
@@ -1426,7 +1512,6 @@ export class GameState {
         y: e.y + Math.random() * 160 + 10,
         exp: 3,
         life: GEM.lifetime,
-        magnetized: false,
       });
     }
     this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
@@ -1447,7 +1532,6 @@ export class GameState {
         y: e.y + Math.random() * 140 + 20,
         exp: 3,
         life: GEM.lifetime,
-        magnetized: false,
       });
     }
     this.pickups.push({ kind: 'heal', x: e.x - 40, y: e.y + 60, life: PICKUPS.lifetime });
@@ -1458,6 +1542,7 @@ export class GameState {
 
   private updatePickups(dt: number): void {
     const top = CANVAS.height * DROPS.topBand;
+    const vacuum = this.vacuumLeft > 0;
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
       p.life -= dt;
@@ -1465,13 +1550,13 @@ export class GameState {
         this.pickups.splice(i, 1);
         continue;
       }
-      if (p.magnetized) {
-        const dx = this.playerX - p.x;
-        const dy = this.playerY - p.y;
-        const dist = Math.hypot(dx, dy) || 1;
+      const dx = this.playerX - p.x;
+      const dy = this.playerY - p.y;
+      const dist = Math.hypot(dx, dy);
+      if (vacuum) {
         const step = GEM.magnetSpeed * dt;
-        p.x += (dx / dist) * step;
-        p.y += (dy / dist) * step;
+        p.x += (dx / Math.max(dist, 1)) * step;
+        p.y += (dy / Math.max(dist, 1)) * step;
       } else if (p.y < top) {
         p.y += DROPS.gravity * dt;
       }
@@ -1490,7 +1575,7 @@ export class GameState {
         this.hp = Math.min(this.maxHp, this.hp + PICKUPS.healAmount);
         break;
       case 'magnet':
-        for (const g of this.gems) g.magnetized = true;
+        this.vacuumDrops();
         break;
       case 'bomb': {
         this.events.push({ type: 'bomb' });
@@ -1522,8 +1607,7 @@ export class GameState {
       const dy = this.playerY - g.y;
       const dist = Math.hypot(dx, dy);
 
-      if (g.magnetized || dist < this.magnetRadius) {
-        g.magnetized = true;
+      if (this.vacuumLeft > 0 || dist < this.magnetRadius) {
         const step = GEM.magnetSpeed * dt;
         g.x += (dx / Math.max(dist, 1)) * step;
         g.y += (dy / Math.max(dist, 1)) * step;
@@ -1579,4 +1663,18 @@ export class GameState {
       this.events.push({ type: 'gameover' });
     }
   }
+}
+
+function distToSegment(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number,
+): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const ab2 = abx * abx + aby * aby || 1;
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2));
+  return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
 }

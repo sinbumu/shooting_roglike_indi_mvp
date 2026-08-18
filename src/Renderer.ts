@@ -257,6 +257,7 @@ export class Renderer {
     this.drawPickups(state);
     this.drawEnemies(state);
     this.drawProjectiles(state);
+    this.drawBeams(state);
     this.drawEnemyProjectiles(state);
     this.drawPlayer(state, dt);
     this.drawWarnings(state);
@@ -837,19 +838,26 @@ export class Renderer {
         const ratio = (e.shieldHits ?? 0) / SHIELDER.hits;
         const col = ratio > 0.66 ? 0x67e8f9 : ratio > 0.33 ? 0xfb923c : 0xef4444;
         const arcR = r + 14;
-        g.arc(e.x, e.y, arcR, Math.PI * 0.06, Math.PI * 0.94)
-          .stroke({ width: 5, color: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
+        const a0 = Math.PI * 0.06;
+        const a1 = Math.PI * 0.94;
+        g.moveTo(e.x + Math.cos(a0) * arcR, e.y + Math.sin(a0) * arcR);
+        g.arc(e.x, e.y, arcR, a0, a1);
+        g.stroke({ width: 5, color: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
         if (ratio < 0.66) {
-          g.moveTo(e.x - 12, e.y + 8).lineTo(e.x - 3, e.y + arcR * 0.72)
-            .stroke({ width: 1.6, color: 0xfef3c7, alpha: 0.9 });
-          g.moveTo(e.x + 8, e.y + 6).lineTo(e.x + 14, e.y + arcR * 0.55)
-            .stroke({ width: 1.4, color: 0xfde68a, alpha: 0.8 });
+          g.moveTo(e.x - 12, e.y + 8);
+          g.lineTo(e.x - 3, e.y + arcR * 0.72);
+          g.stroke({ width: 1.6, color: 0xfef3c7, alpha: 0.9 });
+          g.moveTo(e.x + 8, e.y + 6);
+          g.lineTo(e.x + 14, e.y + arcR * 0.55);
+          g.stroke({ width: 1.4, color: 0xfde68a, alpha: 0.8 });
         }
         if (ratio < 0.33) {
-          g.moveTo(e.x, e.y + 4).lineTo(e.x + 6, e.y + arcR * 0.85)
-            .stroke({ width: 2, color: 0xfca5a5, alpha: 0.95 });
-          g.moveTo(e.x - 16, e.y + 12).lineTo(e.x - 8, e.y + arcR * 0.5)
-            .stroke({ width: 1.8, color: 0xf87171, alpha: 0.9 });
+          g.moveTo(e.x, e.y + 4);
+          g.lineTo(e.x + 6, e.y + arcR * 0.85);
+          g.stroke({ width: 2, color: 0xfca5a5, alpha: 0.95 });
+          g.moveTo(e.x - 16, e.y + 12);
+          g.lineTo(e.x - 8, e.y + arcR * 0.5);
+          g.stroke({ width: 1.8, color: 0xf87171, alpha: 0.9 });
         }
       }
       if (e.def.id === 'guardian') {
@@ -962,6 +970,30 @@ export class Renderer {
 
       // 흰색 코어
       this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
+    }
+  }
+
+  private drawBeams(state: GameState): void {
+    const g = this.projG;
+    for (const b of state.beams) {
+      const x2 = b.x + Math.cos(b.angle) * b.length;
+      const y2 = b.y + Math.sin(b.angle) * b.length;
+      const color = hex(b.color);
+      const pulse = 0.55 + Math.sin(this.elapsed * 28) * 0.15;
+      g.moveTo(b.x, b.y);
+      g.lineTo(x2, y2);
+      g.stroke({ width: b.width * 1.8, color, alpha: 0.22 * pulse });
+      g.moveTo(b.x, b.y);
+      g.lineTo(x2, y2);
+      g.stroke({ width: b.width, color, alpha: 0.55 });
+      g.moveTo(b.x, b.y);
+      g.lineTo(x2, y2);
+      g.stroke({ width: Math.max(3, b.width * 0.28), color: 0xffffff, alpha: 0.9 });
+      const glow = this.glowPool.get();
+      glow.tint = color;
+      glow.position.set(b.x, b.y);
+      glow.width = glow.height = b.width * 4;
+      glow.alpha = 0.8;
     }
   }
 

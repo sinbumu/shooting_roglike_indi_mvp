@@ -33,6 +33,7 @@ export interface MetaSave {
   unlockedProjSkins: ProjSkinId[];
   equippedShipSkins: Partial<Record<ShipId, ShipSkinId>>;
   equippedProjSkins: Partial<Record<WeaponId, ProjSkinId>>;
+  seenWeapons: WeaponId[];
 }
 
 function defaultSave(): MetaSave {
@@ -52,6 +53,7 @@ function defaultSave(): MetaSave {
     unlockedProjSkins: [],
     equippedShipSkins: {},
     equippedProjSkins: {},
+    seenWeapons: [],
   };
 }
 
@@ -86,6 +88,7 @@ export function loadMeta(): MetaSave {
       unlockedProjSkins: parsed.unlockedProjSkins ?? [],
       equippedShipSkins: parsed.equippedShipSkins ?? {},
       equippedProjSkins: parsed.equippedProjSkins ?? {},
+      seenWeapons: parsed.seenWeapons ?? [],
     };
   } catch {
     return defaultSave();
@@ -152,6 +155,12 @@ function unlockNextStages(meta: MetaSave, cleared: StageId): void {
   if (!meta.clearedStages.includes(cleared)) meta.clearedStages.push(cleared);
 }
 
+export function mergeSeenWeapons(meta: MetaSave, ids: WeaponId[]): void {
+  const set = new Set(meta.seenWeapons);
+  for (const id of ids) set.add(id);
+  meta.seenWeapons = [...set];
+}
+
 export function settleRun(
   meta: MetaSave,
   state: GameState,
@@ -184,6 +193,7 @@ export function settleRun(
   const creditsGained = baseGain + achvReward;
   meta.credits += creditsGained;
   if (state.score > meta.bestScore) meta.bestScore = state.score;
+  mergeSeenWeapons(meta, [...state.seenThisRun]);
   saveMeta(meta);
   return { newly, creditsGained };
 }

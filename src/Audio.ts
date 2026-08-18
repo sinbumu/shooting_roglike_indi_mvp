@@ -134,6 +134,23 @@ export class AudioManager {
           this.tone(176, 0.12, { type: 'triangle', slideTo: 70, gain: 0.03, delay: 0.02 });
           break;
         }
+        if (ev.weaponId === 'tempest') {
+          this.noise(0.08, { gain: 0.07, freq: 900, highpass: 400 });
+          this.tone(520 + bias, 0.06, { type: 'square', slideTo: 180, gain: 0.03 });
+          break;
+        }
+        if (ev.weaponId === 'rupture') {
+          this.noise(0.16, { gain: 0.1, freq: 220 });
+          this.tone(70, 0.22, { type: 'sawtooth', slideTo: 32, gain: 0.06 });
+          this.tone(210, 0.1, { type: 'triangle', slideTo: 80, gain: 0.03, delay: 0.03 });
+          break;
+        }
+        if (ev.weaponId === 'solance') {
+          this.tone(420, 0.2, { type: 'sawtooth', slideTo: 980, gain: 0.05 });
+          this.tone(840, 0.18, { type: 'sine', slideTo: 1400, gain: 0.035, delay: 0.02 });
+          this.noise(0.12, { gain: 0.05, freq: 1600, highpass: 800 });
+          break;
+        }
         const base = 620 + bias;
         const wave: OscillatorType = bias > 40 ? 'triangle' : bias < -40 ? 'sawtooth' : 'square';
         this.tone(base, 0.055, { type: wave, slideTo: 140 + bias * 0.2, gain: 0.02 });

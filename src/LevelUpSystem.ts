@@ -281,7 +281,7 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
       kind: 'craft',
       weight: 0,
       title: `${def.name} 데미지 +${pct}%`,
-      desc: `이 무기의 기본 데미지가 영구히 ${pct}% 증가합니다.`,
+      desc: `이 무기의 기본 데미지가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
@@ -293,7 +293,7 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
     kind: 'craft',
     weight: 0,
     title: `${def.name} 투속 +${pct}%`,
-    desc: `이 무기의 투사체 속도가 영구히 ${pct}% 증가합니다.`,
+    desc: `이 무기의 투사체 속도가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
     icon: def.icon,
     color: def.color,
     weaponIds: [slot.weaponId],
@@ -366,11 +366,13 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
         });
       }
       state.weapons.push(result);
+      state.noteWeapon(resultId);
       break;
     }
     case 'new': {
       const id = (choice.weaponIds as WeaponId[])[0];
       state.weapons.push({ weaponId: id, level: 1, cooldownLeft: 200 });
+      state.noteWeapon(id);
       break;
     }
     case 'upgrade': {

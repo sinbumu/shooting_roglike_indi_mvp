@@ -7,6 +7,16 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.4.0',
+    date: '2026-08-18',
+    changes: [
+      '🐛 쉴더 타격 횟수 너프(300→50) 및 그래픽 깨짐 버그 수정',
+      '✨ 무기고 현재 스탯 표기 및 무기 도감 UI 추가',
+      '⚖️ 오메가 캐논 상향 · 호밍 데미지/속력 너프 · 전역 자석 무한 흡인 수정',
+      '✨ 동형 T2→T3 3종: 템페스트 · 파열핵 · 솔라 랜스',
+    ],
+  },
+  {
     version: 'v1.3.0',
     date: '2026-08-14',
     changes: [
