@@ -279,7 +279,7 @@ export interface Wave {
 // 레벨업 선택지
 // ------------------------------------------------------------
 
-export type CraftOp = 'affix' | 'damage' | 'speed';
+export type CraftOp = 'affix' | 'damage' | 'speed' | 'cooldown' | 'radius';
 
 export type ChoiceKind =
   | 'merge'

@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-18** — **QA 폴리싱 v1.4.0 (도감·실더/오메가/호밍·동형 T3)** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-18** — **v1.4.1 크래프팅 무작위/쿨·크기 · 유도 선회 동기화** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -22,6 +22,7 @@
 | 경제·로비? | **완료** — 격납고 크레딧 동기화 · 디노미네이션 · 블랙마켓 · 파라곤 ([docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md)) |
 | 후반 텐션? | **완료** — 에이지스/보스 등장 픽스 · 전역 자석 · 미라지/가디언/실더 리워크 ([docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md)) |
 | QA 폴리싱? | **완료** — 무기고 스펙/도감 · 실더 50히트 · 오메가 상향 · 호밍 너프 · 동형 T3 3종 ([docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md)) |
+| 크래프트·유도 후속? | **완료** — T3 선택지 무작위 · 쿨/크기 옵션 · 선회력 동기화 ([docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -60,7 +61,7 @@
 - [x] 비주얼/오디오: Pixi 스프라이트 + Graphics 폴백, Web Audio 합성  
 - [x] 엔드게임: 한계 돌파 스탯 · 전술(EMP/쉴드/자석폭주) · T0 어픽스(분열/관통/연쇄)  
 - [x] 도파민: 잭팟 히트스톱·쉐이크·피치 SFX · 보스 50% 페이즈+보석 샤워 · 돌발 균열 웨이브  
-- [x] 크래프팅: 퀀텀 큐브 오브 → 즉시 3선택지 (어픽스/데미지/투속) · 어픽스 교차 시너지  
+- [x] 크래프팅: 퀀텀 큐브 오브 → 즉시 3선택지 (어픽스/데미지/투속/쿨/크기) · 어픽스 교차 시너지  
 - [x] 다양성·템포: EXP 곡선 완화 · T1 복제 · 동형 T2 3종 · 과부하 코어 · 실더/텔레포터 · 후반 돌연변이  
 - [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
 - [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
@@ -69,6 +70,7 @@
 - [x] 패치 노트: 격납고 버전 버튼 · 인게임 변경 내역 모달  
 - [x] 후반 텐션: 에이지스 충격파 · 보스 등장 Lerp · 전역 자석/상단 중력 · 미라지·가디언·실더 역장  
 - [x] QA 폴리싱: 무기고 스펙 · 도감 · 치명타 공개 · 실더 50히트 · 오메가/호밍 · 동형 T3 3종  
+- [x] 크래프트 후속: T3 선택지 무작위 · 쿨/크기 옵션 · 유도 선회력 동기화  
 
 ---
 
@@ -241,4 +243,5 @@
 | [docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md) | 인게임 패치 노트 (구현 완료) |
 | [docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md) | 후반 텐션·강적 기믹 (구현 완료) |
 | [docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md) | QA 피드백 폴리싱 (구현 완료) |
+| [docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md) | 크래프팅 무작위·쿨/크기 · 유도 선회 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

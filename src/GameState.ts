@@ -26,12 +26,18 @@ export interface WeaponSlot {
   damageBonus?: number;
   /** 크래프팅 강화로 누적되는 투사체 속도 보너스 */
   speedBonus?: number;
+  /** 크래프팅 강화로 누적되는 쿨타임 감소 (0.10 = -10%) */
+  cooldownBonus?: number;
+  /** 크래프팅 강화로 누적되는 투사체/폭발 반경 보너스 */
+  radiusBonus?: number;
 }
 
 export interface Projectile {
   x: number; y: number;
   vx: number; vy: number;
   speed: number;
+  /** 무기 기본 속력 — 유도 선회 보정용 */
+  baseSpeed: number;
   damage: number;
   radius: number;
   homingTurnRate: number;
@@ -490,6 +496,31 @@ export class GameState {
     return true;
   }
 
+  buffWeaponCooldown(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot) return false;
+    slot.cooldownBonus = Math.min(
+      ARSENAL.cooldownBonusCap,
+      (slot.cooldownBonus ?? 0) + ARSENAL.buffCooldown,
+    );
+    this.events.push({
+      type: 'banner',
+      text: `${WEAPONS[weaponId].name} 쿨 -${Math.round(slot.cooldownBonus * 100)}%`,
+    });
+    return true;
+  }
+
+  buffWeaponRadius(weaponId: WeaponId): boolean {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    if (!slot) return false;
+    slot.radiusBonus = (slot.radiusBonus ?? 0) + ARSENAL.buffRadius;
+    this.events.push({
+      type: 'banner',
+      text: `${WEAPONS[weaponId].name} 크기 +${Math.round(slot.radiusBonus * 100)}%`,
+    });
+    return true;
+  }
+
   applyTactical(id: TacticalId): void {
     switch (id) {
       case 'emp': {
@@ -698,7 +729,9 @@ export class GameState {
         this.fireWeapon(slot);
         const def = WEAPONS[slot.weaponId];
         const cdScale = (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) * this.cooldownMul;
-        slot.cooldownLeft += def.cooldownMs * cdScale;
+        const craftCd = Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0);
+        const raw = def.cooldownMs * cdScale * (1 - craftCd);
+        slot.cooldownLeft += Math.max(def.cooldownMs * ARSENAL.cooldownFloor, raw);
       }
     }
   }
@@ -719,13 +752,14 @@ export class GameState {
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
     const color = this.projSkinColors[slot.weaponId] ?? def.color;
     const baseAngle = -Math.PI / 2; // 위쪽
+    const sizeMul = 1 + (slot.radiusBonus ?? 0);
 
     if (p.beam) {
       this.beams.push({
         x: this.playerX,
         y: this.playerY - PLAYER.radius,
         angle: baseAngle,
-        width: p.beam.width,
+        width: p.beam.width * sizeMul,
         length: p.beam.length,
         damage,
         life: p.beam.duration,
@@ -761,8 +795,9 @@ export class GameState {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         speed,
+        baseSpeed: p.speed,
         damage,
-        radius: p.radius,
+        radius: p.radius * sizeMul,
         homingTurnRate: p.homingTurnRate,
         pierceLeft: pierce,
         life: p.lifetime,
@@ -770,7 +805,7 @@ export class GameState {
         hitIds: new Set(),
         affix: slot.affix,
         pierceHits: 0,
-        explodeRadius: p.explodeRadius,
+        explodeRadius: p.explodeRadius ? p.explodeRadius * sizeMul : undefined,
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
         ignoreShield: p.ignoreShield,
       });
@@ -1173,7 +1208,7 @@ export class GameState {
           let diff = want - cur;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
-          const maxTurn = p.homingTurnRate * dt;
+          const maxTurn = p.homingTurnRate * (p.speed / Math.max(p.baseSpeed, 1)) * dt;
           const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
           const next = cur + turn;
           p.vx = Math.cos(next) * p.speed;
@@ -1350,6 +1385,7 @@ export class GameState {
         vx: Math.cos(a) * spd,
         vy: Math.sin(a) * spd,
         speed: spd,
+        baseSpeed: p.baseSpeed,
         damage,
         radius: Math.max(3, p.radius * 0.8),
         homingTurnRate: 0,

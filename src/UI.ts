@@ -520,7 +520,7 @@ export class UI {
   }
 
   private renderSlots(state: GameState): void {
-    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}:${w.damageBonus ?? 0}:${w.speedBonus ?? 0}`).join(',');
+    const key = state.weapons.map((w) => `${w.weaponId}:${w.level}:${w.affix ?? ''}:${w.damageBonus ?? 0}:${w.speedBonus ?? 0}:${w.cooldownBonus ?? 0}:${w.radiusBonus ?? 0}`).join(',');
     if (key === this.lastSlotsKey) return;
     this.lastSlotsKey = key;
 
@@ -575,12 +575,21 @@ export class UI {
     const p = def.projectile;
     const dmgMul = this.lastState?.damageMul ?? 1;
     const dmg = (p.damage * (1 + (slot.level - 1) * LEVELING.damagePerLevel) * dmgMul).toFixed(1);
-    const cd = (def.cooldownMs * (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) / 1000).toFixed(2);
+    const cdScale = (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel))
+      * (this.lastState?.cooldownMul ?? 1)
+      * (1 - Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0));
+    const cdMs = Math.max(def.cooldownMs * ARSENAL.cooldownFloor, def.cooldownMs * cdScale);
+    const cd = (cdMs / 1000).toFixed(2);
     const affixLine = slot.affix
       ? `<br/><span class="tt-affix">${AFFIXES[slot.affix].label} ${AFFIXES[slot.affix].desc}</span>`
       : '';
-    const buffLine = (slot.damageBonus ?? 0) > 0 || (slot.speedBonus ?? 0) > 0
-      ? `<br/><span class="tt-affix">크래프트 데미지 +${Math.round((slot.damageBonus ?? 0) * 100)}% · 투속 +${Math.round((slot.speedBonus ?? 0) * 100)}%</span>`
+    const buffBits: string[] = [];
+    if ((slot.damageBonus ?? 0) > 0) buffBits.push(`데미지 +${Math.round((slot.damageBonus ?? 0) * 100)}%`);
+    if ((slot.speedBonus ?? 0) > 0) buffBits.push(`투속 +${Math.round((slot.speedBonus ?? 0) * 100)}%`);
+    if ((slot.cooldownBonus ?? 0) > 0) buffBits.push(`쿨 -${Math.round((slot.cooldownBonus ?? 0) * 100)}%`);
+    if ((slot.radiusBonus ?? 0) > 0) buffBits.push(`크기 +${Math.round((slot.radiusBonus ?? 0) * 100)}%`);
+    const buffLine = buffBits.length
+      ? `<br/><span class="tt-affix">크래프트 ${buffBits.join(' · ')}</span>`
       : '';
     this.tooltipEl.innerHTML = `
       <b>${def.icon} ${def.name}</b> <span class="tt-tier">T${def.tier} · Lv.${slot.level}</span><br/>
@@ -868,6 +877,9 @@ export function craftLockedPreviewHtml(): string {
       <li>${AFFIXES.pierce.icon} ${AFFIXES.pierce.label} 관통 횟수 증가</li>
       <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 적중 시 전이</li>
       <li>💪 [강화] 무기 기본 데미지 이번 런 동안 +${dmgPct}% 증가</li>
+      <li>💨 [강화] 투사체 속도 이번 런 동안 +${Math.round(ARSENAL.buffSpeed * 100)}%</li>
+      <li>⏱️ [강화] 발사 쿨타임 이번 런 동안 -${Math.round(ARSENAL.buffCooldown * 100)}%</li>
+      <li>🔘 [강화] 투사체·폭발 반경 이번 런 동안 +${Math.round(ARSENAL.buffRadius * 100)}%</li>
     </ul>
   `;
 }
@@ -885,18 +897,23 @@ export function craftArsenalPreviewHtml(state: GameState): string {
       * state.damageMul
       * (1 + (slot.damageBonus ?? 0))
     ).toFixed(1);
-    const cd = (
+    const craftCd = Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0);
+    const cdMs = Math.max(
+      def.cooldownMs * ARSENAL.cooldownFloor,
       def.cooldownMs
-      * (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel))
-      * state.cooldownMul
-      / 1000
-    ).toFixed(2);
+        * (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel))
+        * state.cooldownMul
+        * (1 - craftCd),
+    );
+    const cd = (cdMs / 1000).toFixed(2);
     const affix = slot.affix ? AFFIXES[slot.affix].label : '없음';
     const dmgB = Math.round((slot.damageBonus ?? 0) * 100);
     const spdB = Math.round((slot.speedBonus ?? 0) * 100);
+    const cdB = Math.round((slot.cooldownBonus ?? 0) * 100);
+    const radB = Math.round((slot.radiusBonus ?? 0) * 100);
     return `<li>${def.icon} <b>${def.name}</b> Lv.${slot.level}<br/>
       데미지 ${dmg} × ${p.count} · 쿨 ${cd}s<br/>
-      어픽스 ${affix} · 누적 데미지 +${dmgB}% · 투속 +${spdB}%</li>`;
+      어픽스 ${affix} · 데미지 +${dmgB}% · 투속 +${spdB}% · 쿨 -${cdB}% · 크기 +${radB}%</li>`;
   }).join('');
   return `<p>장착 중 종결 무기</p><ul>${rows}</ul>`;
 }

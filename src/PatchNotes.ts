@@ -7,6 +7,15 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.4.1',
+    date: '2026-08-18',
+    changes: [
+      '🐛 크래프팅 선택지 무기 대상이 고정되는 버그 수정',
+      '✨ 크래프팅 옵션 풀에 쿨타임 감소, 공격 크기 증가 옵션 추가',
+      '⚖️ 유도탄의 투사체 속도 증가 시 선회력도 비례해서 오르도록 로직 개선',
+    ],
+  },
+  {
     version: 'v1.4.0',
     date: '2026-08-18',
     changes: [

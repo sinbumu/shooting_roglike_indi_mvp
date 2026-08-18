@@ -258,6 +258,19 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   return choices.slice(0, 3);
 }
 
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickUniqueOps(count: number): Exclude<CraftOp, 'affix'>[] {
+  const pool: Exclude<CraftOp, 'affix'>[] = ['damage', 'speed', 'cooldown', 'radius'];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
   const def = WEAPONS[slot.weaponId];
   if (op === 'affix') {
@@ -288,16 +301,42 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
       craftOp: 'damage',
     };
   }
-  const pct = Math.round(ARSENAL.buffSpeed * 100);
+  if (op === 'speed') {
+    const pct = Math.round(ARSENAL.buffSpeed * 100);
+    return {
+      kind: 'craft',
+      weight: 0,
+      title: `${def.name} 투속 +${pct}%`,
+      desc: `이 무기의 투사체 속도가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
+      icon: def.icon,
+      color: def.color,
+      weaponIds: [slot.weaponId],
+      craftOp: 'speed',
+    };
+  }
+  if (op === 'cooldown') {
+    const pct = Math.round(ARSENAL.buffCooldown * 100);
+    return {
+      kind: 'craft',
+      weight: 0,
+      title: `${def.name} 쿨타임 -${pct}%`,
+      desc: `이 무기의 발사 쿨타임이 이번 게임(런) 동안 ${pct}% 감소합니다.`,
+      icon: def.icon,
+      color: def.color,
+      weaponIds: [slot.weaponId],
+      craftOp: 'cooldown',
+    };
+  }
+  const pct = Math.round(ARSENAL.buffRadius * 100);
   return {
     kind: 'craft',
     weight: 0,
-    title: `${def.name} 투속 +${pct}%`,
-    desc: `이 무기의 투사체 속도가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
+    title: `${def.name} 크기 +${pct}%`,
+    desc: `이 무기의 투사체·폭발 반경이 이번 게임(런) 동안 ${pct}% 증가합니다.`,
     icon: def.icon,
     color: def.color,
     weaponIds: [slot.weaponId],
-    craftOp: 'speed',
+    craftOp: 'radius',
   };
 }
 
@@ -319,18 +358,14 @@ export function generateCraftChoices(state: GameState): LevelUpChoice[] {
     ? t3
     : state.weapons.filter((s) => WEAPONS[s.weaponId].tier === maxTier);
 
+  const ops = pickUniqueOps(2);
   const cards: LevelUpChoice[] = [];
-  if (t3[0]) {
-    cards.push(craftCard(t3[0], 'affix'));
-    const dmgSlot = targets.find((s) => s !== t3[0]) ?? t3[0];
-    cards.push(craftCard(dmgSlot, 'damage'));
-    const spdSlot = targets.find((s) => s !== t3[0] && s !== dmgSlot) ?? t3[0];
-    cards.push(craftCard(spdSlot, 'speed'));
+  if (t3.length > 0) {
+    cards.push(craftCard(pickRandom(t3), 'affix'));
+    for (const op of ops) cards.push(craftCard(pickRandom(t3), op));
   } else {
-    cards.push(craftCard(targets[0], 'damage'));
-    cards.push(craftCard(targets[0], 'speed'));
-    if (targets[1]) cards.push(craftCard(targets[1], 'damage'));
-    else cards.push(heal());
+    for (const op of ops) cards.push(craftCard(pickRandom(targets), op));
+    cards.push(heal());
   }
 
   while (cards.length < 3) cards.push(heal());
@@ -432,6 +467,10 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
         state.buffWeaponDamage(wid);
       } else if (op === 'speed') {
         state.buffWeaponSpeed(wid);
+      } else if (op === 'cooldown') {
+        state.buffWeaponCooldown(wid);
+      } else if (op === 'radius') {
+        state.buffWeaponRadius(wid);
       }
       break;
     }

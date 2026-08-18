@@ -632,6 +632,12 @@ export const QUANTUM = {
 export const ARSENAL = {
   buffDamage: 0.15,
   buffSpeed: 0.2,
+  buffCooldown: 0.10,
+  buffRadius: 0.15,
+  /** 크래프트 쿨 감소 누적 상한 */
+  cooldownBonusCap: 0.5,
+  /** 최종 쿨타임 하한 (무기 기본값 대비) */
+  cooldownFloor: 0.35,
 } as const;
 
 /** 어픽스 × 보조 스탯 시너지 수치 */
