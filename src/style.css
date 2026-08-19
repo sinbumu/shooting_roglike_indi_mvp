@@ -405,7 +405,7 @@ button.secondary {
   gap: 8px;
   width: 100%;
   max-width: 340px;
-  max-height: 38vh;
+  max-height: 52vh;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -433,8 +433,26 @@ button.secondary {
   gap: 8px;
   width: 100%;
   max-width: 340px;
-  max-height: 28vh;
+  max-height: 50vh;
   overflow-y: auto;
+}
+
+.drone-summary {
+  width: 100%;
+  max-width: 340px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.drone-summary.focused {
+  box-shadow: 0 0 0 2px #818cf8;
 }
 
 .drone-tag {
@@ -504,7 +522,8 @@ button.secondary {
   border-color: rgba(196, 181, 253, 0.45);
 }
 
-#gacha-overlay {
+#gacha-overlay,
+#drone-overlay {
   overflow-x: hidden;
   overflow-y: auto;
   justify-content: flex-start;
@@ -1016,8 +1035,23 @@ button:hover { transform: scale(1.05); }
   transform: none;
 }
 
+#start-overlay #drone-summary {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-align: left;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
 #start-btn:hover,
 #meta-btn:hover,
+#gacha-btn:hover,
+#drone-bay-btn:hover,
 #achv-btn:hover {
   transform: scale(1.04);
 }

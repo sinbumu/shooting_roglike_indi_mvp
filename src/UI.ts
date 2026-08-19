@@ -63,6 +63,7 @@ export class UI {
   private metaOverlay = document.getElementById('meta-overlay') as HTMLDivElement;
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
   private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
+  private droneOverlay = document.getElementById('drone-overlay') as HTMLDivElement;
   private patchOverlay = document.getElementById('patch-overlay') as HTMLDivElement;
   private codexOverlay = document.getElementById('codex-overlay') as HTMLDivElement;
   private patchList = document.getElementById('patch-list') as HTMLDivElement;
@@ -72,6 +73,8 @@ export class UI {
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private droneSelect = document.getElementById('drone-select') as HTMLDivElement;
+  private droneSummary = document.getElementById('drone-summary') as HTMLButtonElement;
+  private droneShopCredits = document.getElementById('drone-shop-credits') as HTMLSpanElement;
   private hudDrone = document.getElementById('hud-drone') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
   private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
@@ -162,6 +165,16 @@ export class UI {
     };
     (document.getElementById('gacha-close-btn') as HTMLButtonElement).onclick = () => {
       this.gachaOverlay.classList.add('hidden');
+      this.refreshHangar();
+    };
+    const openDroneBay = () => {
+      this.renderDroneModal();
+      this.droneOverlay.classList.remove('hidden');
+    };
+    this.droneSummary.onclick = openDroneBay;
+    (document.getElementById('drone-bay-btn') as HTMLButtonElement).onclick = openDroneBay;
+    (document.getElementById('drone-close-btn') as HTMLButtonElement).onclick = () => {
+      this.droneOverlay.classList.add('hidden');
       this.refreshHangar();
     };
     const costEl = document.getElementById('gacha-cost');
@@ -263,6 +276,49 @@ export class UI {
       this.shipSelect.appendChild(card);
     }
 
+    this.updateDroneSummary();
+    if (!this.droneOverlay.classList.contains('hidden')) this.renderDroneModal();
+
+    const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
+    const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
+    const droneBayBtn = document.getElementById('drone-bay-btn') as HTMLButtonElement;
+    const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
+    const codexBtn = document.getElementById('codex-btn') as HTMLButtonElement;
+    this.hangarGroups = [
+      [...this.stageSelect.querySelectorAll('button')],
+      [...this.challengeSelect.querySelectorAll('button')],
+      [...this.shipSelect.querySelectorAll('button')],
+      [this.droneSummary],
+      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, droneBayBtn, achvBtn, codexBtn],
+    ];
+    if (!this.startOverlay.classList.contains('hidden')
+      && this.metaOverlay.classList.contains('hidden')
+      && this.achvOverlay.classList.contains('hidden')
+      && this.gachaOverlay.classList.contains('hidden')
+      && this.patchOverlay.classList.contains('hidden')
+      && this.codexOverlay.classList.contains('hidden')
+      && this.droneOverlay.classList.contains('hidden')) {
+      this.hangarGroupIdx = 4;
+      this.setFocusGroup(this.hangarGroups[4]);
+    }
+  }
+
+  private updateDroneSummary(): void {
+    if (!this.meta) return;
+    const id = this.meta.selectedDrone;
+    if (!id) {
+      this.droneSummary.textContent = '장착된 드론 없음';
+      return;
+    }
+    const d = DRONES[id];
+    const lv = this.meta.droneLevels[id] ?? 1;
+    this.droneSummary.textContent = `현재 드론: ${d.icon} ${d.name} Lv.${lv}`;
+  }
+
+  private renderDroneModal(): void {
+    if (!this.meta) return;
+    this.droneShopCredits.textContent = fmtCredits(this.meta.credits);
     this.droneSelect.innerHTML = '';
     for (const drone of Object.values(DRONES)) {
       const unlocked = this.meta.unlockedDrones.includes(drone.id);
@@ -305,28 +361,11 @@ export class UI {
       }
       this.droneSelect.appendChild(row);
     }
-
-    const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
-    const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
-    const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
-    const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
-    const codexBtn = document.getElementById('codex-btn') as HTMLButtonElement;
-    this.hangarGroups = [
-      [...this.stageSelect.querySelectorAll('button')],
-      [...this.challengeSelect.querySelectorAll('button')],
-      [...this.shipSelect.querySelectorAll('button')],
-      [...this.droneSelect.querySelectorAll('button')],
-      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, achvBtn, codexBtn],
-    ];
-    if (!this.startOverlay.classList.contains('hidden')
-      && this.metaOverlay.classList.contains('hidden')
-      && this.achvOverlay.classList.contains('hidden')
-      && this.gachaOverlay.classList.contains('hidden')
-      && this.patchOverlay.classList.contains('hidden')
-      && this.codexOverlay.classList.contains('hidden')) {
-      this.hangarGroupIdx = 4;
-      this.setFocusGroup(this.hangarGroups[4]);
-    }
+    const closeBtn = document.getElementById('drone-close-btn') as HTMLButtonElement;
+    this.setFocusGroup([
+      ...this.droneSelect.querySelectorAll('button'),
+      closeBtn,
+    ]);
   }
 
   onSelectStage(fn: (id: StageId) => void): void {
@@ -832,6 +871,7 @@ export class UI {
 
   hideStart(): void {
     this.startOverlay.classList.add('hidden');
+    this.droneOverlay.classList.add('hidden');
     this.clearFocus();
   }
 
@@ -882,6 +922,14 @@ export class UI {
       || !this.pauseOverlay.classList.contains('hidden')
       || !this.gameoverOverlay.classList.contains('hidden')
       || !this.victoryOverlay.classList.contains('hidden')) {
+      if (left || up) { this.moveFocus(-1); return true; }
+      if (right || down) { this.moveFocus(1); return true; }
+      if (confirm) { this.activateFocus(); return true; }
+      return false;
+    }
+
+    if (!this.droneOverlay.classList.contains('hidden')) {
+      if (e.code === 'Escape') return false;
       if (left || up) { this.moveFocus(-1); return true; }
       if (right || down) { this.moveFocus(1); return true; }
       if (confirm) { this.activateFocus(); return true; }

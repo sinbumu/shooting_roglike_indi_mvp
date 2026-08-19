@@ -79,7 +79,7 @@
       <div id="start-overlay" class="overlay">
         <button id="patch-notes-btn" class="patch-notes-btn" type="button" title="패치 노트">v1.3.0</button>
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>이전 스테이지 클리어로 다음 전선이 열립니다.</p>
+        <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>드론은 하단 [드론 베이]에서 장착합니다.</p>
         <div id="meta-bar">💰 <span id="meta-credits">0</span> · <span id="meta-stats"></span></div>
         <div class="hangar-label">스테이지</div>
         <div id="stage-select" class="chip-row"></div>
@@ -87,15 +87,23 @@
         <div id="challenge-select" class="chip-row"></div>
         <div class="hangar-label">기체</div>
         <div id="ship-select"></div>
-        <div class="hangar-label">드론 베이</div>
-        <div id="drone-select"></div>
+        <button id="drone-summary" class="drone-summary" type="button">장착된 드론 없음</button>
         <div class="hangar-actions">
           <button id="start-btn">출격</button>
           <button id="meta-btn" class="secondary">영구 강화</button>
           <button id="gacha-btn" class="secondary">블랙마켓</button>
+          <button id="drone-bay-btn" class="secondary">드론 베이</button>
           <button id="achv-btn" class="secondary">업적</button>
           <button id="codex-btn" class="secondary">도감</button>
         </div>
+      </div>
+
+      <!-- ===== 드론 베이 ===== -->
+      <div id="drone-overlay" class="overlay hidden">
+        <h2 class="overlay-title">DRONE BAY</h2>
+        <p class="overlay-sub">출격 전 보조 드론 1기를 장착합니다 · 💰 <span id="drone-shop-credits">0</span></p>
+        <div id="drone-select"></div>
+        <button id="drone-close-btn" class="secondary">닫기</button>
       </div>
 
       <!-- ===== 패치 노트 ===== -->
