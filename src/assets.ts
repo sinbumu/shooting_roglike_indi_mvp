@@ -36,7 +36,13 @@ export type FxId =
   | 'shade'
   | 'lockbeam'
   | 'meteor'
-  | 'emp';
+  | 'emp'
+  | 'gem'
+  | 'ebullet'
+  | 'warn'
+  | 'drone'
+  | 'pylon'
+  | 'frontshield';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -107,6 +113,12 @@ export const SPRITE_PATHS = {
     lockbeam: `${base}/fx_lockbeam.png`,
     meteor: `${base}/fx_meteor.png`,
     emp: `${base}/fx_emp.png`,
+    gem: `${base}/fx_gem.png`,
+    ebullet: `${base}/fx_ebullet.png`,
+    warn: `${base}/fx_warn.png`,
+    drone: `${base}/fx_drone.png`,
+    pylon: `${base}/fx_pylon.png`,
+    frontshield: `${base}/fx_frontshield.png`,
   } satisfies Record<FxId, string>,
 } as const;
 

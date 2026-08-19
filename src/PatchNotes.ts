@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.8.5',
+    date: '2026-08-19',
+    changes: [
+      '💎 EXP 보석·적탄·스폰 경고·격납고 드론을 단색 도형에서 애니메이션 스프라이트로 교체',
+      '트래퍼 말뚝/펜스 · 실더 정면 역장 · 증폭 오라 · 포대 암전도 시트/기존 FX 재사용',
+    ],
+  },
+  {
     version: 'v1.8.4',
     date: '2026-08-19',
     changes: [

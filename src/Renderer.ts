@@ -1197,11 +1197,19 @@ export class Renderer {
         const ratio = (e.shieldHits ?? 0) / SHIELDER.hits;
         const col = ratio > 0.66 ? 0x67e8f9 : ratio > 0.33 ? 0xfb923c : 0xef4444;
         const arcR = r + 14;
-        const a0 = Math.PI * 0.06;
-        const a1 = Math.PI * 0.94;
-        g.moveTo(e.x + Math.cos(a0) * arcR, e.y + Math.sin(a0) * arcR);
-        g.arc(e.x, e.y, arcR, a0, a1);
-        g.stroke({ width: 5, color: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
+        const shieldTex = fxFrame(this.atlas.fx.frontshield, this.elapsed, 8);
+        if (shieldTex) {
+          this.blitFx(shieldTex, e.x, e.y, {
+            width: arcR * 2.35, height: arcR * 2.35,
+            tint: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15, add: true,
+          });
+        } else {
+          const a0 = Math.PI * 0.06;
+          const a1 = Math.PI * 0.94;
+          g.moveTo(e.x + Math.cos(a0) * arcR, e.y + Math.sin(a0) * arcR);
+          g.arc(e.x, e.y, arcR, a0, a1);
+          g.stroke({ width: 5, color: col, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
+        }
         if (ratio < 0.66) {
           g.moveTo(e.x - 12, e.y + 8);
           g.lineTo(e.x - 3, e.y + arcR * 0.72);
@@ -1260,8 +1268,17 @@ export class Renderer {
 
       if (e.def.id === 'architect' && (e.shieldHits ?? 0) > 0) {
         const pulse = 0.55 + Math.sin(this.elapsed * 6) * 0.15;
-        g.circle(e.x, e.y, r + 18)
-          .stroke({ width: 4, color: 0x67e8f9, alpha: pulse });
+        const ring = fxFrame(this.atlas.fx.halo, this.elapsed, 8);
+        if (ring) {
+          const size = (r + 18) * 2.15;
+          this.blitFx(ring, e.x, e.y, {
+            rotation: this.elapsed * 0.8, width: size, height: size,
+            tint: 0x67e8f9, alpha: pulse, add: true,
+          });
+        } else {
+          g.circle(e.x, e.y, r + 18)
+            .stroke({ width: 4, color: 0x67e8f9, alpha: pulse });
+        }
       }
       if (e.hp < e.maxHp && !isTrueBoss) {
         g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
@@ -1271,15 +1288,35 @@ export class Renderer {
     }
 
     const fenceCol = hex(DANGER.high);
+    const pylonTex = fxFrame(this.atlas.fx.pylon, this.elapsed, 8);
     for (const p of state.pylons) {
-      g.circle(p.x, p.y, 6).fill(fenceCol);
-      g.circle(p.x, p.y, 9).stroke({ width: 2, color: 0xfca5a5, alpha: 0.8 });
+      if (pylonTex) {
+        this.blitFx(pylonTex, p.x, p.y, { width: 28, height: 28, world: true });
+      } else {
+        g.circle(p.x, p.y, 6).fill(fenceCol);
+        g.circle(p.x, p.y, 9).stroke({ width: 2, color: 0xfca5a5, alpha: 0.8 });
+      }
     }
+    const fenceBeam = fxFrame(this.atlas.fx.laser, this.elapsed, 14);
     for (const s of state.fenceLines()) {
-      g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
-        .stroke({ width: TRAPPER.fenceWidth, color: fenceCol, alpha: 0.55 + Math.sin(this.elapsed * 18) * 0.2 });
-      g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
-        .stroke({ width: 2, color: 0xfef2f2, alpha: 0.7 });
+      const dx = s.bx - s.ax;
+      const dy = s.by - s.ay;
+      const len = Math.hypot(dx, dy);
+      if (fenceBeam && len > 4) {
+        this.blitFx(fenceBeam, (s.ax + s.bx) * 0.5, (s.ay + s.by) * 0.5, {
+          rotation: Math.atan2(dy, dx),
+          width: len,
+          height: Math.max(10, TRAPPER.fenceWidth * 2.2),
+          tint: fenceCol,
+          alpha: 0.55 + Math.sin(this.elapsed * 18) * 0.2,
+          add: true,
+        });
+      } else {
+        g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
+          .stroke({ width: TRAPPER.fenceWidth, color: fenceCol, alpha: 0.55 + Math.sin(this.elapsed * 18) * 0.2 });
+        g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
+          .stroke({ width: 2, color: 0xfef2f2, alpha: 0.7 });
+      }
       if (Math.random() < 0.15) {
         const t = Math.random();
         this.spawnParticle({
@@ -1301,13 +1338,19 @@ export class Renderer {
   private drawEnemyProjectiles(state: GameState): void {
     const outline = hex(DANGER.fatal);
     for (const p of state.enemyProjectiles) {
+      const tex = fxFrame(this.atlas.fx.ebullet, this.elapsed + p.x * 0.02, 12);
+      if (tex) {
+        const size = p.radius * 5.2;
+        this.blitFx(tex, p.x, p.y, { width: size, height: size });
+      } else {
+        this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: outline });
+        this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
+      }
       const glow = this.glowPool.get();
       glow.tint = outline;
       glow.position.set(p.x, p.y);
       glow.width = glow.height = p.radius * 5.5;
       glow.alpha = 0.9;
-      this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: outline });
-      this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
     }
   }
 
@@ -1571,15 +1614,39 @@ export class Renderer {
       }
     }
     for (const b of state.interceptBeams) {
-      g.moveTo(b.x1, b.y1).lineTo(b.x2, b.y2)
-        .stroke({ width: 3, color: 0x86efac, alpha: Math.max(0, b.life * 8) });
+      const dx = b.x2 - b.x1;
+      const dy = b.y2 - b.y1;
+      const len = Math.hypot(dx, dy);
+      const bolt = fxFrame(this.atlas.fx.laser, this.elapsed, 16);
+      if (bolt && len > 2) {
+        this.blitFx(bolt, (b.x1 + b.x2) * 0.5, (b.y1 + b.y2) * 0.5, {
+          rotation: Math.atan2(dy, dx),
+          width: len,
+          height: 14,
+          tint: 0x86efac,
+          alpha: Math.max(0, b.life * 8),
+          add: true,
+        });
+      } else {
+        g.moveTo(b.x1, b.y1).lineTo(b.x2, b.y2)
+          .stroke({ width: 3, color: 0x86efac, alpha: Math.max(0, b.life * 8) });
+      }
     }
     if (state.ampAura) {
-      const a = 0.2 + Math.sin(this.elapsed * 6) * 0.08;
-      g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
-        .fill({ color: 0x818cf8, alpha: a });
-      g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
-        .stroke({ width: 2, color: 0xa5b4fc, alpha: 0.7 });
+      const a = 0.35 + Math.sin(this.elapsed * 6) * 0.08;
+      const ring = fxFrame(this.atlas.fx.halo, this.elapsed, 8);
+      if (ring) {
+        const size = state.ampAura.r * 2.2;
+        this.blitFx(ring, state.ampAura.x, state.ampAura.y, {
+          rotation: this.elapsed * 0.9, width: size, height: size,
+          tint: 0x818cf8, alpha: a, add: true,
+        });
+      } else {
+        g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
+          .fill({ color: 0x818cf8, alpha: a * 0.55 });
+        g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
+          .stroke({ width: 2, color: 0xa5b4fc, alpha: 0.7 });
+      }
     }
     if (state.droneId) {
       const dx = state.playerX + 22;
@@ -1588,11 +1655,18 @@ export class Renderer {
         : state.droneId === 'retriever' ? 0x38bdf8
         : state.droneId === 'defender' ? 0x86efac
         : 0x818cf8;
-      const s = 6.5;
-      g.poly([dx, dy - s, dx + s * 0.75, dy, dx, dy + s * 0.85, dx - s * 0.75, dy], true).fill(col);
-      g.poly([dx - 3, dy + 2, dx - 9, dy + 8, dx - 1, dy + 6], true).fill(col);
-      g.poly([dx + 3, dy + 2, dx + 9, dy + 8, dx + 1, dy + 6], true).fill(col);
-      g.circle(dx, dy - 1, 2).fill(0xf8fafc);
+      const dtex = fxFrame(this.atlas.fx.drone, this.elapsed, 10);
+      if (dtex) {
+        this.blitFx(dtex, dx, dy, {
+          width: 22, height: 22, tint: col,
+        });
+      } else {
+        const s = 6.5;
+        g.poly([dx, dy - s, dx + s * 0.75, dy, dx, dy + s * 0.85, dx - s * 0.75, dy], true).fill(col);
+        g.poly([dx - 3, dy + 2, dx - 9, dy + 8, dx - 1, dy + 6], true).fill(col);
+        g.poly([dx + 3, dy + 2, dx + 9, dy + 8, dx + 1, dy + 6], true).fill(col);
+        g.circle(dx, dy - 1, 2).fill(0xf8fafc);
+      }
       const glow = this.glowPool.get();
       glow.tint = col;
       glow.position.set(dx, dy + 5);
@@ -1600,9 +1674,17 @@ export class Renderer {
       glow.alpha = 0.75;
     }
     if (state.turretDarkActive) {
-      const pulse = 0.18 + Math.sin(this.elapsed * 6) * 0.06;
-      g.circle(state.playerX, state.playerY, 42).fill({ color: 0xef4444, alpha: pulse });
-      g.circle(state.playerX, state.playerY, 42).stroke({ width: 2, color: 0xf97316, alpha: 0.7 });
+      const pulse = 0.28 + Math.sin(this.elapsed * 6) * 0.08;
+      const ring = fxFrame(this.atlas.fx.halo, this.elapsed, 8);
+      if (ring) {
+        this.blitFx(ring, state.playerX, state.playerY, {
+          rotation: this.elapsed * 1.4, width: 92, height: 92,
+          tint: 0xef4444, alpha: pulse, add: true,
+        });
+      } else {
+        g.circle(state.playerX, state.playerY, 42).fill({ color: 0xef4444, alpha: pulse * 0.65 });
+        g.circle(state.playerX, state.playerY, 42).stroke({ width: 2, color: 0xf97316, alpha: 0.7 });
+      }
     }
     if (state.empLeft > 0 && Math.random() < 0.12) {
       this.spawnParticle({
@@ -2004,20 +2086,29 @@ export class Renderer {
     g.clear();
     for (const gem of state.gems) {
       const pulse = 1 + Math.sin(this.elapsed * 6 + gem.x) * 0.15;
-      const r = 7 * pulse;
-      const rot = this.elapsed * 2;
-      const cos = Math.cos(rot);
-      const sin = Math.sin(rot);
-      // 다이아몬드 4점 회전
-      const local = [0, -r, r * 0.7, 0, 0, r, -r * 0.7, 0];
-      const abs: number[] = [];
-      for (let i = 0; i < 8; i += 2) {
-        abs.push(gem.x + local[i] * cos - local[i + 1] * sin, gem.y + local[i] * sin + local[i + 1] * cos);
+      const tint = gem.homing ? 0xf43f5e : 0x34d399;
+      const tex = fxFrame(this.atlas.fx.gem, this.elapsed + gem.x * 0.01, 10);
+      if (tex) {
+        const size = 18 * pulse;
+        this.blitFx(tex, gem.x, gem.y, {
+          rotation: this.elapsed * 2 + gem.x * 0.05,
+          width: size, height: size, tint, world: true,
+        });
+      } else {
+        const r = 7 * pulse;
+        const rot = this.elapsed * 2;
+        const cos = Math.cos(rot);
+        const sin = Math.sin(rot);
+        const local = [0, -r, r * 0.7, 0, 0, r, -r * 0.7, 0];
+        const abs: number[] = [];
+        for (let i = 0; i < 8; i += 2) {
+          abs.push(gem.x + local[i] * cos - local[i + 1] * sin, gem.y + local[i] * sin + local[i + 1] * cos);
+        }
+        g.poly(abs, true).fill(tint);
       }
-      g.poly(abs, true).fill(gem.homing ? 0xf43f5e : 0x34d399);
 
       const glow = this.glowPool.get();
-      glow.tint = gem.homing ? 0xf43f5e : 0x34d399;
+      glow.tint = tint;
       glow.position.set(gem.x, gem.y);
       glow.width = glow.height = 26 * pulse;
       glow.alpha = 0.75;
@@ -2028,22 +2119,25 @@ export class Renderer {
     const g = this.warnG;
     g.clear();
     for (const w of state.warnings) {
-      // 붉은 글로우는 항상 은은하게
       const glow = this.glowPool.get();
       glow.tint = 0xef4444;
       glow.position.set(w.indicatorX, w.indicatorY);
       glow.width = glow.height = 52 + Math.sin(this.elapsed * 10) * 10;
       glow.alpha = 0.5;
 
-      // 느낌표는 깜빡임 (남은 시간이 적을수록 빠르게)
       const freq = w.timer < 0.7 ? 16 : 7;
       if (Math.floor(this.elapsed * freq) % 2 === 0) continue;
 
       const x = w.indicatorX;
       const y = w.indicatorY;
-      g.circle(x, y, 14).fill({ color: 0xef4444, alpha: 0.25 }).stroke({ width: 2, color: 0xef4444 });
-      g.rect(x - 2, y - 8, 4, 10).fill(0xef4444);
-      g.rect(x - 2, y + 5, 4, 4).fill(0xef4444);
+      const tex = fxFrame(this.atlas.fx.warn, this.elapsed, 8);
+      if (tex) {
+        this.blitFx(tex, x, y, { width: 36, height: 36 });
+      } else {
+        g.circle(x, y, 14).fill({ color: 0xef4444, alpha: 0.25 }).stroke({ width: 2, color: 0xef4444 });
+        g.rect(x - 2, y - 8, 4, 10).fill(0xef4444);
+        g.rect(x - 2, y + 5, 4, 4).fill(0xef4444);
+      }
     }
   }
 }
