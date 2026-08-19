@@ -30,7 +30,7 @@
 | v1.7.2 QA 핫픽스? | **완료** — 스페이스 오선택 · T3 진화 · 특이점 투척 · 근접 어픽스 ([docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md](./docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md)) |
 | v1.7.3 밸런스·UI? | **완료** — 제네시스 단발 · 크래프트 슬롯 표기 · 프레데터/해머딘 · 관통 블랙리스트 ([docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md)) |
 | v1.7.4 타겟팅? | **완료** — 파열핵 최원거리 조준 · 제네시스 무작위 관통 ([docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md)) |
-| v1.7.5 지형 기믹? | **완료** — 단방향 쉴드 · 퀀텀 코어 · 성운 가스 · 모선 잔해 대피소 ([docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md)) |
+| v1.7.5 지형 기믹? | **완료** — 단방향 쉴드 · 퀀텀 코어 · 성운 가스 · 모선 잔해 대피소 ([docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md)) · EXP 곡선·솔라 랜스 필터·결과창 버전 ([docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -86,7 +86,7 @@
 - [x] v1.7.2: 스페이스 오선택 · T3 진화 제외 · 특이점 전방 투척 · 근접 어픽스 · 증폭 드론 스케일  
 - [x] v1.7.3: 제네시스 단발 융합 · 크래프트 슬롯 번호 · 프레데터/해머딘 상향 · 고관통 어픽스 제외  
 - [x] v1.7.4: 파열핵 최원거리 조준·폭발 상향 · 제네시스 무작위 타겟·탄속 상향 
-- [x] v1.7.5: 단방향 쉴드 · 퀀텀 코어 폭파 · 성운 둔화 · 궤도 모선 잔해 대피소 
+- [x] v1.7.5: 단방향 쉴드 · 퀀텀 코어 폭파 · 성운 둔화 · 궤도 모선 잔해 대피소 · EXP 곡선 · 솔라 랜스 필터 
 
 ---
 
@@ -281,4 +281,5 @@
 | [docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md) | v1.7.3 조준·크래프트 UI·밸런스 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md) | v1.7.4 파열핵·제네시스 타겟팅 (구현 완료) |
 | [docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md) | v1.7.5 지형 기믹 4종 (구현 완료) |
+| [docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md) | v1.7.5 EXP 곡선 · 솔라 랜스 필터 · 결과창 버전 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

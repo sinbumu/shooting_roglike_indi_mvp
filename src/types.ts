@@ -86,7 +86,7 @@ export interface ProjectileSpec {
   };
 }
 
-export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop';
+export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop' | 'beam';
 
 export interface WeaponDef {
   id: WeaponId;

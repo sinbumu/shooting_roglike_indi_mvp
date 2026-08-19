@@ -203,6 +203,9 @@ export class UI {
 
     this.patchNotesBtn.textContent = LATEST_VERSION;
     this.renderPatchNotes();
+    for (const el of document.querySelectorAll('.result-version')) {
+      el.textContent = LATEST_VERSION;
+    }
     this.patchNotesBtn.onclick = () => {
       this.patchOverlay.classList.remove('hidden');
       this.setFocusGroup([document.getElementById('patch-close-btn') as HTMLButtonElement]);
@@ -1131,7 +1134,7 @@ export function craftLockedPreviewHtml(): string {
     <ul>
       <li>${AFFIXES.split.icon} ${AFFIXES.split.label} 투사체 분열</li>
       <li>${AFFIXES.pierce.icon} ${AFFIXES.pierce.label} 관통 횟수 증가</li>
-      <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 적중 시 전이</li>
+      <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 명중 시 체인 전이</li>
       <li>${AFFIXES.afterimage.icon} ${AFFIXES.afterimage.label} 근접 잔상 타격</li>
       <li>${AFFIXES.echo.icon} ${AFFIXES.echo.label} 처치 시 폭발</li>
       <li>${AFFIXES.brilliance.icon} ${AFFIXES.brilliance.label} 타격 광역 파동</li>

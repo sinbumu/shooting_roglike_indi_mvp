@@ -370,6 +370,11 @@ function pickUniqueOps(count: number, slot?: WeaponSlot): Exclude<CraftOp, 'affi
   return arr.slice(0, count);
 }
 
+function craftOpForSlot(slot: WeaponSlot, op: Exclude<CraftOp, 'affix'>): Exclude<CraftOp, 'affix'> {
+  if (op === 'speed' && isTickWeapon(slot.weaponId)) return 'damage';
+  return op;
+}
+
 function craftCard(state: GameState, slot: WeaponSlot, op: CraftOp): LevelUpChoice {
   const def = WEAPONS[slot.weaponId];
   const idx = state.weapons.indexOf(slot);
@@ -479,9 +484,15 @@ export function generateCraftChoices(state: GameState): LevelUpChoice[] {
     } else {
       cards.push(craftCard(state, affixSlot, 'damage'));
     }
-    for (const op of ops) cards.push(craftCard(state, pickRandom(t3), op));
+    for (const op of ops) {
+      const slot = pickRandom(t3);
+      cards.push(craftCard(state, slot, craftOpForSlot(slot, op)));
+    }
   } else {
-    for (const op of ops) cards.push(craftCard(state, pickRandom(targets), op));
+    for (const op of ops) {
+      const slot = pickRandom(targets);
+      cards.push(craftCard(state, slot, craftOpForSlot(slot, op)));
+    }
     cards.push(heal());
   }
 

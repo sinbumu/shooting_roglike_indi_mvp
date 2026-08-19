@@ -46,8 +46,10 @@ export const JOYSTICK = {
 
 export const LEVELING = {
   /** 레벨 n → n+1에 필요한 경험치 */
-  expForLevel: (level: number): number =>
-    8 + Math.floor(level * 3) + Math.floor((level / 5) ** 2),
+  expForLevel: (level: number): number => {
+    const base = 8 + Math.floor(level * 3) + Math.floor((level / 5) ** 2);
+    return Math.max(1, Math.floor(base * (1.02 ** level)));
+  },
   /** 무기 최대 레벨 */
   maxWeaponLevel: 8,
   /** 레벨당 데미지 배율 증가 */
@@ -179,6 +181,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   solance: {
     id: 'solance', name: '솔라 랜스', tier: 3, icon: '🔆', color: '#fde68a',
     desc: '[가틀링+레일건] 정면으로 굵은 빔이 경로의 모든 적을 지짐',
+    tags: ['beam'],
     cooldownMs: 680,
     projectile: {
       damage: 18, speed: 0, radius: 8, count: 1, spreadDeg: 0,
@@ -846,7 +849,7 @@ export const AFFIXES: Record<AffixId, {
   },
   chain: {
     id: 'chain', name: '연쇄', label: '[연쇄]',
-    desc: '명중 시 가까운 적에게 전이',
+    desc: '명중 시 주변 적에게 번개처럼 튕기며 전이(체인)',
     icon: '🔗', color: '#fbbf24', weight: 30, tags: ['projectile'],
   },
   afterimage: {
@@ -877,6 +880,7 @@ export const AFFIX_FX = {
 
 export function weaponTags(def: WeaponDef): WeaponTag[] {
   if (def.tags && def.tags.length > 0) return def.tags;
+  if (def.projectile.beam) return ['beam'];
   if (def.projectile.melee) return ['melee'];
   if (def.projectile.orbit) return ['aura'];
   if (def.projectile.drop) return ['drop'];
@@ -898,7 +902,7 @@ export function compatibleAffixes(weaponId: WeaponId): AffixId[] {
 
 export function isTickWeapon(id: WeaponId): boolean {
   const tags = weaponTags(WEAPONS[id]);
-  return tags.includes('melee') || tags.includes('aura');
+  return tags.includes('melee') || tags.includes('aura') || tags.includes('beam');
 }
 
 /** 공허의 제단 */
