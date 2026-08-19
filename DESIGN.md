@@ -1,50 +1,51 @@
 # 🎮 STELLAR SURVIVOR — 기획/콘텐츠 현황판
 
-> 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
-> 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.8.6 레벨업 템포·드랍 스케일·최적화·제단·귀환** (온라인·외부 애널리틱스만 보류)
+> 제3자·기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 잡도록 정리한 문서입니다.  
+> 수치·밸런스의 단일 소스: `src/GameConfig.ts`. 플레이어용 체인지로그: `src/PatchNotes.ts`.  
+> 마지막 점검: **2026-08-20 — v1.9.9** (온라인·외부 애널리틱스만 보류)
 
-▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
+▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/  
+▶ 실행·배포: [README.md](./README.md) · 발표 요약: [REPORT.md](./REPORT.md)
 
 ---
 
-## 0. 한줄 결론 (지금 논의용)
+## 0. 지금 이 빌드는 뭔가
 
-| 질문 | 답 |
+**한 줄:** 설치·로그인 없이 URL로 도는 종스크롤 슈팅 로그라이크. 런마다 무기 조합을 키우고, 격납고에서 기체·스테이지·메타를 쌓는다.
+
+| 항목 | 현재 |
 |---|---|
-| 기획상 **로컬 MVP**는 다 됐나? | **예.** 코어·메타·스테이지·도전·스프라이트·프로시저럴 사운드까지 구현됨 |
-| 엔드게임·도파민 패치? | **완료** — 한계 돌파 / 전술 / T0 어픽스 / 잭팟 / 보스 페이즈 / 돌발 균열 |
-| 크래프팅·시너지? | **완료** — 큐브 오브 즉시 3선택지 · 어픽스×자석/투속/이속 ([docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md](./docs/DESIGN_UPDATE_SYNERGY_CRAFTING.md), [docs/DESIGN_UPDATE_UX_ACTIVES.md](./docs/DESIGN_UPDATE_UX_ACTIVES.md)) |
-| 다양성·초반 템포? | **완료** — EXP 곡선 · 동형 조합 3종 · 패시브 4 · 실더/텔레포터 · 돌연변이 ([docs/DESIGN_UPDATE_VARIETY_TEMPO.md](./docs/DESIGN_UPDATE_VARIETY_TEMPO.md)) |
-| UX·액티브? | **완료** — 기체 액티브 스킬 · 키보드 UI 포커스 · 무기고 상점 삭제 |
-| 정밀 조작? | **완료** — Shift 저속 비행 · 조이스틱 아날로그 ([docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md](./docs/DESIGN_UPDATE_PRECISION_MOVEMENT.md)) |
-| 시각·온보딩? | **완료** — 위험도 색상 · 보스 탄 시인성 · T3 없는 큐브 프리뷰 ([docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md](./docs/DESIGN_UPDATE_VISUAL_ONBOARDING-v2.md)) |
-| 경제·로비? | **완료** — 격납고 크레딧 동기화 · 디노미네이션 · 블랙마켓 · 파라곤 ([docs/DESIGN_UPDATE_ECONOMY_SYNC.md](./docs/DESIGN_UPDATE_ECONOMY_SYNC.md)) |
-| 후반 텐션? | **완료** — 에이지스/보스 등장 픽스 · 전역 자석 · 미라지/가디언/실더 리워크 ([docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md)) |
-| QA 폴리싱? | **완료** — 무기고 스펙/도감 · 실더 50히트 · 오메가 상향 · 호밍 너프 · 동형 T3 3종 ([docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md)) |
-| 크래프트·유도 후속? | **완료** — T3 선택지 무작위 · 쿨/크기 옵션 · 선회력 동기화 ([docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md)) |
-| 스테이지·무기 폴리시? | **완료** — orbit→rift→legion · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 ([docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md)) |
-| 수평 콘텐츠? | **완료** — 근접·장판 무기 10종 · 트래퍼/보텍스 · 격납고 드론 베이 ([docs/DESIGN_UPDATE_CONTENT_EXPANSION.md](./docs/DESIGN_UPDATE_CONTENT_EXPANSION.md)) |
-| v1.7 엔드게임 확장? | **완료** — 공허의 제단 · 스테이지 재해 · 코어 각성 · 파일럿 특성 ([docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md](./docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md)) |
-| v1.7.1 필감 폴리시? | **완료** — 고유 스프라이트 · 관성/데드존 · 오디오 버스 · 스테이지 주스 ([docs/DESIGN_UPDATE_FEEL_POLISH.md](./docs/DESIGN_UPDATE_FEEL_POLISH.md)) |
-| v1.7.2 QA 핫픽스? | **완료** — 스페이스 오선택 · T3 진화 · 특이점 투척 · 근접 어픽스 ([docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md](./docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md)) |
-| v1.7.3 밸런스·UI? | **완료** — 제네시스 단발 · 크래프트 슬롯 표기 · 프레데터/해머딘 · 관통 블랙리스트 ([docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md)) |
-| v1.7.4 타겟팅? | **완료** — 파열핵 최원거리 조준 · 제네시스 무작위 관통 ([docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md)) |
-| v1.7.5 지형 기믹? | **완료** — 단방향 쉴드 · 퀀텀 코어 · 성운 가스 · 모선 잔해 대피소 ([docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md)) · EXP 곡선·솔라 랜스 필터·결과창 버전 ([docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md)) |
-| v1.8 성좌? | **완료** — 만렙 이후 판테온 포인트 · 격납고 22노드 성좌 보드 · 다음 런 룰 분기 ([docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md)) |
-| 4번째 기체? | **완료** — 붐바르딜로-크로코딜로 · 융단 폭격 ([docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md](./docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md)) |
-| 근접·장판 VFX? | **완료** — 블레이드/지뢰/스웜 계열 2×2 애니메이션 스프라이트 (원뿔 Graphics 폴백) |
-| 탄막 VFX? | **완료** — T1~T3 투사체·솔라 랜스 전용 시트 (v1.8.3) |
-| 지형·재해 VFX? | **완료** — 성운·방벽·퀀텀·제단·태양풍 그늘·운석·EMP 시트 (v1.8.4) |
-| 잔여 도형 VFX? | **완료** — 보석·적탄·경고·드론·말뚝·실더 역장 (v1.8.5) |
-| 템포·드랍·편의? | **완료** — 배치 레벨업 · 적 수 반비례 드랍 · 제단 디스폰 · 격납고 귀환 (v1.8.6) |
-| 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
-| 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
-| (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
-| 다음에 할 일 | **제품 방향 선택** (아래 §4~5). “빠진 필수 시스템”을 메우는 단계는 아님 |
+| 버전 | **v1.9.9** (`package.json` / 격납고 패치 노트와 동일) |
+| 기체 | 7종 — 스카웃·포트리스·헌터·폭격기·**야차·오버로드·크림슨** |
+| 무기 | **47종** — 탄막 트리 + 근접/장판 + 매트릭스(채찍·소환·핏빛) |
+| 패시브 | 런 중 슬롯 4, 풀 **16종** (그중 9종은 매트릭스 T3 촉매) |
+| 스테이지 / 도전 | 3 / 4 (궤도 5분 · 균열 4:30 · 군단 7분) |
+| 엔드게임 | 제단·재해·지형·성좌 22노드·**Lv.50 코어 각성** |
+| 세이브 | 브라우저 `localStorage`만. 서버 없음 |
+| 의도적 보류 | 온라인 리더보드·시드 런 · 외부 애널리틱스 · 외부 음원 파일 |
 
-**현재 포지션:** 브라우저 로컬만으로 플레이·성장·재도전·후반 엔드게임이 도는 **완결형 빌드**.  
-이 시점부터는 “미구현 메우기”가 아니라 **재미 심화 / 콘텐츠 볼륨 / 온라인·계측 / 폴리시** 중 어디에 시간을 쓸지 고르는 단계입니다.
+**제3자가 헷갈리기 쉬운 최근 변경 (v1.9):**
+
+| 주제 | 지금 상태 | 지시서 |
+|---|---|---|
+| 신기체 3종 | 야차=근접만+거합도 / 오버로드=소환+군단 폭주 / 크림슨=광분+혈사포 | [v1.9.0](./docs/DESIGN_UPDATE_V1_9_NEW_SHIPS_WEAPONS.md) |
+| 매트릭스 T3 | Vampire Survivors식 **촉매**: 패시브 보유 시에만 카드, 패시브는 안 없어짐 | 위 문서 |
+| 오버로드 스킬 | 예전 자폭은 **폐기**. 5초 군단 폭주(소환 공속·이속·발사 수 ×3) | [오버로드 리워크](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) (게임 버전 v1.9.6) |
+| 채찍+호밍 | 마그네틱 훅/중력 닻 **폐기**. 유도 참격 → 환영검무 | [훅 대체](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) (게임 버전 v1.9.9) |
+| 후반 성능 | v1.9.4~1.9.5 탄막 최적화 (풀·이벤트 예산·HUD 10Hz) | 체크리스트 §1 |
+
+지시서 파일명의 `V1_9_4` / `V1_9_5`는 **기획서 초안 번호**입니다. 이미 나간 성능 패치와 겹치지 않게 **실제 출시 버전은 v1.9.6 / v1.9.9**입니다.
+
+**현재 포지션:** 로컬만으로 플레이·성장·재도전·후반이 도는 완결형 빌드.  
+다음은 “빠진 필수 시스템 메우기”가 아니라 **재미 심화 / 콘텐츠 볼륨 / 온라인·계측 / 폴리시** 중 어디에 시간을 쓸지 고르는 단계입니다 (§4~5).
+
+<details>
+<summary>v1.8 이전 — 이미 끝난 축 (펼치기)</summary>
+
+엔드게임·크래프팅·다양성·액티브·정밀조작·온보딩·경제·후반 텐션·QA·성좌·폭격기·VFX·배치 레벨업까지 **완료**.  
+개별 지시서는 아래 §7 표. 패치 노트 인게임화는 [docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md).
+
+</details>
 
 ---
 
@@ -79,7 +80,7 @@
 - [x] 도파민: 잭팟 히트스톱·쉐이크·피치 SFX · 보스 50% 페이즈+보석 샤워 · 돌발 균열 웨이브  
 - [x] 크래프팅: 퀀텀 큐브 오브 → 즉시 3선택지 (어픽스/데미지/투속/쿨/크기) · 어픽스 교차 시너지  
 - [x] 다양성·템포: EXP 곡선 완화 · T1 복제 · 동형 T2 3종 · 과부하 코어 · 실더/텔레포터 · 후반 돌연변이  
-- [x] UX·액티브: 기체 스킬(대시/방벽/시간왜곡) · 키보드 카드·격납고 포커스  
+- [x] UX·액티브: 기체 스킬 7종(대시/방벽/시간왜곡/융단폭격/거합도/군단폭주/혈사포) · 키보드 카드·격납고 포커스  
 - [x] 정밀 조작: Shift 저속 비행 · 조이스틱 아날로그 강도  
 - [x] 시각·온보딩: 접촉 피해 구간 색상 · 보스 탄 흰 코어/보라 테두리 · T3 미보유 크래프팅 프리뷰  
 - [x] 경제: 로비 크레딧 동기화 · 지수 비용 · 블랙마켓 가차 · 파라곤 무한 강화  
@@ -189,12 +190,27 @@
 |---|---|
 | 스테이지 | `orbit` → `rift` → `legion` (클리어 해금, 군단 7분) |
 | 도전 | 표준 / 제한무장 / 유리장갑 / 맨몸 |
-| 기체 | 스카웃(위상 대시) / 포트리스(절대 방벽) / 헌터(시간 왜곡) / 붐바르딜로-크로코딜로(융단 폭격, 해금 2000) / 야차(발도술, 해금 2500) / 오버로드(군단 폭주, 해금 2500) / 크림슨 팩트(혈사포, 해금 2800) |
-| 패시브 | 소형화·구속장·레벨업 쉴드·장갑·수집·과충전·과부하 코어 + 티타늄 장갑·추진기·고폭약·양자 배터리·확장 탄창·나노 장갑·재생 모듈·치명타 렌즈·가속 모터 (런 중 슬롯 4) |
+| 기체 | 아래 **기체 표**. 격납고에서 선택, 크레딧으로 해금 |
+| 패시브 | 소형화·구속장·레벨업 쉴드·반응장갑·수집·과충전·과부하 코어 + 티타늄 장갑·추진기·고폭약·양자 배터리·확장 탄창·나노 장갑·재생 모듈·치명타 렌즈·가속 모터 (런 중 슬롯 4) |
 | 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한, 비용 ×1.15) · 블랙마켓 스킨 |
 | 드론 베이 | 수집기·요격기·증폭기 (격납고 요약 한 줄 + 전용 모달, 크레딧 해금 후 선택, 없이 출격 가능, 강화 5캡) |
 | 파일럿 특성 | 배수진·포대 암전·처형인 (보스 코어로 해금, 출격 전 1개 장착) |
+| 성좌 | 만렙 이후 판테온 포인트 · 격납고 **22노드** 보드 · 다음 런 룰 분기 |
 | 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트·군단 격파 등 |
+
+**기체 · 스킬 · Lv.50 코어 각성** (`SHIPS` / `CORE_AWAKENINGS`)
+
+| ID | 이름 | 시작 무기 | 스킬 (Space) | 각성 (Lv.50) | 특이 |
+|---|---|---|---|---|---|
+| `scout` | 스카웃 | 벌컨 | 위상 대시 (6s) | 초공간 붕괴 (1장) | 기본 해금 |
+| `fortress` | 포트리스 | 스프레드 | 절대 방벽 (12s) | 반사 역장 (1장) | 해금 1200 |
+| `hunter` | 헌터 | 호밍 | 시간 왜곡 (15s) | 정지장 (1장) | 해금 1200 |
+| `bomber` | 붐바르딜로-크로코딜로 | 중력 지뢰 | 융단 폭격 (20s) | 네이팜 스톰 / 궤도 지뢰 부설기 | 해금 2000 |
+| `yaksha` | 야차 | 플라즈마 채찍 | 거합도 (8s) | 수라의 길 / 검강 | 해금 2500. **근접 무기만** 발사 |
+| `overlord` | 오버로드 | 스파이더 마인 | **군단 폭주** (16s, 5초) | 무한의 군단장 / 초전도 네트워크 | 해금 2500. 자폭 스킬은 폐기됨 |
+| `crimson` | 크림슨 팩트 | 핏빛 쐐기 | 혈사포 (12s) | 불사귀 / 피의 역류 | 해금 2800. 쉴드 없음, 잃은 HP만큼 광분 |
+
+스카웃·포트리스·헌터는 각성 카드가 1장, 나머지 4기체는 A/B 중 택1입니다.
 
 ### 3-4. 아이템
 
@@ -207,7 +223,6 @@
 | 0:00~ | 드론 → 지그재그 → 대셔/러셔 |
 | ~1:15 | 1차 보스 + 탱크 |
 | ~1:30 | 태양풍 재해 (궤도) · 제단 스폰(~1:40) |
-| ~2:45 / ~4:15 | 2·3차 보스 (로스터·체력 성장) |
 | ~2:45 / ~4:15 | 2·3차 보스 (로스터·체력 성장) |
 | ~3:00~ | 실더·텔레포터 + 자폭/분열/탄막 돌연변이 · 트래퍼/보텍스 |
 | ~5:00 | Mission Clear |
@@ -323,6 +338,8 @@
 | [docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md](./docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md) | v1.9.1 채찍 스윕 판정 · 거합도 VFX (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md](./docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md) | v1.9.2 레벨업 카드 시너지/진화/조합 힌트 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md](./docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md) | v1.9.3 신규 기체 코어 각성 A/B · 기체 매핑 픽스 (구현 완료) |
-| [docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) | 마그네틱 훅 → 유도 참격/환영검무 (게임 버전 v1.9.9) |
+| [docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) | 오버로드 자폭 → 군단 폭주 (게임 버전 **v1.9.6**. 파일명 V1_9_4는 기획서 초안 번호) |
+| [docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) | 마그네틱 훅 → 유도 참격/환영검무 (게임 버전 **v1.9.9**) |
 | `public/assets/sprites/fx_*.png` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
+| `src/PatchNotes.ts` | 격납고 패치 노트와 동일 (최신이 배열 앞) | |
