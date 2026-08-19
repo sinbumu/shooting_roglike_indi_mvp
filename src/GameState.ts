@@ -620,8 +620,8 @@ export class GameState {
     }
   }
 
-  applyAffix(weaponId: WeaponId, affixId: AffixId): void {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  applyAffix(weaponId: WeaponId, affixId: AffixId, slotIndex?: number): void {
+    const slot = this.slotById(weaponId, slotIndex);
     if (slot) slot.affix = affixId;
   }
 
@@ -668,9 +668,24 @@ export class GameState {
     if (i >= 0) this.acquireOrder.splice(i, 1);
   }
 
+  private slotById(weaponId: WeaponId, slotIndex?: number): WeaponSlot | undefined {
+    if (slotIndex != null && slotIndex >= 0 && slotIndex < this.weapons.length) {
+      const s = this.weapons[slotIndex];
+      if (s.weaponId === weaponId) return s;
+    }
+    return this.weapons.find((w) => w.weaponId === weaponId);
+  }
+
+  private weaponLabel(slot: WeaponSlot): string {
+    const name = WEAPONS[slot.weaponId].name;
+    const dups = this.weapons.filter((w) => w.weaponId === slot.weaponId).length >= 2;
+    if (!dups) return name;
+    return `${name}(${this.weapons.indexOf(slot) + 1}슬롯)`;
+  }
+
   /** 어픽스 리롤 (T3 + 기존 어픽스) */
-  rerollAffix(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  rerollAffix(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot || WEAPONS[weaponId].tier !== 3 || !slot.affix) return false;
     const ids = compatibleAffixes(weaponId).filter((id) => id !== slot.affix);
     if (ids.length === 0) return false;
@@ -680,8 +695,8 @@ export class GameState {
   }
 
   /** 어픽스 부여 (T3 + 무어픽스) */
-  grantAffix(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  grantAffix(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot || WEAPONS[weaponId].tier !== 3 || slot.affix) return false;
     const ids = compatibleAffixes(weaponId);
     if (ids.length === 0) return false;
@@ -690,30 +705,30 @@ export class GameState {
     return true;
   }
 
-  buffWeaponDamage(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  buffWeaponDamage(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot) return false;
     slot.damageBonus = (slot.damageBonus ?? 0) + ARSENAL.buffDamage;
     this.events.push({
       type: 'banner',
-      text: `${WEAPONS[weaponId].name} 데미지 +${Math.round(slot.damageBonus * 100)}%`,
+      text: `${this.weaponLabel(slot)} 데미지 +${Math.round(slot.damageBonus * 100)}%`,
     });
     return true;
   }
 
-  buffWeaponSpeed(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  buffWeaponSpeed(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot) return false;
     slot.speedBonus = (slot.speedBonus ?? 0) + ARSENAL.buffSpeed;
     this.events.push({
       type: 'banner',
-      text: `${WEAPONS[weaponId].name} 투속 +${Math.round(slot.speedBonus * 100)}%`,
+      text: `${this.weaponLabel(slot)} 투속 +${Math.round(slot.speedBonus * 100)}%`,
     });
     return true;
   }
 
-  buffWeaponCooldown(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  buffWeaponCooldown(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot) return false;
     slot.cooldownBonus = Math.min(
       ARSENAL.cooldownBonusCap,
@@ -721,18 +736,18 @@ export class GameState {
     );
     this.events.push({
       type: 'banner',
-      text: `${WEAPONS[weaponId].name} 쿨 -${Math.round(slot.cooldownBonus * 100)}%`,
+      text: `${this.weaponLabel(slot)} 쿨 -${Math.round(slot.cooldownBonus * 100)}%`,
     });
     return true;
   }
 
-  buffWeaponRadius(weaponId: WeaponId): boolean {
-    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+  buffWeaponRadius(weaponId: WeaponId, slotIndex?: number): boolean {
+    const slot = this.slotById(weaponId, slotIndex);
     if (!slot) return false;
     slot.radiusBonus = (slot.radiusBonus ?? 0) + ARSENAL.buffRadius;
     this.events.push({
       type: 'banner',
-      text: `${WEAPONS[weaponId].name} 크기 +${Math.round(slot.radiusBonus * 100)}%`,
+      text: `${this.weaponLabel(slot)} 크기 +${Math.round(slot.radiusBonus * 100)}%`,
     });
     return true;
   }

@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.7.2 QA 핫픽스** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.7.3 조준·크래프트 UI·밸런스** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -28,6 +28,7 @@
 | v1.7 엔드게임 확장? | **완료** — 공허의 제단 · 스테이지 재해 · 코어 각성 · 파일럿 특성 ([docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md](./docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md)) |
 | v1.7.1 필감 폴리시? | **완료** — 고유 스프라이트 · 관성/데드존 · 오디오 버스 · 스테이지 주스 ([docs/DESIGN_UPDATE_FEEL_POLISH.md](./docs/DESIGN_UPDATE_FEEL_POLISH.md)) |
 | v1.7.2 QA 핫픽스? | **완료** — 스페이스 오선택 · T3 진화 · 특이점 투척 · 근접 어픽스 ([docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md](./docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md)) |
+| v1.7.3 밸런스·UI? | **완료** — 제네시스 단발 · 크래프트 슬롯 표기 · 프레데터/해머딘 · 관통 블랙리스트 ([docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -80,7 +81,8 @@
 - [x] v1.6.0: 근접·장판 트리 10종 · 트래퍼/보텍스 · 격납고 드론 베이  
 - [x] v1.7.0: 공허의 제단 · 스테이지 환경 재해 · Lv.50 코어 각성 · 보스 코어/파일럿 특성  
 - [x] v1.7.1: 고유 스프라이트 · 이동 관성/데드존 · 오디오 컴프·팬·일시정지 덕킹 · 스테이지 주스  
-- [x] v1.7.2: 스페이스 오선택 · T3 진화 제외 · 특이점 전방 투척 · 근접 어픽스 · 증폭 드론 스케일 
+- [x] v1.7.2: 스페이스 오선택 · T3 진화 제외 · 특이점 전방 투척 · 근접 어픽스 · 증폭 드론 스케일  
+- [x] v1.7.3: 제네시스 단발 융합 · 크래프트 슬롯 번호 · 프레데터/해머딘 상향 · 고관통 어픽스 제외 
 
 ---
 
@@ -112,7 +114,7 @@
 | 2 | `gatling` / `nova` / `mothership` | 가틀링 / 노바 / 모선 | 동형 조합 (같은 T1 2개) |
 | 2 | `rotor` / `beamSword` | 회전 톱날 / 빔 소드 | 근접 (blade+spread / blade+vulcan) |
 | 2 | `seekerMine` / `singularity` | 추적 지뢰 / 특이점 | 장판 (mine+homing / mine+spread) |
-| 3 | `omega` / `starfall` / `genesis` | 오메가 / 스타폴 / 제네시스 | 이종 T2 종결 (제네시스=최근접 조준 관통) |
+| 3 | `omega` / `starfall` / `genesis` | 오메가 / 스타폴 / 제네시스 | 이종 T2 종결 (제네시스=최근접 단발 관통) |
 | 3 | `tempest` / `rupture` / `solance` / `helix` | 템페스트 / 파열핵 / 솔라 랜스 / 해머딘 | 동형 경로 |
 | 3 | `halo` / `cleaver` | 발키리의 후광 / 차원 절단기 | 근접 종결 (rotor+nova / beamSword+laser) |
 | 3 | `predator` / `eventHorizon` | 프레데터 스웜 / 이벤트 호라이즌 | 장판 종결 (seekerMine+swarm / singularity+mothership) |
@@ -272,4 +274,5 @@
 | [docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md](./docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md) | 제단·환경 재해·코어 각성·파일럿 특성 (구현 완료) |
 | [docs/DESIGN_UPDATE_FEEL_POLISH.md](./docs/DESIGN_UPDATE_FEEL_POLISH.md) | v1.7.1 필감·비주얼·오디오 폴리시 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md](./docs/DESIGN_UPDATE_V1_7_2_HOTFIX.md) | v1.7.2 QA 핫픽스 (구현 완료) |
+| [docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md) | v1.7.3 조준·크래프트 UI·밸런스 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

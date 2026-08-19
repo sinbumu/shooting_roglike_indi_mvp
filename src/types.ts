@@ -374,6 +374,8 @@ export interface LevelUpChoice {
   icon: string;
   color: string;
   weaponIds?: WeaponId[];
+  /** `weapons[]` 인덱스. 동형 다중 장착 시 크래프트/어픽스 대상을 구분 */
+  weaponSlotIndex?: number;
   resultId?: WeaponId;
   passiveId?: PassiveId;
   statId?: StatBoostId;

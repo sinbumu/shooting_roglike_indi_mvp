@@ -750,10 +750,13 @@ export class UI {
         el.style.borderColor = def.color;
         const affixMark = slot.affix ? '✦' : '';
         el.innerHTML = `
+          <span class="slot-num">${i + 1}</span>
           <span class="slot-tier">T${def.tier}${affixMark}</span>
           <span class="slot-icon">${def.icon}</span>
           <span class="slot-level">Lv.${slot.level}</span>
         `;
+      } else {
+        el.innerHTML = `<span class="slot-num">${i + 1}</span>`;
       }
       this.slotsEl.appendChild(el);
     }
@@ -1144,6 +1147,12 @@ export function craftLockedPreviewHtml(): string {
 export function craftArsenalPreviewHtml(state: GameState): string {
   const slots = state.weapons.filter((s) => WEAPONS[s.weaponId].tier === 3);
   if (!slots.length) return craftLockedPreviewHtml();
+  const dupIds = new Set<string>();
+  {
+    const counts = new Map<string, number>();
+    for (const s of slots) counts.set(s.weaponId, (counts.get(s.weaponId) ?? 0) + 1);
+    for (const [id, n] of counts) if (n >= 2) dupIds.add(id);
+  }
   const rows = slots.map((slot) => {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
@@ -1168,7 +1177,9 @@ export function craftArsenalPreviewHtml(state: GameState): string {
     const cdB = Math.round((slot.cooldownBonus ?? 0) * 100);
     const radB = Math.round((slot.radiusBonus ?? 0) * 100);
     const cdLabel = isTickWeapon(slot.weaponId) ? `빈도 +${cdB}%` : `쿨 -${cdB}%`;
-    return `<li>${def.icon} <b>${def.name}</b> Lv.${slot.level}<br/>
+    const slotIdx = state.weapons.indexOf(slot) + 1;
+    const name = dupIds.has(slot.weaponId) ? `[${slotIdx}슬롯] ${def.name}` : def.name;
+    return `<li>${def.icon} <b>${name}</b> Lv.${slot.level}<br/>
       데미지 ${dmg} × ${p.count} · 주기 ${cd}s<br/>
       어픽스 ${affix} · 데미지 +${dmgB}% · 투속 +${spdB}% · ${cdLabel} · 크기 +${radB}%</li>`;
   }).join('');

@@ -39,6 +39,24 @@ function lowestSlots(weapons: WeaponSlot[]): WeaponSlot[] {
   return [...best.values()];
 }
 
+function isDuplicateId(weapons: WeaponSlot[], id: WeaponId): boolean {
+  let n = 0;
+  for (const w of weapons) {
+    if (w.weaponId === id) {
+      n++;
+      if (n >= 2) return true;
+    }
+  }
+  return false;
+}
+
+/** 동형 다중 장착일 때만 `[2슬롯]` 접두어 */
+function slotTag(weapons: WeaponSlot[], slotIndex: number): string {
+  const id = weapons[slotIndex]?.weaponId;
+  if (!id || !isDuplicateId(weapons, id)) return '';
+  return `[${slotIndex + 1}슬롯] `;
+}
+
 function pickWeighted(pool: LevelUpChoice[]): LevelUpChoice | null {
   if (pool.length === 0) return null;
   const total = pool.reduce((s, c) => s + c.weight, 0);
@@ -90,19 +108,24 @@ function buildEndgamePool(state: GameState): LevelUpChoice[] {
     color: '#4ade80',
   });
 
-  for (const slot of state.weapons) {
+  for (let i = 0; i < state.weapons.length; i++) {
+    const slot = state.weapons[i];
     if (slot.affix) continue;
     const def = WEAPONS[slot.weaponId];
+    const tag = slotTag(state.weapons, i);
     for (const ax of Object.values(AFFIXES)) {
       if (!compatibleAffixes(slot.weaponId).includes(ax.id)) continue;
       pool.push({
         kind: 'affix',
         weight: ax.weight,
-        title: `${ax.label} ${def.name}`,
-        desc: `${def.icon} ${ax.desc}`,
+        title: `${tag}${ax.label} ${def.name}`,
+        desc: tag
+          ? `${i + 1}번 슬롯 · ${def.icon} ${ax.desc}`
+          : `${def.icon} ${ax.desc}`,
         icon: ax.icon,
         color: ax.color,
         weaponIds: [slot.weaponId],
+        weaponSlotIndex: i,
         affixId: ax.id,
       });
     }
@@ -347,20 +370,24 @@ function pickUniqueOps(count: number, slot?: WeaponSlot): Exclude<CraftOp, 'affi
   return arr.slice(0, count);
 }
 
-function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
+function craftCard(state: GameState, slot: WeaponSlot, op: CraftOp): LevelUpChoice {
   const def = WEAPONS[slot.weaponId];
+  const idx = state.weapons.indexOf(slot);
+  const tag = slotTag(state.weapons, idx);
+  const slotNote = tag ? `${idx + 1}번 슬롯 · ` : '';
   if (op === 'affix') {
     const reroll = !!slot.affix;
     return {
       kind: 'craft',
       weight: 0,
-      title: `${def.name} 어픽스 ${reroll ? '리롤' : '부여'}`,
+      title: `${tag}${def.name} 어픽스 ${reroll ? '리롤' : '부여'}`,
       desc: reroll
-        ? `현재 접사를 이 무기에 맞는 다른 무작위 어픽스로 바꿉니다.`
-        : `이 무기에 맞는 무작위 어픽스를 부여합니다.`,
+        ? `${slotNote}현재 접사를 이 무기에 맞는 다른 무작위 어픽스로 바꿉니다.`
+        : `${slotNote}이 무기에 맞는 무작위 어픽스를 부여합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
+      weaponSlotIndex: idx,
       craftOp: 'affix',
     };
   }
@@ -369,11 +396,12 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
     return {
       kind: 'craft',
       weight: 0,
-      title: `${def.name} 데미지 +${pct}%`,
-      desc: `이 무기의 기본 데미지가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
+      title: `${tag}${def.name} 데미지 +${pct}%`,
+      desc: `${slotNote}이 무기의 기본 데미지가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
+      weaponSlotIndex: idx,
       craftOp: 'damage',
     };
   }
@@ -382,11 +410,12 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
     return {
       kind: 'craft',
       weight: 0,
-      title: `${def.name} 투속 +${pct}%`,
-      desc: `이 무기의 투사체 속도가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
+      title: `${tag}${def.name} 투속 +${pct}%`,
+      desc: `${slotNote}이 무기의 투사체 속도가 이번 게임(런) 동안 ${pct}% 증가합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
+      weaponSlotIndex: idx,
       craftOp: 'speed',
     };
   }
@@ -396,13 +425,16 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
     return {
       kind: 'craft',
       weight: 0,
-      title: tick ? `${def.name} 공격 빈도 +${pct}%` : `${def.name} 쿨타임 -${pct}%`,
+      title: tick
+        ? `${tag}${def.name} 공격 빈도 +${pct}%`
+        : `${tag}${def.name} 쿨타임 -${pct}%`,
       desc: tick
-        ? `이 무기의 타격 주기가 이번 게임(런) 동안 ${pct}% 빨라집니다.`
-        : `이 무기의 발사 쿨타임이 이번 게임(런) 동안 ${pct}% 감소합니다.`,
+        ? `${slotNote}이 무기의 타격 주기가 이번 게임(런) 동안 ${pct}% 빨라집니다.`
+        : `${slotNote}이 무기의 발사 쿨타임이 이번 게임(런) 동안 ${pct}% 감소합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
+      weaponSlotIndex: idx,
       craftOp: 'cooldown',
     };
   }
@@ -410,11 +442,12 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
   return {
     kind: 'craft',
     weight: 0,
-    title: `${def.name} 크기 +${pct}%`,
-    desc: `이 무기의 투사체·폭발 반경이 이번 게임(런) 동안 ${pct}% 증가합니다.`,
+    title: `${tag}${def.name} 크기 +${pct}%`,
+    desc: `${slotNote}이 무기의 투사체·폭발 반경이 이번 게임(런) 동안 ${pct}% 증가합니다.`,
     icon: def.icon,
     color: def.color,
     weaponIds: [slot.weaponId],
+    weaponSlotIndex: idx,
     craftOp: 'radius',
   };
 }
@@ -442,13 +475,13 @@ export function generateCraftChoices(state: GameState): LevelUpChoice[] {
   if (t3.length > 0) {
     const affixSlot = t3.find((s) => compatibleAffixes(s.weaponId).length > 0) ?? pickRandom(t3);
     if (compatibleAffixes(affixSlot.weaponId).length > 0) {
-      cards.push(craftCard(affixSlot, 'affix'));
+      cards.push(craftCard(state, affixSlot, 'affix'));
     } else {
-      cards.push(craftCard(affixSlot, 'damage'));
+      cards.push(craftCard(state, affixSlot, 'damage'));
     }
-    for (const op of ops) cards.push(craftCard(pickRandom(t3), op));
+    for (const op of ops) cards.push(craftCard(state, pickRandom(t3), op));
   } else {
-    for (const op of ops) cards.push(craftCard(pickRandom(targets), op));
+    for (const op of ops) cards.push(craftCard(state, pickRandom(targets), op));
     cards.push(heal());
   }
 
@@ -543,24 +576,25 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
     }
     case 'affix': {
       const wid = (choice.weaponIds as WeaponId[])[0];
-      state.applyAffix(wid, choice.affixId as AffixId);
+      state.applyAffix(wid, choice.affixId as AffixId, choice.weaponSlotIndex);
       break;
     }
     case 'craft': {
       const wid = (choice.weaponIds as WeaponId[])[0];
+      const idx = choice.weaponSlotIndex;
       const op = choice.craftOp as CraftOp;
       if (op === 'affix') {
-        const slot = state.weapons.find((w) => w.weaponId === wid);
-        if (slot?.affix) state.rerollAffix(wid);
-        else state.grantAffix(wid);
+        const slot = idx != null ? state.weapons[idx] : state.weapons.find((w) => w.weaponId === wid);
+        if (slot?.affix) state.rerollAffix(wid, idx);
+        else state.grantAffix(wid, idx);
       } else if (op === 'damage') {
-        state.buffWeaponDamage(wid);
+        state.buffWeaponDamage(wid, idx);
       } else if (op === 'speed') {
-        state.buffWeaponSpeed(wid);
+        state.buffWeaponSpeed(wid, idx);
       } else if (op === 'cooldown') {
-        state.buffWeaponCooldown(wid);
+        state.buffWeaponCooldown(wid, idx);
       } else if (op === 'radius') {
-        state.buffWeaponRadius(wid);
+        state.buffWeaponRadius(wid, idx);
       }
       break;
     }

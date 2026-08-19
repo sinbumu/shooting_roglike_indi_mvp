@@ -7,6 +7,15 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.7.3',
+    date: '2026-08-19',
+    changes: [
+      '💫 제네시스 단발 융합 관통탄 (딜누수 해소) · 레일건계 관통 어픽스 제외',
+      '🗗 동형 다중 장착 시 크래프트 카드에 슬롯 번호 표기',
+      '🦂 프레데터 스웜 추적 가속 · 해머딘 폭발·연사 상향',
+    ],
+  },
+  {
     version: 'v1.7.2',
     date: '2026-08-19',
     changes: [

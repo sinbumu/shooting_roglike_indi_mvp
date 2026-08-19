@@ -688,6 +688,21 @@ button.secondary {
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
+.weapon-slot .slot-num {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  min-width: 14px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 1px 3px;
+  border-radius: 6px;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #94a3b8;
+}
+
 /* ===================== Overlays ===================== */
 
 .overlay {

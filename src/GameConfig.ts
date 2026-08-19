@@ -149,10 +149,10 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   genesis: {
     id: 'genesis', name: '제네시스', tier: 3, icon: '💫', color: '#c084fc',
-    desc: '[레일건+스웜] 가장 가까운 적을 조준하는 관통탄',
+    desc: '[레일건+스웜] 가장 가까운 적을 조준하는 고화력 관통탄',
     cooldownMs: 480,
     projectile: {
-      damage: 38, speed: 1100, radius: 7, count: 2, spreadDeg: 10,
+      damage: 76, speed: 1100, radius: 7, count: 1, spreadDeg: 0,
       homingTurnRate: 0, pierce: 8, lifetime: 1.4, targeted: true,
     },
   },
@@ -188,10 +188,10 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   helix: {
     id: 'helix', name: '해머딘', tier: 3, icon: '🌀', color: '#f472b6',
     desc: '[노바+모선] 주위를 나선형으로 돌며 퍼지는 폭발탄',
-    cooldownMs: 700,
+    cooldownMs: 580,
     projectile: {
       damage: 20, speed: 110, radius: 8, count: 4, spreadDeg: 360,
-      homingTurnRate: 0, pierce: 0, lifetime: 2.6, explodeRadius: 62, spiral: true,
+      homingTurnRate: 0, pierce: 0, lifetime: 2.6, explodeRadius: 85, spiral: true,
     },
   },
   // ---------- 근접 트리 ----------
@@ -283,8 +283,8 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     tags: ['drop'],
     cooldownMs: 820,
     projectile: {
-      damage: 20, speed: 100, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
-      explodeRadius: 54, drop: { fuse: 4, seekSpeed: 110, split: 4 },
+      damage: 20, speed: 180, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
+      explodeRadius: 54, drop: { fuse: 4, seekSpeed: 200, split: 4 },
     },
   },
   eventHorizon: {
@@ -882,11 +882,17 @@ export function weaponTags(def: WeaponDef): WeaponTag[] {
   return ['projectile'];
 }
 
+/** 기본 관통이 이 값 이상이면 pierce 어픽스는 무의미하므로 풀에서 제외 */
+const PIERCE_AFFIX_MIN = 5;
+
 export function compatibleAffixes(weaponId: WeaponId): AffixId[] {
-  const tags = weaponTags(WEAPONS[weaponId]);
-  return (Object.keys(AFFIXES) as AffixId[]).filter((id) =>
-    AFFIXES[id].tags.some((t) => tags.includes(t)),
-  );
+  const def = WEAPONS[weaponId];
+  const tags = weaponTags(def);
+  return (Object.keys(AFFIXES) as AffixId[]).filter((id) => {
+    if (!AFFIXES[id].tags.some((t) => tags.includes(t))) return false;
+    if (id === 'pierce' && def.projectile.pierce >= PIERCE_AFFIX_MIN) return false;
+    return true;
+  });
 }
 
 export function isTickWeapon(id: WeaponId): boolean {
