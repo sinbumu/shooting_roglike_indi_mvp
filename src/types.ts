@@ -419,6 +419,13 @@ export interface LevelUpChoice {
   affixId?: AffixId;
   craftOp?: CraftOp;
   altarOp?: 'slot' | 'credits';
+  /** 기체 특화 태그와 일치 */
+  isSynergy?: boolean;
+  /** 이 카드를 고르면 즉시 T2/T3 조합이 가능해짐 */
+  canEvolve?: boolean;
+  /** 보유 무기/패시브와 같은 조합 트리 */
+  hasCombo?: boolean;
+  synergyColor?: string;
 }
 
 // ------------------------------------------------------------

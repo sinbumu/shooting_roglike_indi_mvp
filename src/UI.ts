@@ -934,11 +934,18 @@ export class UI {
     this.cardContainer.innerHTML = '';
     for (const choice of choices) {
       const card = document.createElement('button');
+      const hints = [
+        choice.canEvolve ? 'hint-evolve' : '',
+        !choice.canEvolve && choice.isSynergy ? 'hint-synergy' : '',
+      ].filter(Boolean).join(' ');
       card.className = 'choice-card'
         + (choice.kind === 'jackpot' ? ' jackpot' : '')
-        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' || choice.kind === 'evolve' || choice.kind === 'awakening' || choice.kind === 'altarReward' ? ' endgame' : '');
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' || choice.kind === 'evolve' || choice.kind === 'awakening' || choice.kind === 'altarReward' ? ' endgame' : '')
+        + (hints ? ` ${hints}` : '');
       card.style.setProperty('--card-color', choice.color);
+      if (choice.synergyColor) card.style.setProperty('--synergy-color', choice.synergyColor);
       card.innerHTML = `
+        ${choice.hasCombo ? '<span class="puzzle-badge" title="보유 무장과 조합 가능">🧩</span>' : ''}
         <span class="card-icon">${choice.icon}</span>
         <span class="card-body">
           <div class="card-kind">${kindLabel(choice.kind)}</div>

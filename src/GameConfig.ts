@@ -1438,6 +1438,14 @@ export function isRangedFamily(id: WeaponId): boolean {
   return !tags.includes('melee') && !tags.includes('summon');
 }
 
+/** 레벨업 카드 시너지용 기체 특화 태그 */
+export function shipSpecialtyTags(shipId: ShipId): WeaponTag[] {
+  if (shipId === 'yaksha') return ['melee'];
+  if (shipId === 'overlord') return ['summon'];
+  if (shipId === 'crimson') return ['projectile', 'aura'];
+  return [];
+}
+
 /** 기본 관통이 이 값 이상이면 pierce 어픽스는 무의미하므로 풀에서 제외 */
 const PIERCE_AFFIX_MIN = 5;
 

@@ -4,7 +4,7 @@ import type {
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
   ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP, SHIPS, VOID_ALTAR, PLAYER,
-  compatibleAffixes, isTickWeapon,
+  compatibleAffixes, isTickWeapon, weaponTags, shipSpecialtyTags,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -120,6 +120,124 @@ function buildEndgamePool(state: GameState): LevelUpChoice[] {
   }
 
   return pool;
+}
+
+const comboParent = new Map<string, string>();
+let comboInited = false;
+
+function comboFind(id: string): string {
+  if (!comboParent.has(id)) comboParent.set(id, id);
+  let x = id;
+  while (comboParent.get(x) !== x) x = comboParent.get(x)!;
+  comboParent.set(id, x);
+  return x;
+}
+
+function comboUnion(a: string, b: string): void {
+  const ra = comboFind(a);
+  const rb = comboFind(b);
+  if (ra !== rb) comboParent.set(ra, rb);
+}
+
+function ensureComboGraph(): void {
+  if (comboInited) return;
+  comboInited = true;
+  for (const r of RECIPES) {
+    const nodes = r.materials.map((m) => `w:${m}`);
+    nodes.push(`w:${r.result}`);
+    if (r.requirePassive) nodes.push(`p:${r.requirePassive}`);
+    for (let i = 1; i < nodes.length; i++) comboUnion(nodes[0], nodes[i]);
+  }
+}
+
+function recipeReady(
+  weapons: WeaponId[],
+  passives: Set<PassiveId>,
+  recipe: (typeof RECIPES)[number],
+): boolean {
+  if (recipe.requirePassive && !passives.has(recipe.requirePassive)) return false;
+  const mats = recipe.materials;
+  const a = mats[0];
+  const b = mats.length === 2 ? mats[1] : undefined;
+  const countA = weapons.filter((id) => id === a).length;
+  if (b == null) return countA >= 1;
+  if (a === b) return countA >= 2;
+  return countA >= 1 && weapons.filter((id) => id === b).length >= 1;
+}
+
+function readyResults(weapons: WeaponId[], passives: Set<PassiveId>): Set<WeaponId> {
+  const out = new Set<WeaponId>();
+  for (const r of RECIPES) {
+    if (recipeReady(weapons, passives, r)) out.add(r.result);
+  }
+  return out;
+}
+
+function choiceWeaponIds(choice: LevelUpChoice): WeaponId[] {
+  if (choice.resultId) return [choice.resultId, ...(choice.weaponIds ?? [])];
+  return choice.weaponIds ?? [];
+}
+
+function choiceNodes(choice: LevelUpChoice): string[] {
+  const nodes: string[] = [];
+  for (const id of choiceWeaponIds(choice)) nodes.push(`w:${id}`);
+  if (choice.passiveId) nodes.push(`p:${choice.passiveId}`);
+  return nodes;
+}
+
+function isSynergyChoice(state: GameState, choice: LevelUpChoice): boolean {
+  const tags = shipSpecialtyTags(state.shipId);
+  if (tags.length === 0) return false;
+  const matchWeapon = (id: WeaponId) => tags.some((t) => weaponTags(WEAPONS[id]).includes(t));
+  if (choice.resultId && matchWeapon(choice.resultId)) return true;
+  for (const id of choice.weaponIds ?? []) {
+    if (matchWeapon(id)) return true;
+  }
+  if (choice.passiveId) {
+    return RECIPES.some((r) => r.requirePassive === choice.passiveId && matchWeapon(r.result));
+  }
+  return false;
+}
+
+function canEvolveChoice(state: GameState, choice: LevelUpChoice): boolean {
+  if (choice.kind === 'merge' || choice.kind === 'evolve') return true;
+  const ownedW = state.weapons.map((w) => w.weaponId);
+  const ownedP = new Set(state.passives.map((p) => p.passiveId));
+  const extraW = choice.kind === 'new' ? choice.weaponIds?.[0] : undefined;
+  const extraP = choice.kind === 'passive' ? choice.passiveId : undefined;
+  if (!extraW && !extraP) return false;
+  const before = readyResults(ownedW, ownedP);
+  const afterW = extraW ? [...ownedW, extraW] : ownedW;
+  const afterP = extraP ? new Set(ownedP).add(extraP) : ownedP;
+  const after = readyResults(afterW, afterP);
+  for (const id of after) {
+    if (!before.has(id)) return true;
+  }
+  return false;
+}
+
+function hasComboChoice(state: GameState, choice: LevelUpChoice): boolean {
+  ensureComboGraph();
+  const theirs = choiceNodes(choice);
+  if (theirs.length === 0) return false;
+  const theirSet = new Set(theirs);
+  const roots = new Set(theirs.map(comboFind));
+  const mine: string[] = [
+    ...state.weapons.map((w) => `w:${w.weaponId}`),
+    ...state.passives.map((p) => `p:${p.passiveId}`),
+  ];
+  return mine.some((n) => !theirSet.has(n) && roots.has(comboFind(n)));
+}
+
+function annotateChoiceHints(state: GameState, choices: LevelUpChoice[]): LevelUpChoice[] {
+  const shipColor = SHIPS[state.shipId].color;
+  for (const c of choices) {
+    c.isSynergy = isSynergyChoice(state, c);
+    c.canEvolve = canEvolveChoice(state, c);
+    c.hasCombo = hasComboChoice(state, c);
+    if (c.isSynergy) c.synergyColor = shipColor;
+  }
+  return choices;
 }
 
 export function generateChoices(state: GameState): LevelUpChoice[] {
@@ -305,7 +423,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     });
   }
 
-  return choices.slice(0, 3);
+  return annotateChoiceHints(state, choices.slice(0, 3));
 }
 
 function awakeningChoice(shipId: ShipId): LevelUpChoice {

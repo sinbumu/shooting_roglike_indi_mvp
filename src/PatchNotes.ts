@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.2',
+    date: '2026-08-20',
+    changes: [
+      '🧩 레벨업 카드: 기체 특화 시너지는 푸른 테두리, 즉시 진화 재료는 황금 맥동',
+      '같은 조합 트리의 파츠는 우측 상단 퍼즐 뱃지로 표시합니다',
+    ],
+  },
+  {
     version: 'v1.9.1',
     date: '2026-08-20',
     changes: [

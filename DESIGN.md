@@ -104,6 +104,7 @@
 - [x] v1.8.6: 배치 레벨업(16+는 5배수) · 드랍 스케일 · 충돌 그리드/파티클 캡 · 제단 연출/디스폰 · 격납고 귀환 
 - [x] v1.9.0: 기체 3종(야차·오버로드·크림슨) · 매트릭스 무기 21종 · 패시브 촉매 T3 
 - [x] v1.9.1: 채찍 스윕 판정/잔상 · 거합도 암전·섬광 참격·적 개별 VFX 
+- [x] v1.9.2: 레벨업 카드 시너지 글로우 · 진화 임박 황금 맥동 · 조합 퍼즐 뱃지 
 
 ---
 
@@ -313,5 +314,6 @@
 | [docs/DESIGN_UPDATE_V1_8_2_POLISHING_RETREAT_V2.md](./docs/DESIGN_UPDATE_V1_8_2_POLISHING_RETREAT_V2.md) | v1.8.6 배치 레벨업 · 드랍 스케일 · 최적화 · 제단 · 귀환 |
 | [docs/DESIGN_UPDATE_V1_9_NEW_SHIPS_WEAPONS.md](./docs/DESIGN_UPDATE_V1_9_NEW_SHIPS_WEAPONS.md) | v1.9 신기체 3종 · 매트릭스 무기 트리 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md](./docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md) | v1.9.1 채찍 스윕 판정 · 거합도 VFX (구현 완료) |
+| [docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md](./docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md) | v1.9.2 레벨업 카드 시너지/진화/조합 힌트 (구현 완료) |
 | `public/assets/sprites/fx_*.png` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

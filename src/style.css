@@ -994,6 +994,7 @@ button.secondary {
   color: #e2e8f0;
   cursor: pointer;
   text-align: left;
+  position: relative;
   transition: transform 0.1s ease, box-shadow 0.1s ease;
   animation: card-in 0.25s ease-out backwards;
 }
@@ -1058,6 +1059,56 @@ button.secondary {
 .choice-card.endgame {
   border-color: rgba(192, 132, 252, 0.7);
   background: linear-gradient(135deg, rgba(76, 29, 149, 0.45), rgba(15, 23, 42, 0.95));
+}
+
+.choice-card.hint-synergy {
+  border-color: var(--synergy-color, #38bdf8);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--synergy-color, #38bdf8) 55%, transparent),
+    0 0 28px color-mix(in srgb, var(--synergy-color, #38bdf8) 22%, transparent);
+  animation: card-in 0.25s ease-out backwards, synergy-glow 2.2s ease-in-out infinite;
+}
+
+.choice-card.hint-evolve {
+  border-color: #fbbf24;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.65), 0 0 32px rgba(251, 191, 36, 0.28);
+  animation: card-in 0.25s ease-out backwards, evolve-pulse 0.65s ease-in-out infinite;
+}
+
+.choice-card.hint-synergy:nth-child(2),
+.choice-card.hint-evolve:nth-child(2) { animation-delay: 0.07s, 0.07s; }
+.choice-card.hint-synergy:nth-child(3),
+.choice-card.hint-evolve:nth-child(3) { animation-delay: 0.14s, 0.14s; }
+
+@keyframes synergy-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--synergy-color, #38bdf8) 40%, transparent),
+      0 0 20px color-mix(in srgb, var(--synergy-color, #38bdf8) 16%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 18px color-mix(in srgb, var(--synergy-color, #38bdf8) 75%, transparent),
+      0 0 34px color-mix(in srgb, var(--synergy-color, #38bdf8) 32%, transparent);
+  }
+}
+
+@keyframes evolve-pulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.4), 0 0 18px rgba(251, 191, 36, 0.15);
+    border-color: #f59e0b;
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(251, 191, 36, 0.95), 0 0 40px rgba(251, 191, 36, 0.4);
+    border-color: #fde68a;
+  }
+}
+
+.puzzle-badge {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(196, 181, 253, 0.9));
 }
 
 .weapon-slot.affix {
