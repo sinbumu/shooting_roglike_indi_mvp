@@ -4,7 +4,7 @@ import type {
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
   AffixId, StatBoostId, TacticalId,
-  ShipSkinId, ProjSkinId,
+  ShipSkinId, ProjSkinId, DroneDef, DroneId,
 } from './types';
 
 // ============================================================
@@ -54,12 +54,14 @@ export const LEVELING = {
 
 // ------------------------------------------------------------
 // 무기 트리
-//   Tier1: vulcan(직사) / spread(방사) / homing(유도)
-//   Tier2 이종: laser = vulcan+spread / railgun = vulcan+homing / swarm = spread+homing
-//   Tier2 동형: gatling = vulcan+vulcan / nova = spread+spread / mothership = homing+homing
-//   Tier3 이종: omega = laser+railgun / starfall = laser+swarm / genesis = railgun+swarm
-//   Tier3 동형: tempest = gatling+nova / rupture = gatling+mothership
-//               helix = nova+mothership / solance = gatling+railgun
+//   Tier1: vulcan / spread / homing / blade / mine
+//   Tier2 이종: laser / railgun / swarm
+//   Tier2 동형: gatling / nova / mothership
+//   Tier2 근접: rotor = blade+spread / beamSword = blade+vulcan
+//   Tier2 장판: seekerMine = mine+homing / singularity = mine+spread
+//   Tier3: omega / starfall / genesis / tempest / rupture / helix / solance
+//          halo = rotor+nova / cleaver = beamSword+laser
+//          predator = seekerMine+swarm / eventHorizon = singularity+mothership
 // ------------------------------------------------------------
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
@@ -186,6 +188,102 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
       homingTurnRate: 0, pierce: 0, lifetime: 2.6, explodeRadius: 62, spiral: true,
     },
   },
+  // ---------- 근접 트리 ----------
+  blade: {
+    id: 'blade', name: '플라즈마 블레이드', tier: 1, icon: '⚔️', color: '#67e8f9',
+    desc: '전방 180도를 베어 적 탄막을 소멸시키는 근접 검',
+    cooldownMs: 420,
+    projectile: {
+      damage: 14, speed: 0, radius: 8, count: 1, spreadDeg: 180, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
+      melee: { arcDeg: 180, range: 72, duration: 0.12, deflect: true },
+    },
+  },
+  rotor: {
+    id: 'rotor', name: '회전 톱날', tier: 2, icon: '⚙️', color: '#94a3b8',
+    desc: '[블레이드+스프레드] 주위를 도는 톱날 2개. 인파이팅 방어',
+    cooldownMs: 120,
+    projectile: {
+      damage: 7, speed: 0, radius: 10, count: 2, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
+      orbit: { count: 2, radius: 52, persist: true },
+    },
+  },
+  beamSword: {
+    id: 'beamSword', name: '빔 소드', tier: 2, icon: '🗡️', color: '#38bdf8',
+    desc: '[블레이드+벌컨] 화면 끝까지 전방을 가르는 광역 참격',
+    cooldownMs: 1400,
+    projectile: {
+      damage: 48, speed: 0, radius: 13, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
+      melee: { arcDeg: 18, range: 920, duration: 0.18, deflect: true },
+    },
+  },
+  halo: {
+    id: 'halo', name: '발키리의 후광', tier: 3, icon: '😇', color: '#fde68a',
+    desc: '[톱날+노바] 빛의 고리가 적을 끌어당기며 갈아버림',
+    cooldownMs: 100,
+    projectile: {
+      damage: 8, speed: 0, radius: 14, count: 1, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
+      orbit: { count: 1, radius: 88, persist: true, pull: 55 },
+    },
+  },
+  cleaver: {
+    id: 'cleaver', name: '차원 절단기', tier: 3, icon: '✂️', color: '#c084fc',
+    desc: '[빔소드+레이저] 벤 궤적에 2.5초 차원 균열 DoT',
+    cooldownMs: 1400,
+    projectile: {
+      damage: 42, speed: 0, radius: 14, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
+      melee: { arcDeg: 16, range: 920, duration: 0.18, deflect: true },
+      drop: { fuse: 0, persist: 2.5, zoneDuration: 2.5, zoneTick: 0.12 },
+    },
+  },
+  // ---------- 장판 트리 ----------
+  mine: {
+    id: 'mine', name: '중력 지뢰', tier: 1, icon: '💣', color: '#fb923c',
+    desc: '이동 궤적 뒤에 3초 후 폭발하는 지뢰를 설치',
+    cooldownMs: 720,
+    projectile: {
+      damage: 22, speed: 0, radius: 10, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 3,
+      explodeRadius: 68, drop: { fuse: 3 },
+    },
+  },
+  seekerMine: {
+    id: 'seekerMine', name: '추적 지뢰', tier: 2, icon: '🪲', color: '#f97316',
+    desc: '[지뢰+호밍] 바닥에 깔린 지뢰가 최근접 적을 기어가 폭발',
+    cooldownMs: 760,
+    projectile: {
+      damage: 26, speed: 90, radius: 10, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4.5,
+      explodeRadius: 62, drop: { fuse: 4.5, seekSpeed: 90 },
+    },
+  },
+  singularity: {
+    id: 'singularity', name: '특이점 폭탄', tier: 2, icon: '🕳️', color: '#818cf8',
+    desc: '[지뢰+스프레드] 폭발 전 적을 중앙으로 끌어당긴 뒤 타격',
+    cooldownMs: 980,
+    projectile: {
+      damage: 32, speed: 0, radius: 12, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 2.4,
+      explodeRadius: 92, drop: { fuse: 2.4, pullRadius: 130, pullForce: 220 },
+    },
+  },
+  predator: {
+    id: 'predator', name: '프레데터 스웜', tier: 3, icon: '🦂', color: '#ef4444',
+    desc: '[추적지뢰+스웜] 1차 폭발 후 소형 유도탄 4발로 2차 전개',
+    cooldownMs: 820,
+    projectile: {
+      damage: 20, speed: 100, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
+      explodeRadius: 54, drop: { fuse: 4, seekSpeed: 110, split: 4 },
+    },
+  },
+  eventHorizon: {
+    id: 'eventHorizon', name: '이벤트 호라이즌', tier: 3, icon: '🌑', color: '#1e1b4b',
+    desc: '[특이점+모선] 4초간 유지되는 블랙홀 장판. 붕괴와 흡인',
+    cooldownMs: 1600,
+    projectile: {
+      damage: 14, speed: 0, radius: 16, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 1.2,
+      explodeRadius: 110, drop: {
+        fuse: 1.2, pullRadius: 150, pullForce: 180,
+        persist: 4, zoneDuration: 4, zoneTick: 0.15,
+      },
+    },
+  },
 };
 
 export const RECIPES: Recipe[] = [
@@ -202,6 +300,14 @@ export const RECIPES: Recipe[] = [
   { materials: ['gatling', 'mothership'], result: 'rupture' },
   { materials: ['nova', 'mothership'], result: 'helix' },
   { materials: ['gatling', 'railgun'], result: 'solance' },
+  { materials: ['blade', 'spread'], result: 'rotor' },
+  { materials: ['blade', 'vulcan'], result: 'beamSword' },
+  { materials: ['rotor', 'nova'], result: 'halo' },
+  { materials: ['beamSword', 'laser'], result: 'cleaver' },
+  { materials: ['mine', 'homing'], result: 'seekerMine' },
+  { materials: ['mine', 'spread'], result: 'singularity' },
+  { materials: ['seekerMine', 'swarm'], result: 'predator' },
+  { materials: ['singularity', 'mothership'], result: 'eventHorizon' },
 ];
 
 /** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
@@ -278,6 +384,14 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   architect: {
     id: 'architect', name: '기술의 군단장', hp: 680, speed: 44, radius: 34, color: DANGER.high,
     contactDamage: 27, exp: 22, spawnEdge: 'top', movePattern: 'legion',
+  },
+  trapper: {
+    id: 'trapper', name: '트래퍼', hp: 380, speed: 48, radius: 24, color: DANGER.high,
+    contactDamage: 26, exp: 16, spawnEdge: 'top', movePattern: 'anchorFence',
+  },
+  vortex: {
+    id: 'vortex', name: '보텍스', hp: 300, speed: 36, radius: 26, color: DANGER.high,
+    contactDamage: 25, exp: 15, spawnEdge: 'side', movePattern: 'vortexPull',
   },
   boss: {
     id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: DANGER.high,
@@ -528,6 +642,52 @@ export const TELEPORTER = {
   cooldown: 2.4,
 } as const;
 
+export const TRAPPER = {
+  pylonDist: 110,
+  pylonSpeed: 280,
+  fenceDamage: 28,
+  fenceWidth: 8,
+} as const;
+
+export const VORTEX = {
+  pullRadius: 170,
+  playerAccel: 140,
+  projAccel: 220,
+} as const;
+
+export const DRONES: Record<DroneId, DroneDef> = {
+  retriever: {
+    id: 'retriever', name: '수집 드론', icon: '🧲', color: '#38bdf8',
+    tag: '[자동 파밍]',
+    desc: '3초(레벨업 시 -0.2초)마다 기체 반경 400px 내의 경험치를 즉시 수집.',
+    unlockCost: 800, maxLevel: 5, baseCost: 600, costMul: 1.5,
+  },
+  defender: {
+    id: 'defender', name: '요격 드론', icon: '🛡️', color: '#86efac',
+    tag: '[탄막 방어]',
+    desc: '5초마다 날아오는 투사체 최대 3개(레벨당 +1) 요격.',
+    unlockCost: 1000, maxLevel: 5, baseCost: 600, costMul: 1.5,
+  },
+  amplifier: {
+    id: 'amplifier', name: '증폭 드론', icon: '📡', color: '#818cf8',
+    tag: '[쿨타임 버프]',
+    desc: '15초마다 반경 80px 오라를 깔아, 안에 있으면 최종 쿨타임 40% 감소.',
+    unlockCost: 1200, maxLevel: 5, baseCost: 600, costMul: 1.5,
+  },
+};
+
+export const DRONE_FX = {
+  retrieverRadius: 400,
+  retrieverInterval: 3,
+  retrieverPerLv: 0.2,
+  defenderInterval: 5,
+  defenderBase: 3,
+  amplifierInterval: 15,
+  amplifierRadius: 80,
+  amplifierDuration: 6,
+  amplifierCooldownMul: 0.6,
+} as const;
+
 // ------------------------------------------------------------
 // 보스전
 // ------------------------------------------------------------
@@ -769,6 +929,8 @@ const ORBIT_WAVES: Wave[] = [
     { enemy: 'drone', interval: 1.6, mutation: 'explode' },
     { enemy: 'zigzag', interval: 3.4, mutation: 'split' },
     { enemy: 'tank', interval: 14, mutation: 'burst' },
+    { enemy: 'trapper', interval: 20 },
+    { enemy: 'vortex', interval: 22 },
   ] },
 ];
 
@@ -779,6 +941,7 @@ const RIFT_WAVES: Wave[] = [
   { from: 35, to: Infinity, entries: [{ enemy: 'tank', interval: 6.5 }] },
   { from: 50, to: Infinity, entries: [{ enemy: 'zigzag', interval: 1.1 }] },
   { from: 90, to: Infinity, entries: [{ enemy: 'dasher', interval: 2.4 }, { enemy: 'rusher', interval: 3.8 }, { enemy: 'drone', interval: 0.7 }] },
+  { from: 120, to: Infinity, entries: [{ enemy: 'trapper', interval: 16 }, { enemy: 'vortex', interval: 18 }] },
   { from: 150, to: Infinity, entries: [
     { enemy: 'shielder', interval: 5.5 },
     { enemy: 'teleporter', interval: 4.8 },
@@ -801,6 +964,7 @@ const LEGION_WAVES: Wave[] = [
     { enemy: 'rusher', interval: 3.2 },
     { enemy: 'drone', interval: 0.55 },
   ] },
+  { from: 90, to: Infinity, entries: [{ enemy: 'trapper', interval: 14 }, { enemy: 'vortex', interval: 16 }] },
   { from: 120, to: Infinity, entries: [
     { enemy: 'shielder', interval: 4.8 },
     { enemy: 'teleporter', interval: 4.2 },

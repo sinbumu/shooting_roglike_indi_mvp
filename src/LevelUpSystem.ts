@@ -145,7 +145,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
           color: def.color,
           weaponIds: [def.id],
         });
-      } else if (count < T1_DUPLICATE_CAP) {
+      } else if (count < T1_DUPLICATE_CAP && RECIPES.some((r) => r.materials[0] === def.id && r.materials[1] === def.id)) {
         pool.push({
           kind: 'new',
           weight: 18,

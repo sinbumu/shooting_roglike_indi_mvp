@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -257,6 +257,7 @@ export class Renderer {
     this.drawPickups(state);
     this.drawEnemies(state);
     this.drawProjectiles(state);
+    this.drawSpecials(state);
     this.drawBeams(state);
     this.drawEnemyProjectiles(state);
     this.drawPlayer(state, dt);
@@ -757,6 +758,8 @@ export class Renderer {
         else if (e.def.id === 'warden') spr.tint = 0xf87171;
         else if (e.def.id === 'herald') spr.tint = 0xc084fc;
         else if (e.def.id === 'architect') spr.tint = 0x67e8f9;
+        else if (e.def.id === 'trapper') spr.tint = 0xef4444;
+        else if (e.def.id === 'vortex') spr.tint = 0x312e81;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
         else if (e.mutation === 'burst') spr.tint = 0xe879f9;
@@ -793,6 +796,13 @@ export class Renderer {
           aura.position.set(e.x, e.y);
           aura.width = aura.height = GUARDIAN.auraRadius * 2 + Math.sin(this.elapsed * 3) * 10;
           aura.alpha = 0.28;
+        }
+        if (e.def.id === 'vortex') {
+          const swirl = this.glowPool.get();
+          swirl.tint = 0x1e1b4b;
+          swirl.position.set(e.x, e.y);
+          swirl.width = swirl.height = VORTEX.pullRadius * 2 + Math.sin(this.elapsed * 2.4) * 18;
+          swirl.alpha = 0.32;
         }
         if (isCommander) {
           const aura = this.glowPool.get();
@@ -836,8 +846,16 @@ export class Renderer {
             pts = [0, -r, r * 0.55, 0, 0, r, -r * 0.55, 0];
             break;
           case 'guardian':
+          case 'trapper':
             pts = [-r, -r * 0.6, r, -r * 0.6, r * 0.85, r, -r * 0.85, r];
             break;
+          case 'vortex': {
+            for (let k = 0; k < 8; k++) {
+              const a = (k / 8) * Math.PI * 2 + e.age * 1.4;
+              pts.push(Math.cos(a) * r, Math.sin(a) * r * 0.7);
+            }
+            break;
+          }
           case 'warden':
           case 'herald':
           case 'architect':
@@ -890,6 +908,19 @@ export class Renderer {
         g.circle(e.x, e.y, GUARDIAN.auraRadius)
           .stroke({ width: 2, color: 0xa3e635, alpha: 0.32 + Math.sin(this.elapsed * 3) * 0.1 });
       }
+      if (e.def.id === 'vortex') {
+        g.circle(e.x, e.y, VORTEX.pullRadius)
+          .stroke({ width: 2, color: 0x312e81, alpha: 0.35 + Math.sin(this.elapsed * 3) * 0.1 });
+        const spin = this.elapsed * 2.2;
+        for (let k = 0; k < 3; k++) {
+          const a0 = spin + (k * Math.PI * 2) / 3;
+          g.moveTo(e.x + Math.cos(a0) * r * 1.35, e.y + Math.sin(a0) * r * 1.35);
+          g.arc(e.x, e.y, r * 1.35, a0, a0 + 1.4);
+          g.stroke({ width: 3, color: 0x6366f1, alpha: 0.45 });
+        }
+        g.circle(e.x, e.y, r * 0.55).fill({ color: 0x020617, alpha: 0.92 });
+        g.circle(e.x, e.y, r * 0.22).fill(0x0f172a);
+      }
       if (e.def.id === 'mirage') {
         const cloaked = Math.hypot(state.playerX - e.x, state.playerY - e.y) > MIRAGE.revealRadius;
         if (cloaked) {
@@ -914,6 +945,32 @@ export class Renderer {
         g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
         g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4)
           .fill(e.elite ? 0xfbbf24 : 0x4ade80);
+      }
+    }
+
+    const fenceCol = hex(DANGER.high);
+    for (const p of state.pylons) {
+      g.circle(p.x, p.y, 6).fill(fenceCol);
+      g.circle(p.x, p.y, 9).stroke({ width: 2, color: 0xfca5a5, alpha: 0.8 });
+    }
+    for (const s of state.fenceLines()) {
+      g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
+        .stroke({ width: TRAPPER.fenceWidth, color: fenceCol, alpha: 0.55 + Math.sin(this.elapsed * 18) * 0.2 });
+      g.moveTo(s.ax, s.ay).lineTo(s.bx, s.by)
+        .stroke({ width: 2, color: 0xfef2f2, alpha: 0.7 });
+      if (Math.random() < 0.15) {
+        const t = Math.random();
+        this.spawnParticle({
+          x: s.ax + (s.bx - s.ax) * t,
+          y: s.ay + (s.by - s.ay) * t,
+          vx: (Math.random() - 0.5) * 80,
+          vy: (Math.random() - 0.5) * 80,
+          life: 0.18,
+          sizeFrom: 6,
+          sizeTo: 1,
+          tint: fenceCol,
+          alphaFrom: 0.9,
+        });
       }
     }
   }
@@ -1001,6 +1058,83 @@ export class Renderer {
 
       // 흰색 코어
       this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
+    }
+  }
+
+  private drawSpecials(state: GameState): void {
+    const g = this.projG;
+    for (const s of state.slashes) {
+      const color = hex(s.color);
+      const alpha = Math.max(0.15, s.life / s.maxLife);
+      const half = (s.arcDeg * Math.PI) / 360;
+      g.moveTo(s.x, s.y);
+      g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
+      g.lineTo(s.x, s.y);
+      g.fill({ color, alpha: 0.22 * alpha });
+      g.moveTo(s.x, s.y);
+      g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
+      g.stroke({ width: 3, color, alpha: 0.8 * alpha });
+    }
+    for (const o of state.orbiters) {
+      const color = hex(o.color);
+      if (o.ring) {
+        g.circle(state.playerX, state.playerY, o.radius)
+          .stroke({ width: 8, color, alpha: 0.45 + Math.sin(this.elapsed * 8) * 0.1 });
+        g.circle(state.playerX, state.playerY, o.radius)
+          .stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
+      } else {
+        const x = state.playerX + Math.cos(o.angle) * o.radius;
+        const y = state.playerY + Math.sin(o.angle) * o.radius;
+        g.circle(x, y, o.hitRadius).fill(color);
+        const glow = this.glowPool.get();
+        glow.tint = color;
+        glow.position.set(x, y);
+        glow.width = glow.height = o.hitRadius * 5;
+        glow.alpha = 0.7;
+      }
+    }
+    for (const m of state.mines) {
+      const color = hex(m.color);
+      const blink = m.fuse < 0.6 && Math.floor(this.elapsed * 12) % 2 === 0;
+      g.circle(m.x, m.y, m.radius).fill(blink ? 0xffffff : color);
+      g.circle(m.x, m.y, m.radius + 3).stroke({ width: 1.5, color, alpha: 0.7 });
+    }
+    for (const z of state.zones) {
+      const color = hex(z.color);
+      if (z.kind === 'segment') {
+        g.moveTo(z.x, z.y).lineTo(z.x2, z.y2)
+          .stroke({ width: z.radius * 1.6, color, alpha: 0.35 });
+        g.moveTo(z.x, z.y).lineTo(z.x2, z.y2)
+          .stroke({ width: 3, color: 0xffffff, alpha: 0.5 });
+      } else {
+        g.circle(z.x, z.y, z.radius).fill({ color: 0x020617, alpha: 0.35 });
+        g.circle(z.x, z.y, z.radius)
+          .stroke({ width: 3, color, alpha: 0.55 + Math.sin(this.elapsed * 5) * 0.15 });
+      }
+    }
+    for (const b of state.interceptBeams) {
+      g.moveTo(b.x1, b.y1).lineTo(b.x2, b.y2)
+        .stroke({ width: 3, color: 0x86efac, alpha: Math.max(0, b.life * 8) });
+    }
+    if (state.ampAura) {
+      const a = 0.2 + Math.sin(this.elapsed * 6) * 0.08;
+      g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
+        .fill({ color: 0x818cf8, alpha: a });
+      g.circle(state.ampAura.x, state.ampAura.y, state.ampAura.r)
+        .stroke({ width: 2, color: 0xa5b4fc, alpha: 0.7 });
+    }
+    if (state.droneId) {
+      const dx = state.playerX + 22;
+      const dy = state.playerY - 16 + Math.sin(this.elapsed * 3) * 4;
+      const col = state.droneId === 'retriever' ? 0x38bdf8
+        : state.droneId === 'defender' ? 0x86efac
+        : 0x818cf8;
+      g.circle(dx, dy, 6).fill(col);
+      const glow = this.glowPool.get();
+      glow.tint = col;
+      glow.position.set(dx, dy);
+      glow.width = glow.height = 22;
+      glow.alpha = 0.7;
     }
   }
 

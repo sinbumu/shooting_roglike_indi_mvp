@@ -7,8 +7,9 @@ import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSys
 import {
   loadMeta, saveMeta, settleRun, tryBuyUpgrade, tryUnlockShip, selectShip,
   selectStage, selectChallenge, tryOpenGacha,
+  tryUnlockDrone, selectDrone, tryUpgradeDrone,
 } from './Meta';
-import type { ShipId, MetaUpgradeId } from './types';
+import type { ShipId, MetaUpgradeId, DroneId } from './types';
 import './style.css';
 
 const wrap = document.getElementById('game-wrap') as HTMLDivElement;
@@ -309,6 +310,21 @@ ui.onUnlockShipRequest((id: ShipId) => {
   } else {
     ui.showBanner('크레딧이 부족합니다');
   }
+});
+
+ui.onUnlockDroneRequest((id: DroneId) => {
+  if (tryUnlockDrone(meta, id)) ui.refreshHangar();
+  else ui.showBanner('크레딧이 부족합니다');
+});
+
+ui.onSelectDrone((id: DroneId) => {
+  selectDrone(meta, id);
+  ui.refreshHangar();
+});
+
+ui.onUpgradeDrone((id: DroneId) => {
+  if (!tryUpgradeDrone(meta, id)) ui.showBanner('강화 불가');
+  else ui.refreshHangar();
 });
 
 ui.onBuyUpgrade((id: MetaUpgradeId) => {

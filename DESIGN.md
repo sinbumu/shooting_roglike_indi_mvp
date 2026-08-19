@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.5.0 스테이지·무기·패시브 개편** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.6.0 근접·장판 트리 · 트래퍼/보텍스 · 드론 베이** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -24,6 +24,7 @@
 | QA 폴리싱? | **완료** — 무기고 스펙/도감 · 실더 50히트 · 오메가 상향 · 호밍 너프 · 동형 T3 3종 ([docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md)) |
 | 크래프트·유도 후속? | **완료** — T3 선택지 무작위 · 쿨/크기 옵션 · 선회력 동기화 ([docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md)) |
 | 스테이지·무기 폴리시? | **완료** — orbit→rift→legion · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 ([docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md)) |
+| 수평 콘텐츠? | **완료** — 근접·장판 무기 10종 · 트래퍼/보텍스 · 격납고 드론 베이 ([docs/DESIGN_UPDATE_CONTENT_EXPANSION.md](./docs/DESIGN_UPDATE_CONTENT_EXPANSION.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -99,12 +100,17 @@
 | Tier | ID | 이름 | 역할 |
 |---|---|---|---|
 | 1 | `vulcan` / `spread` / `homing` | 벌컨 / 스프레드 / 호밍 | 직사 / 부채 / 유도 |
+| 1 | `blade` / `mine` | 플라즈마 블레이드 / 중력 지뢰 | 근접 참격 / 설치형 폭발 (슬롯당 1) |
 | 2 | `laser` / `railgun` / `swarm` | 레이저 / 레일건 / 스웜 | 이종 조합 |
 | 2 | `gatling` / `nova` / `mothership` | 가틀링 / 노바 / 모선 | 동형 조합 (같은 T1 2개) |
+| 2 | `rotor` / `beamSword` | 회전 톱날 / 빔 소드 | 근접 (blade+spread / blade+vulcan) |
+| 2 | `seekerMine` / `singularity` | 추적 지뢰 / 특이점 | 장판 (mine+homing / mine+spread) |
 | 3 | `omega` / `starfall` / `genesis` | 오메가 / 스타폴 / 제네시스 | 이종 T2 종결 (제네시스=최근접 조준 관통) |
-| 3 | `tempest` / `rupture` / `solance` / `helix` | 템페스트 / 파열핵 / 솔라 랜스 / 해머딘 | 동형 경로 (난사 / 역장무시 폭발 / 가틀링+레일건 빔 / 노바+모선 나선) |
+| 3 | `tempest` / `rupture` / `solance` / `helix` | 템페스트 / 파열핵 / 솔라 랜스 / 해머딘 | 동형 경로 |
+| 3 | `halo` / `cleaver` | 발키리의 후광 / 차원 절단기 | 근접 종결 (rotor+nova / beamSword+laser) |
+| 3 | `predator` / `eventHorizon` | 프레데터 스웜 / 이벤트 호라이즌 | 장판 종결 (seekerMine+swarm / singularity+mothership) |
 
-- 슬롯 5 → 경로 선택형 빌드. T1은 슬롯당 최대 2개까지 복제 가능  
+- 슬롯 5 → 경로 선택형 빌드. T1 복제 카드는 **동형 레시피 있는 ID만** (`vulcan`/`spread`/`homing`). `blade`/`mine`은 슬롯당 1  
 - 조합 레벨 = 재료 중 **낮은 쪽** 계승  
 - 가중치: 조합 100 / 강화 40 / 신규 25 / T1 복제 18 / 잭팟 4% (`LevelUpSystem.ts`)
 
@@ -118,6 +124,8 @@
 | `splinter` | 파편 | 분열 돌연변이 처치 시 등장 (추가 분열 없음) |
 | `mirage` | 미라지 | 200px 밖 은신·무적·유도 불가 |
 | `guardian` | 가디언 | 오라 안 아군 피감 50%. 우선 점사 대상 |
+| `trapper` | 트래퍼 | 후반 강적. 고정 후 4방향 말뚝을 빨간 레이저 펜스로 연결. 접촉 고피해 |
+| `vortex` | 보텍스 | 후반 강적. 가장자리 스폰. 반경 안 기체·투사체 흡인 |
 | `warden` / `herald` / `architect` | 군단장 3종 | 군단 스테이지 전용. 방어 HP 가산 / 스폰 가속 / 전방위 역장+투사체 감속 |
 | (엘리트) | 동일 풀 + 강화 | 금색 tint, 보상↑ |
 | (돌연변이) | 자폭 / 분열 / 탄막 | 후반 웨이브 속성 |
@@ -137,6 +145,7 @@
 | 기체 | 스카웃(위상 대시) / 포트리스(절대 방벽) / 헌터(시간 왜곡) |
 | 패시브 | 소형화·구속장·레벨업 쉴드·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
 | 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한, 비용 ×1.15) · 블랙마켓 스킨 |
+| 드론 베이 | 수집기·요격기·증폭기 (크레딧 해금 후 선택, 없이 출격 가능, 강화 5캡) |
 | 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트·군단 격파 등 |
 
 ### 3-4. 아이템
@@ -150,7 +159,7 @@
 | 0:00~ | 드론 → 지그재그 → 대셔/러셔 |
 | ~1:15 | 1차 보스 + 탱크 |
 | ~2:45 / ~4:15 | 2·3차 보스 (로스터·체력 성장) |
-| ~3:00~ | 실더·텔레포터 + 자폭/분열/탄막 돌연변이 |
+| ~3:00~ | 실더·텔레포터 + 자폭/분열/탄막 돌연변이 · 트래퍼/보텍스 |
 | ~5:00 | Mission Clear |
 
 균열(4:30)·군단(7:00, 60초마다 군단장)은 타임·웨이브·스토리가 다름 → `GameConfig.ts`의 `STAGES` 참고.
@@ -248,4 +257,5 @@
 | [docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md) | QA 피드백 폴리싱 (구현 완료) |
 | [docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md) | 크래프팅 무작위·쿨/크기 · 유도 선회 (구현 완료) |
 | [docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md) | 스테이지 재구성·무기/패시브 리워크·딜미터 (구현 완료) |
+| [docs/DESIGN_UPDATE_CONTENT_EXPANSION.md](./docs/DESIGN_UPDATE_CONTENT_EXPANSION.md) | 근접·장판 트리 · 트래퍼/보텍스 · 드론 베이 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

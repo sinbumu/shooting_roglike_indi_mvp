@@ -21,6 +21,8 @@ export const SPRITE_PATHS = {
     splinter: `${base}/enemy_splinter.png`,
     mirage: `${base}/enemy_mirage.png`,
     guardian: `${base}/enemy_guardian.png`,
+    trapper: `${base}/enemy_guardian.png`,
+    vortex: `${base}/enemy_tank.png`,
     warden: `${base}/boss_boss.png`,
     herald: `${base}/boss_boss.png`,
     architect: `${base}/boss_boss.png`,

@@ -18,7 +18,17 @@ export type WeaponId =
   | 'tempest'
   | 'rupture'
   | 'solance'
-  | 'helix';
+  | 'helix'
+  | 'blade'
+  | 'rotor'
+  | 'beamSword'
+  | 'halo'
+  | 'cleaver'
+  | 'mine'
+  | 'seekerMine'
+  | 'singularity'
+  | 'predator'
+  | 'eventHorizon';
 
 export type WeaponTier = 1 | 2 | 3;
 
@@ -49,6 +59,31 @@ export interface ProjectileSpec {
   targeted?: boolean;
   /** true면 원점에서 나선형으로 퍼짐 */
   spiral?: boolean;
+  /** 부채 참격 (근접) */
+  melee?: {
+    arcDeg: number;
+    range: number;
+    duration: number;
+    deflect: boolean;
+  };
+  /** 기체 주위 유지 궤도 */
+  orbit?: {
+    count: number;
+    radius: number;
+    persist: boolean;
+    pull?: number;
+  };
+  /** 설치형 지뢰/블랙홀 */
+  drop?: {
+    fuse: number;
+    seekSpeed?: number;
+    pullRadius?: number;
+    pullForce?: number;
+    persist?: number;
+    split?: number;
+    zoneDuration?: number;
+    zoneTick?: number;
+  };
 }
 
 export interface WeaponDef {
@@ -72,6 +107,21 @@ export interface Recipe {
 // ------------------------------------------------------------
 
 export type ShipId = 'scout' | 'fortress' | 'hunter';
+
+export type DroneId = 'retriever' | 'defender' | 'amplifier';
+
+export interface DroneDef {
+  id: DroneId;
+  name: string;
+  icon: string;
+  color: string;
+  tag: string;
+  desc: string;
+  unlockCost: number;
+  maxLevel: number;
+  baseCost: number;
+  costMul: number;
+}
 
 export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation';
 
@@ -227,6 +277,8 @@ export type EnemyId =
   | 'warden'
   | 'herald'
   | 'architect'
+  | 'trapper'
+  | 'vortex'
   | 'boss'
   | 'bossSeraph';
 
@@ -243,6 +295,8 @@ export type MovePattern =
   | 'cloakDown'
   | 'auraDown'
   | 'legion'
+  | 'anchorFence'
+  | 'vortexPull'
   | 'boss'
   | 'bossSeraph';
 

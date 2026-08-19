@@ -420,6 +420,30 @@ button.secondary {
 
 .ship-card.locked { opacity: 0.72; }
 
+#drone-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 340px;
+  max-height: 28vh;
+  overflow-y: auto;
+}
+
+.drone-tag {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.drone-up {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #fde68a;
+  text-decoration: underline;
+}
+
 .ship-icon { font-size: 22px; line-height: 0; }
 .ship-icon img {
   width: 48px;

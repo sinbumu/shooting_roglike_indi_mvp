@@ -1,11 +1,11 @@
 import type {
   AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
-  ShipSkinId, ProjSkinId, WeaponId,
+  ShipSkinId, ProjSkinId, WeaponId, DroneId,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
   STAGES, DEFAULT_STAGE, DEFAULT_CHALLENGE,
-  GACHA, SHIP_SKINS, PROJ_SKINS,
+  GACHA, SHIP_SKINS, PROJ_SKINS, DRONES,
 } from './GameConfig';
 import type { GameState } from './GameState';
 import { WEAPONS } from './GameConfig';
@@ -34,6 +34,9 @@ export interface MetaSave {
   equippedShipSkins: Partial<Record<ShipId, ShipSkinId>>;
   equippedProjSkins: Partial<Record<WeaponId, ProjSkinId>>;
   seenWeapons: WeaponId[];
+  unlockedDrones: DroneId[];
+  selectedDrone: DroneId | null;
+  droneLevels: Record<DroneId, number>;
 }
 
 function defaultSave(): MetaSave {
@@ -54,6 +57,9 @@ function defaultSave(): MetaSave {
     equippedShipSkins: {},
     equippedProjSkins: {},
     seenWeapons: [],
+    unlockedDrones: [],
+    selectedDrone: null,
+    droneLevels: { retriever: 1, defender: 1, amplifier: 1 },
   };
 }
 
@@ -108,6 +114,14 @@ export function loadMeta(): MetaSave {
       equippedShipSkins: parsed.equippedShipSkins ?? {},
       equippedProjSkins: parsed.equippedProjSkins ?? {},
       seenWeapons: parsed.seenWeapons ?? [],
+      unlockedDrones: parsed.unlockedDrones ?? [],
+      selectedDrone: parsed.selectedDrone && (parsed.unlockedDrones ?? []).includes(parsed.selectedDrone)
+        ? parsed.selectedDrone
+        : null,
+      droneLevels: {
+        retriever: 1, defender: 1, amplifier: 1,
+        ...parsed.droneLevels,
+      },
     };
   } catch {
     return defaultSave();
@@ -163,6 +177,47 @@ export function selectStage(meta: MetaSave, id: StageId): boolean {
 export function selectChallenge(meta: MetaSave, id: ChallengeId): void {
   meta.selectedChallenge = id;
   saveMeta(meta);
+}
+
+export function droneUpgradeCost(id: DroneId, currentLevel: number): number {
+  const def = DRONES[id];
+  return Math.round(def.baseCost * Math.pow(def.costMul, currentLevel - 1));
+}
+
+export function tryUnlockDrone(meta: MetaSave, id: DroneId): boolean {
+  if (meta.unlockedDrones.includes(id)) return false;
+  const cost = DRONES[id].unlockCost;
+  if (meta.credits < cost) return false;
+  meta.credits -= cost;
+  meta.unlockedDrones.push(id);
+  meta.droneLevels[id] = 1;
+  saveMeta(meta);
+  return true;
+}
+
+export function selectDrone(meta: MetaSave, id: DroneId | null): boolean {
+  if (id === null) {
+    meta.selectedDrone = null;
+    saveMeta(meta);
+    return true;
+  }
+  if (!meta.unlockedDrones.includes(id)) return false;
+  meta.selectedDrone = meta.selectedDrone === id ? null : id;
+  saveMeta(meta);
+  return true;
+}
+
+export function tryUpgradeDrone(meta: MetaSave, id: DroneId): boolean {
+  if (!meta.unlockedDrones.includes(id)) return false;
+  const def = DRONES[id];
+  const lv = meta.droneLevels[id] ?? 1;
+  if (lv >= def.maxLevel) return false;
+  const cost = droneUpgradeCost(id, lv);
+  if (meta.credits < cost) return false;
+  meta.credits -= cost;
+  meta.droneLevels[id] = lv + 1;
+  saveMeta(meta);
+  return true;
 }
 
 function unlockNextStages(meta: MetaSave, cleared: StageId): void {

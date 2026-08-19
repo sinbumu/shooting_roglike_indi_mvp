@@ -1,15 +1,26 @@
-import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId } from './types';
+import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId, DroneId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
   STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
-  COMBAT, RECIPES,
+  COMBAT, RECIPES, DRONES, DRONE_FX,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
 import type { MetaSave } from './Meta';
-import { upgradeCost } from './Meta';
+import { upgradeCost, droneUpgradeCost } from './Meta';
 import { SPRITE_PATHS } from './assets';
 import { PATCH_NOTES, LATEST_VERSION } from './PatchNotes';
+
+function droneStatLine(id: DroneId, lv: number): string {
+  if (id === 'retriever') {
+    const t = (DRONE_FX.retrieverInterval - DRONE_FX.retrieverPerLv * (lv - 1)).toFixed(1);
+    return `${t}초마다 기체 반경 ${DRONE_FX.retrieverRadius}px 내의 경험치를 즉시 수집.`;
+  }
+  if (id === 'defender') {
+    return `5초마다 날아오는 투사체 최대 ${DRONE_FX.defenderBase + (lv - 1)}개 요격.`;
+  }
+  return `15초마다 반경 ${DRONE_FX.amplifierRadius}px 오라. 안에 있으면 최종 쿨타임 40% 감소.`;
+}
 
 function fmtCredits(n: number): string {
   return n.toLocaleString('en-US');
@@ -60,6 +71,7 @@ export class UI {
   private codexList = document.getElementById('codex-list') as HTMLDivElement;
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
+  private droneSelect = document.getElementById('drone-select') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
   private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
   private metaCredits = document.getElementById('meta-credits') as HTMLSpanElement;
@@ -250,6 +262,51 @@ export class UI {
       this.shipSelect.appendChild(card);
     }
 
+    this.droneSelect.innerHTML = '';
+    for (const drone of Object.values(DRONES)) {
+      const unlocked = this.meta.unlockedDrones.includes(drone.id);
+      const selected = this.meta.selectedDrone === drone.id;
+      const lv = this.meta.droneLevels[drone.id] ?? 1;
+      const upCost = droneUpgradeCost(drone.id, lv);
+      const maxed = lv >= drone.maxLevel;
+      const card = document.createElement('button');
+      card.className = 'ship-card drone-card' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+      card.style.setProperty('--ship-color', drone.color);
+      const detail = droneStatLine(drone.id, lv);
+      card.innerHTML = `
+        <div class="ship-name">${drone.icon} ${drone.name} <span class="drone-tag">${drone.tag}</span></div>
+        <div class="ship-desc">${detail}</div>
+        <div class="ship-meta">Lv.${lv}/${drone.maxLevel}</div>
+        ${unlocked
+          ? `<div class="ship-status">${selected ? '장착됨 · 다시 누르면 해제' : '선택'}${maxed ? '' : ` · 강화 💰 ${fmtCredits(upCost)}`}</div>`
+          : `<div class="ship-status">🔒 ${fmtCredits(drone.unlockCost)} 크레딧</div>`}
+      `;
+      card.addEventListener('click', (ev) => {
+        if (!this.meta) return;
+        if (!unlocked) {
+          card.dispatchEvent(new CustomEvent('unlock-drone', { bubbles: true, detail: drone.id }));
+          return;
+        }
+        const target = ev.target as HTMLElement;
+        if (target.closest('.drone-up') || (ev.shiftKey && !maxed)) {
+          card.dispatchEvent(new CustomEvent('upgrade-drone', { bubbles: true, detail: drone.id }));
+          return;
+        }
+        card.dispatchEvent(new CustomEvent('select-drone', { bubbles: true, detail: drone.id }));
+      });
+      if (unlocked && !maxed) {
+        const up = document.createElement('span');
+        up.className = 'drone-up';
+        up.textContent = `강화 💰${fmtCredits(upCost)}`;
+        up.addEventListener('click', (e) => {
+          e.stopPropagation();
+          card.dispatchEvent(new CustomEvent('upgrade-drone', { bubbles: true, detail: drone.id }));
+        });
+        card.appendChild(up);
+      }
+      this.droneSelect.appendChild(card);
+    }
+
     const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
     const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
     const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
@@ -259,6 +316,7 @@ export class UI {
       [...this.stageSelect.querySelectorAll('button')],
       [...this.challengeSelect.querySelectorAll('button')],
       [...this.shipSelect.querySelectorAll('button')],
+      [...this.droneSelect.querySelectorAll('button')],
       [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, achvBtn, codexBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
@@ -267,8 +325,8 @@ export class UI {
       && this.gachaOverlay.classList.contains('hidden')
       && this.patchOverlay.classList.contains('hidden')
       && this.codexOverlay.classList.contains('hidden')) {
-      this.hangarGroupIdx = 3;
-      this.setFocusGroup(this.hangarGroups[3]);
+      this.hangarGroupIdx = 4;
+      this.setFocusGroup(this.hangarGroups[4]);
     }
   }
 
@@ -284,6 +342,18 @@ export class UI {
     this.shipSelect.addEventListener('unlock-ship', ((e: CustomEvent<ShipId>) => {
       fn(e.detail);
     }) as EventListener);
+  }
+
+  onUnlockDroneRequest(fn: (id: DroneId) => void): void {
+    this.droneSelect.addEventListener('unlock-drone', ((e: CustomEvent<DroneId>) => fn(e.detail)) as EventListener);
+  }
+
+  onSelectDrone(fn: (id: DroneId) => void): void {
+    this.droneSelect.addEventListener('select-drone', ((e: CustomEvent<DroneId>) => fn(e.detail)) as EventListener);
+  }
+
+  onUpgradeDrone(fn: (id: DroneId) => void): void {
+    this.droneSelect.addEventListener('upgrade-drone', ((e: CustomEvent<DroneId>) => fn(e.detail)) as EventListener);
   }
 
   private refreshMetaShop(): void {
