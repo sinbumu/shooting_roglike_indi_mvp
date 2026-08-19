@@ -1545,6 +1545,12 @@ export const TERRAIN = {
   },
 } as const;
 
+/** 거합도 참격 연출 — 피해는 즉발, 렌더만 이 길이를 씀 */
+export const IAIDO_FX = {
+  duration: 0.52,
+  fade: 0.16,
+} as const;
+
 /** Lv.50 코어 각성 */
 export const AWAKEN = {
   level: 50,

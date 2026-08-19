@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, isWhipWeapon, slashSweepAngle } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, isWhipWeapon, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
@@ -230,7 +230,7 @@ export class Renderer {
   private flashAlpha = 0;
   private flashColor = 0xef4444;
   private dimLeft = 0;
-  private iaidoFx: { x: number; y: number; w: number; h: number; life: number; hits: { x: number; y: number }[] } | null = null;
+  private iaidoFx: { x: number; y: number; w: number; h: number; life: number; maxLife: number; hits: { x: number; y: number }[] } | null = null;
   private iaidoSlashSpr: Sprite | null = null;
   private iaidoSlashSpr2: Sprite | null = null;
   private empSprites: Sprite[] = [];
@@ -552,24 +552,27 @@ export class Renderer {
           break;
         case 'iaidoSlash':
           this.flashAlpha = 0;
-          this.dimLeft = 0.22;
-          this.iaidoFx = { x: ev.x, y: ev.y, w: ev.w, h: ev.h, life: 0.2, hits: ev.hits };
-          this.shake(12, 0.32);
+          this.dimLeft = IAIDO_FX.duration;
+          this.iaidoFx = {
+            x: ev.x, y: ev.y, w: ev.w, h: ev.h,
+            life: IAIDO_FX.duration, maxLife: IAIDO_FX.duration, hits: ev.hits,
+          };
+          this.shake(12, 0.48);
           const hud = document.getElementById('hud');
           hud?.classList.add('iaido-dim');
-          window.setTimeout(() => hud?.classList.remove('iaido-dim'), 220);
+          window.setTimeout(() => hud?.classList.remove('iaido-dim'), IAIDO_FX.duration * 1000);
           for (const h of ev.hits) {
-            this.spawnParticle({ x: h.x, y: h.y, life: 0.22, sizeFrom: 28, sizeTo: 8, tint: 0xf8fafc, alphaFrom: 0.95 });
-            this.spawnParticle({ x: h.x, y: h.y, life: 0.28, sizeFrom: 18, sizeTo: 36, tint: 0xef4444, alphaFrom: 0.9, ring: true });
+            this.spawnParticle({ x: h.x, y: h.y, life: 0.48, sizeFrom: 28, sizeTo: 8, tint: 0xf8fafc, alphaFrom: 0.95 });
+            this.spawnParticle({ x: h.x, y: h.y, life: 0.52, sizeFrom: 18, sizeTo: 36, tint: 0xef4444, alphaFrom: 0.9, ring: true });
             for (let k = 0; k < 4; k++) {
               const a = Math.PI * 0.25 + k * Math.PI * 0.5;
               this.spawnParticle({
                 x: h.x, y: h.y,
-                vx: Math.cos(a) * 140,
-                vy: Math.sin(a) * 140,
-                life: 0.2, sizeFrom: 10, sizeTo: 2,
+                vx: Math.cos(a) * 90,
+                vy: Math.sin(a) * 90,
+                life: 0.42, sizeFrom: 10, sizeTo: 2,
                 tint: k % 2 === 0 ? 0xf8fafc : 0xf43f5e,
-                alphaFrom: 0.95, drag: 3,
+                alphaFrom: 0.95, drag: 2.2,
               });
             }
           }
@@ -917,8 +920,10 @@ export class Renderer {
   }
 
   private drawIaidoSlashFx(fx: NonNullable<Renderer['iaidoFx']>): void {
-    const t = 1 - Math.max(0, fx.life) / 0.2;
-    const a = Math.max(0, fx.life / 0.2);
+    const maxLife = fx.maxLife || IAIDO_FX.duration;
+    const t = 1 - Math.max(0, fx.life) / maxLife;
+    const fadeStart = 1 - IAIDO_FX.fade / maxLife;
+    const a = t < fadeStart ? 1 : Math.max(0, 1 - (t - fadeStart) / Math.max(0.001, 1 - fadeStart));
     const cx = fx.x + fx.w * 0.5;
     const cy = fx.y + fx.h * 0.5;
     const thick = fx.h * (0.58 - t * 0.2);
@@ -964,7 +969,7 @@ export class Renderer {
     this.flashG.clear();
     if (this.dimLeft > 0) {
       this.dimLeft = Math.max(0, this.dimLeft - dt);
-      const hold = this.dimLeft > 0.06 ? 1 : this.dimLeft / 0.06;
+      const hold = this.dimLeft > IAIDO_FX.fade ? 1 : this.dimLeft / IAIDO_FX.fade;
       this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: 0x020617, alpha: 0.7 * hold });
     }
     if (this.iaidoFx) {
