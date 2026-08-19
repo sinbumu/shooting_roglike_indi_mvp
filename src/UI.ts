@@ -45,6 +45,7 @@ export class UI {
   private statTime = document.getElementById('stat-time') as HTMLSpanElement;
   private statKills = document.getElementById('stat-kills') as HTMLSpanElement;
   private statScore = document.getElementById('stat-score') as HTMLSpanElement;
+  private pendingLv = document.getElementById('pending-lv') as HTMLSpanElement;
   private slotsEl = document.getElementById('weapon-slots') as HTMLDivElement;
   private passiveSlotsEl = document.getElementById('passive-slots') as HTMLDivElement;
 
@@ -711,6 +712,13 @@ export class UI {
     this.statTime.textContent = `${m}:${s}`;
     this.statKills.textContent = `☠ ${state.kills}`;
     this.statScore.textContent = `🏆 ${state.score.toLocaleString()}`;
+    const modalOpen = !this.levelupOverlay.classList.contains('hidden');
+    if (state.pendingLevelUps > 0 && !modalOpen && state.status === 'playing') {
+      this.pendingLv.textContent = `선택 대기 ${state.pendingLevelUps}`;
+      this.pendingLv.classList.remove('hidden');
+    } else {
+      this.pendingLv.classList.add('hidden');
+    }
     this.updateSkillBtn(state);
 
     this.updateBossBar(state);
@@ -1010,17 +1018,42 @@ export class UI {
     const critMul = this.lastState?.runStats.critMul ?? COMBAT.baseCritMul;
     this.pauseStats.textContent = `치명타 확률 ${critPct}% · 배율 ×${critMul.toFixed(2)}`;
     this.pauseOverlay.classList.remove('hidden');
+    this.hideRetreatConfirm();
     this.setFocusGroup([
       document.getElementById('resume-btn') as HTMLButtonElement,
       document.getElementById('pause-codex-btn') as HTMLButtonElement,
       document.getElementById('pause-restart-btn') as HTMLButtonElement,
+      document.getElementById('pause-retreat-btn') as HTMLButtonElement,
     ]);
   }
 
   hidePause(): void {
     this.pauseOverlay.classList.add('hidden');
     this.codexOverlay.classList.add('hidden');
+    this.hideRetreatConfirm();
     this.clearFocus();
+  }
+
+  showRetreatConfirm(): void {
+    (document.getElementById('pause-actions') as HTMLDivElement).classList.add('hidden');
+    (document.getElementById('retreat-confirm') as HTMLDivElement).classList.remove('hidden');
+    this.setFocusGroup([
+      document.getElementById('retreat-yes-btn') as HTMLButtonElement,
+      document.getElementById('retreat-no-btn') as HTMLButtonElement,
+    ]);
+  }
+
+  hideRetreatConfirm(): void {
+    (document.getElementById('pause-actions') as HTMLDivElement).classList.remove('hidden');
+    (document.getElementById('retreat-confirm') as HTMLDivElement).classList.add('hidden');
+    if (!this.pauseOverlay.classList.contains('hidden')) {
+      this.setFocusGroup([
+        document.getElementById('resume-btn') as HTMLButtonElement,
+        document.getElementById('pause-codex-btn') as HTMLButtonElement,
+        document.getElementById('pause-restart-btn') as HTMLButtonElement,
+        document.getElementById('pause-retreat-btn') as HTMLButtonElement,
+      ]);
+    }
   }
 
   hideStart(): void {
@@ -1052,6 +1085,17 @@ export class UI {
   onPauseClick(fn: () => void): void {
     (document.getElementById('pause-btn') as HTMLButtonElement).addEventListener('click', fn);
     (document.getElementById('resume-btn') as HTMLButtonElement).addEventListener('click', fn);
+  }
+
+  onRetreatClick(fn: () => void): void {
+    (document.getElementById('pause-retreat-btn') as HTMLButtonElement).addEventListener('click', fn);
+  }
+
+  onRetreatConfirm(fn: () => void): void {
+    (document.getElementById('retreat-yes-btn') as HTMLButtonElement).addEventListener('click', fn);
+    (document.getElementById('retreat-no-btn') as HTMLButtonElement).addEventListener('click', () => {
+      this.hideRetreatConfirm();
+    });
   }
 
   onMuteClick(fn: () => void): void {

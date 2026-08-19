@@ -128,7 +128,7 @@ class EntityPool {
       this.layer.addChild(s);
       this.sprites.push(s);
     }
-    s.texture = tex;
+    if (s.texture !== tex) s.texture = tex;
     s.visible = true;
     s.tint = 0xffffff;
     s.alpha = 1;
@@ -229,6 +229,8 @@ export class Renderer {
   private shakeMag = 0;
   private flashAlpha = 0;
   private flashColor = 0xef4444;
+  private empSprites: Sprite[] = [];
+  private hitFxLeft = 0;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     this.app = new Application();
@@ -255,6 +257,15 @@ export class Renderer {
       this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.textLayer, this.warnG,
     );
     this.app.stage.addChild(this.world, this.flashG);
+
+    for (let i = 0; i < 12; i++) {
+      const s = new Sprite(this.glowTex);
+      s.anchor.set(0.5);
+      s.blendMode = 'add';
+      s.visible = false;
+      this.app.stage.addChild(s);
+      this.empSprites.push(s);
+    }
 
     for (let i = 0; i < 70; i++) {
       this.stars.push({
@@ -316,12 +327,15 @@ export class Renderer {
   // ---------- 이펙트 이벤트 소비 ----------
 
   private consumeEvents(state: GameState): void {
+    this.hitFxLeft = 12;
     for (const ev of state.events) {
       switch (ev.type) {
         case 'enemyDied':
           this.explode(ev.x, ev.y, hex(ev.color), ev.radius);
           break;
         case 'enemyHit':
+          if (this.hitFxLeft <= 0) break;
+          this.hitFxLeft--;
           this.hitSpark(ev.x, ev.y, hex(ev.color));
           this.spawnDamageText(ev.x, ev.y, ev.damage);
           break;
@@ -510,6 +524,9 @@ export class Renderer {
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.4, sizeFrom: 20, sizeTo: ev.radius, tint: 0xbe123c, alphaFrom: 0.9, ring: true });
           this.shake(8, 0.28);
           break;
+        case 'altarSpawn':
+          this.altarSpawnFx(ev.x, ev.y);
+          break;
         default:
           break;
       }
@@ -520,6 +537,7 @@ export class Renderer {
   // ---------- 파티클 시스템 ----------
 
   private spawnParticle(o: ParticleOpts): void {
+    if (this.particles.length >= 250) return;
     let sprite = this.freeSprites.pop();
     if (!sprite) {
       sprite = new Sprite();
@@ -555,7 +573,9 @@ export class Renderer {
       if (p.life <= 0) {
         p.sprite.visible = false;
         this.freeSprites.push(p.sprite);
-        this.particles.splice(i, 1);
+        const last = this.particles[this.particles.length - 1];
+        this.particles[i] = last;
+        this.particles.pop();
         continue;
       }
       const damp = Math.max(0, 1 - p.drag * dt);
@@ -605,7 +625,9 @@ export class Renderer {
       if (d.life <= 0) {
         d.obj.visible = false;
         this.freeTexts.push(d.obj);
-        this.dmgTexts.splice(i, 1);
+        const last = this.dmgTexts[this.dmgTexts.length - 1];
+        this.dmgTexts[i] = last;
+        this.dmgTexts.pop();
         continue;
       }
       d.obj.y -= 75 * dt;
@@ -671,6 +693,34 @@ export class Renderer {
         drag: 1,
       });
     }
+  }
+
+  private altarSpawnFx(x: number, y: number): void {
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = 20 + Math.random() * 90;
+      this.spawnParticle({
+        x,
+        y: y + 18,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed - 40,
+        life: 0.55 + Math.random() * 0.45,
+        sizeFrom: 10 + Math.random() * 16,
+        sizeTo: 28 + Math.random() * 24,
+        tint: Math.random() < 0.5 ? 0x7c3aed : 0xc084fc,
+        alphaFrom: 0.7,
+        drag: 0.8,
+      });
+    }
+    this.spawnParticle({
+      x, y,
+      life: 0.7,
+      sizeFrom: 20,
+      sizeTo: 110,
+      tint: 0x6d28d9,
+      alphaFrom: 0.85,
+      ring: true,
+    });
   }
 
   private muzzleFlash(x: number, y: number, tint: number): void {
@@ -836,13 +886,16 @@ export class Renderer {
       }
     }
     if (state.empLeft > 0) {
-      for (let i = 0; i < 36; i++) {
-        const x = Math.random() * CANVAS.width;
-        const y = Math.random() * CANVAS.height;
-        const w = 6 + Math.random() * 48;
-        const h = 1 + Math.random() * 3;
-        this.flashG.rect(x, y, w, h).fill({ color: 0xe2e8f0, alpha: 0.06 + Math.random() * 0.12 });
+      for (const s of this.empSprites) {
+        s.visible = true;
+        s.position.set(Math.random() * CANVAS.width, Math.random() * CANVAS.height);
+        s.width = 48 + Math.random() * 160;
+        s.height = 2 + Math.random() * 5;
+        s.alpha = 0.08 + Math.random() * 0.16;
+        s.tint = 0xe2e8f0;
       }
+    } else {
+      for (const s of this.empSprites) s.visible = false;
     }
     if (state.fogRadius > 0) {
       const px = state.playerX;
@@ -1947,20 +2000,24 @@ export class Renderer {
     const g = this.coreG;
     const altar = state.altar;
     if (altar && !altar.done) {
+      const riseT = Math.min(1, altar.age / VOID_ALTAR.spawnRiseSec);
+      const ease = 1 - (1 - riseT) ** 3;
+      const drawY = altar.y - 6 + (1 - ease) * 36;
+      const scale = 0.3 + ease * 0.7;
       const glow = this.glowPool.get();
-      glow.tint = 0xef4444;
-      glow.position.set(altar.x, altar.y);
-      glow.width = glow.height = 70 + Math.sin(this.elapsed * 4) * 10;
-      glow.alpha = 0.55 + altar.charge * 0.35;
+      glow.tint = 0x7c3aed;
+      glow.position.set(altar.x, drawY);
+      glow.width = glow.height = (70 + Math.sin(this.elapsed * 4) * 10) * scale;
+      glow.alpha = (0.55 + altar.charge * 0.35) * ease;
       const tex = fxFrame(this.atlas.fx.altar, this.elapsed, 7);
       if (tex) {
-        this.blitFx(tex, altar.x, altar.y - 6, {
-          width: 78, height: 96, world: true,
+        this.blitFx(tex, altar.x, drawY, {
+          width: 78 * scale, height: 96 * scale, world: true,
         });
       } else {
-        g.roundRect(altar.x - 10, altar.y - 28, 20, 48, 3).fill(0x0f172a);
-        g.roundRect(altar.x - 14, altar.y + 16, 28, 8, 2).fill(0x111827);
-        g.rect(altar.x - 4, altar.y - 32, 8, 10).fill(0x7f1d1d);
+        g.roundRect(altar.x - 10 * scale, drawY - 22 * scale, 20 * scale, 48 * scale, 3).fill(0x0f172a);
+        g.roundRect(altar.x - 14 * scale, drawY + 16 * scale, 28 * scale, 8 * scale, 2).fill(0x111827);
+        g.rect(altar.x - 4 * scale, drawY - 32 * scale, 8 * scale, 10 * scale).fill(0x7f1d1d);
       }
       if (altar.charge > 0 && altar.trialLeft === 0) {
         const r = VOID_ALTAR.radius + 6;

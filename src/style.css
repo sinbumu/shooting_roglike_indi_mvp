@@ -133,7 +133,21 @@ html, body {
   font-size: 13px;
   font-weight: 700;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  align-items: center;
 }
+
+#pending-lv {
+  color: #fde68a;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 999px;
+  padding: 1px 8px;
+  text-shadow: none;
+}
+
+#pending-lv.hidden { display: none; }
 
 /* ---------- 보스 체력바 ---------- */
 
@@ -779,6 +793,25 @@ button.secondary {
   padding: 20px;
   text-align: center;
   overflow: hidden;
+}
+
+#pause-overlay #pause-actions,
+#pause-overlay #retreat-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(280px, 100%);
+}
+
+#pause-overlay #pause-actions.hidden,
+#pause-overlay #retreat-confirm.hidden {
+  display: none;
+}
+
+#pause-overlay #pause-actions button,
+#pause-overlay #retreat-confirm button {
+  width: 100%;
 }
 
 #start-overlay {

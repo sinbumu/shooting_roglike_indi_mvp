@@ -23,6 +23,7 @@
             <span id="stat-time">00:00</span>
             <span id="stat-kills">☠ 0</span>
             <span id="stat-score">🏆 0</span>
+            <span id="pending-lv" class="hidden">선택 대기 0</span>
           </div>
           <div id="boss-bar" class="hidden">
             <div id="boss-fill"></div>
@@ -72,9 +73,17 @@
       <div id="pause-overlay" class="overlay hidden">
         <h2 class="overlay-title">PAUSED</h2>
         <p id="pause-stats" class="overlay-sub"></p>
-        <button id="resume-btn">계속하기</button>
-        <button id="pause-codex-btn" class="secondary">무기 도감</button>
-        <button id="pause-restart-btn" class="secondary">다시 시작</button>
+        <div id="pause-actions">
+          <button id="resume-btn">계속하기</button>
+          <button id="pause-codex-btn" class="secondary">무기 도감</button>
+          <button id="pause-restart-btn" class="secondary">다시 시작</button>
+          <button id="pause-retreat-btn" class="secondary">격납고 귀환</button>
+        </div>
+        <div id="retreat-confirm" class="hidden">
+          <p class="overlay-sub">정말 귀환하시겠습니까?<br/>현재까지 획득한 크레딧은 저장됩니다.<br/>미션 클리어 보너스는 없습니다.</p>
+          <button id="retreat-yes-btn">귀환</button>
+          <button id="retreat-no-btn" class="secondary">취소</button>
+        </div>
       </div>
 
       <!-- ===== 시작 / 격납고 Overlay ===== -->

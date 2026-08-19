@@ -187,6 +187,7 @@ function openAltarRewardUI(): void {
     applyChoice(state, choice);
     ui.hideLevelUp();
     state.pendingAltarRewards--;
+    if (state.pendingAltarRewards <= 0) state.dismissAltarAfterReward();
     continueAfterChoice();
   }, { title: 'VOID CACHE', sub: '시련의 대가를 고르세요' });
 }
@@ -328,6 +329,14 @@ function backToHangar(): void {
   audio.setPaused(false);
 }
 
+function retreatToHangar(): void {
+  if (runSettled) return;
+  runSettled = true;
+  settleRun(meta, state, false);
+  ui.hidePause();
+  backToHangar();
+}
+
 ui.setAudio(audio);
 ui.bindHangar(meta, () => {
   saveMeta(meta);
@@ -396,6 +405,8 @@ ui.onOpenGacha(() => {
 ui.onStartClick(beginRun);
 ui.onRestartClick(backToHangar);
 ui.onPauseClick(togglePause);
+ui.onRetreatClick(() => ui.showRetreatConfirm());
+ui.onRetreatConfirm(retreatToHangar);
 ui.onMuteClick(() => ui.setMuted(audio.toggleMute()));
 ui.onSkillClick(() => { if (state.status === 'playing') state.tryUseSkill(); });
 

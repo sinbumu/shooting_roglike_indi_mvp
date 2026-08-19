@@ -59,6 +59,10 @@ export const LEVELING = {
   cooldownPerLevel: 0.05,
   /** 대성공(Jackpot) 등장 확률 */
   jackpotChance: 0.04,
+  /** 이 레벨까지는 레벨업마다 즉시 3선택지 */
+  instantUntil: 15,
+  /** 이후에는 이 배수에 도달했을 때만 모달을 연다 (쌓인 pending 일괄 소비) */
+  batchEvery: 5,
 } as const;
 
 // ------------------------------------------------------------
@@ -1130,6 +1134,8 @@ export const VOID_ALTAR = {
   eliteCount: 12,
   ringRadius: 130,
   creditMul: 3,
+  /** 스폰 시 바닥에서 솟아오르는 연출 시간 */
+  spawnRiseSec: 0.8,
   elitePool: ['dasher', 'rusher', 'tank', 'zigzag'] as const satisfies readonly EnemyId[],
 } as const;
 
@@ -1325,6 +1331,10 @@ export const PICKUPS = {
   dropChance: 0.035,
   healAmount: 25,
   bombDamage: 250,
+  /** 경과 초당 힐량 배율 증가 (180초에 2배) */
+  healScalePerSec: 1 / 180,
+  /** 경과 초당 폭탄 피해 배율 증가 */
+  bombScalePerSec: 1 / 180,
   radius: 11,
   lifetime: 12,
 } as const;

@@ -218,6 +218,8 @@ export interface VoidAltar {
   charge: number;
   trialLeft: number;
   done: boolean;
+  /** 스폰 후 경과 시간 (솟아오름 연출) */
+  age: number;
 }
 
 export interface EnvShade {
@@ -367,6 +369,7 @@ export type FxEvent =
   | { type: 'altarTick'; pitch: number }
   | { type: 'altarActivate'; x: number; y: number }
   | { type: 'altarHint' }
+  | { type: 'altarSpawn'; x: number; y: number }
   | { type: 'hazardWarn'; kind: 'solar' | 'asteroid' | 'emp' }
   | { type: 'solarFlare' }
   | { type: 'asteroid' }
@@ -383,6 +386,65 @@ export interface RunStats {
   projSpeedMul: number;
   critMul: number;
   moveSpeedMul: number;
+}
+
+const GRID_CELL = 64;
+const GRID_ORIGIN = 512;
+
+/** 투사체–적 충돌용 유니폼 그리드. 매 프레임 재구축. */
+class EnemyGrid {
+  private buckets = new Map<number, Enemy[]>();
+  maxHitR = 40;
+
+  clear(): void {
+    this.buckets.clear();
+    this.maxHitR = 40;
+  }
+
+  rebuild(enemies: Enemy[]): void {
+    this.clear();
+    for (const e of enemies) {
+      const hitR = e.def.radius * (e.elite ? 1.15 : 1);
+      if (hitR > this.maxHitR) this.maxHitR = hitR;
+      const key = this.keyAt(e.x, e.y);
+      let bucket = this.buckets.get(key);
+      if (!bucket) {
+        bucket = [];
+        this.buckets.set(key, bucket);
+      }
+      bucket.push(e);
+    }
+  }
+
+  query(x: number, y: number, r: number, out: Enemy[]): Enemy[] {
+    out.length = 0;
+    const c = GRID_CELL;
+    const x0 = Math.floor((x - r) / c);
+    const x1 = Math.floor((x + r) / c);
+    const y0 = Math.floor((y - r) / c);
+    const y1 = Math.floor((y + r) / c);
+    for (let cx = x0; cx <= x1; cx++) {
+      for (let cy = y0; cy <= y1; cy++) {
+        const bucket = this.buckets.get((cx + GRID_ORIGIN) * 4096 + (cy + GRID_ORIGIN));
+        if (!bucket) continue;
+        for (const e of bucket) out.push(e);
+      }
+    }
+    return out;
+  }
+
+  private keyAt(x: number, y: number): number {
+    const cx = Math.floor(x / GRID_CELL);
+    const cy = Math.floor(y / GRID_CELL);
+    return (cx + GRID_ORIGIN) * 4096 + (cy + GRID_ORIGIN);
+  }
+}
+
+function shouldOpenLevelUp(fromLevel: number, toLevel: number): boolean {
+  for (let lv = fromLevel + 1; lv <= toLevel; lv++) {
+    if (lv <= LEVELING.instantUntil || lv % LEVELING.batchEvery === 0) return true;
+  }
+  return false;
 }
 
 // ============================================================
@@ -452,6 +514,7 @@ export class GameState {
   turretDarkActive = false;
   empLeft = 0;
   altar: VoidAltar | null = null;
+  private altarResolved = false;
   envHazard: EnvHazard | null = null;
   oneWayShield: OneWayShield | null = null;
   quantumCores: QuantumCore[] = [];
@@ -522,6 +585,10 @@ export class GameState {
   private bossRoster: readonly EnemyId[] = STAGES.orbit.bossRoster;
   private storyBeats: { at: number; text: string }[] = [];
   private nextStoryIdx = 0;
+  private fenceSegCache: { ax: number; ay: number; bx: number; by: number }[] | null = null;
+  private vortexCache: Enemy[] | null = null;
+  private enemyGrid = new EnemyGrid();
+  private gridQueryBuf: Enemy[] = [];
 
   private nextRiftAt: number = RIFT_EVENT.firstAt;
   private riftWarnAt: number | null = null;
@@ -650,6 +717,7 @@ export class GameState {
     this.turretStill = 0;
     this.empLeft = 0;
     this.altar = null;
+    this.altarResolved = false;
     this.envHazard = null;
     this.oneWayShield = null;
     this.quantumCores = [];
@@ -969,6 +1037,8 @@ export class GameState {
   update(dt: number): GameStatus {
     if (this.status !== 'playing') return this.status;
 
+    this.fenceSegCache = null;
+    this.vortexCache = null;
     this.time += dt;
 
     // 승리 조건
@@ -1719,11 +1789,13 @@ export class GameState {
 
   private updateAltar(dt: number): void {
     if (!this.altar) {
+      if (this.altarResolved) return;
       if (this.time < VOID_ALTAR.firstAt) return;
       if (this.nearBossWindow()) return;
       const x = 80 + Math.random() * (CANVAS.width - 160);
       const y = 280 + Math.random() * 180;
-      this.altar = { x, y, charge: 0, trialLeft: 0, done: false };
+      this.altar = { x, y, charge: 0, trialLeft: 0, done: false, age: 0 };
+      this.events.push({ type: 'altarSpawn', x, y });
       if (this.needAltarHint) {
         this.needAltarHint = false;
         this.events.push({
@@ -1734,7 +1806,12 @@ export class GameState {
       }
       return;
     }
-    if (this.altar.done || this.altar.trialLeft > 0) return;
+    this.altar.age += dt;
+    if (this.altar.done) {
+      this.tryDespawnFinishedAltar();
+      return;
+    }
+    if (this.altar.trialLeft > 0) return;
     const dist = Math.hypot(this.playerX - this.altar.x, this.playerY - this.altar.y);
     if (dist <= VOID_ALTAR.radius) {
       const chargeSec = this.hasNode('altarFrenzy') ? CONSTELLATION_FX.altarChargeSec : VOID_ALTAR.chargeSec;
@@ -1783,6 +1860,21 @@ export class GameState {
     }
     this.spawnPickup('goldCube', this.altar.x, this.altar.y, PICKUPS.lifetime * 2);
     this.events.push({ type: 'banner', text: '✨ 공허의 보상' });
+  }
+
+  /** 보상 UI 종료 또는 골드 큐브 만료 후 제단 제거 */
+  dismissAltarAfterReward(): void {
+    this.tryDespawnFinishedAltar();
+  }
+
+  private tryDespawnFinishedAltar(): void {
+    if (!this.altar?.done) return;
+    if (this.pendingAltarRewards > 0) return;
+    for (const p of this.pickups) {
+      if (p.kind === 'goldCube') return;
+    }
+    this.altar = null;
+    this.altarResolved = true;
   }
 
   private updateHazard(dt: number): void {
@@ -2350,6 +2442,7 @@ export class GameState {
   }
 
   private fenceSegments(): { ax: number; ay: number; bx: number; by: number }[] {
+    if (this.fenceSegCache) return this.fenceSegCache;
     const byOwner = new Map<number, Pylon[]>();
     for (const p of this.pylons) {
       if (!p.planted) continue;
@@ -2369,6 +2462,7 @@ export class GameState {
         segs.push({ ax: a.x, ay: a.y, bx: b.x, by: b.y });
       }
     }
+    this.fenceSegCache = segs;
     return segs;
   }
 
@@ -2383,9 +2477,18 @@ export class GameState {
     }
   }
 
-  private applyVortexPull(dt: number): void {
+  private vortexEnemies(): Enemy[] {
+    if (this.vortexCache) return this.vortexCache;
+    const list: Enemy[] = [];
     for (const e of this.enemies) {
-      if (e.def.id !== 'vortex') continue;
+      if (e.def.id === 'vortex') list.push(e);
+    }
+    this.vortexCache = list;
+    return list;
+  }
+
+  private applyVortexPull(dt: number): void {
+    for (const e of this.vortexEnemies()) {
       const dx = e.x - this.playerX;
       const dy = e.y - this.playerY;
       const dist = Math.hypot(dx, dy) || 1;
@@ -2397,8 +2500,9 @@ export class GameState {
   }
 
   private applyVortexToProjectile(p: Projectile, dt: number): void {
-    for (const e of this.enemies) {
-      if (e.def.id !== 'vortex') continue;
+    const vortices = this.vortexEnemies();
+    if (vortices.length === 0) return;
+    for (const e of vortices) {
       const ox = p.originX ?? p.x;
       const oy = p.originY ?? p.y;
       const dx = e.x - ox;
@@ -2945,6 +3049,8 @@ export class GameState {
   // ---------- 투사체 ----------
 
   private updateProjectiles(dt: number): void {
+    this.enemyGrid.rebuild(this.enemies);
+    const hitPad = this.enemyGrid.maxHitR;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
@@ -2987,7 +3093,11 @@ export class GameState {
 
       // 적과 충돌
       let removed = false;
-      for (const e of this.enemies) {
+      const candidates = this.enemyGrid.query(
+        p.x, p.y, p.radius + hitPad, this.gridQueryBuf,
+      );
+      for (const e of candidates) {
+        if (e.hp <= 0) continue;
         if (p.hitIds.has(e.id)) continue;
         const hitR = e.def.radius * (e.elite ? 1.15 : 1);
         const rr = p.radius + hitR;
@@ -3419,7 +3529,9 @@ export class GameState {
           radius: e.def.radius * (e.elite ? 1.3 : 1),
         });
         this.spawnGem(e.x, e.y, Math.max(1, expDrop));
-        const dropRate = PICKUPS.dropChance + this.dropChanceBonus;
+        const n = Math.max(1, this.enemies.length);
+        const dropRate = (PICKUPS.dropChance + this.dropChanceBonus)
+          / Math.max(1, Math.sqrt(n / 10));
         if ((e.elite && ELITE.guaranteedPickup && !e.fromAltar) || Math.random() < dropRate) {
           const r = Math.random();
           const kind: PickupKind = r < 0.45 ? 'heal' : r < 0.8 ? 'magnet' : 'bomb';
@@ -3537,6 +3649,7 @@ export class GameState {
       p.life -= dt;
       if (p.life <= 0 && !p.homing) {
         this.pickups.splice(i, 1);
+        if (p.kind === 'goldCube') this.tryDespawnFinishedAltar();
         continue;
       }
       if (p.homing) {
@@ -3582,16 +3695,17 @@ export class GameState {
     this.events.push({ type: 'pickup', kind: p.kind, x: p.x, y: p.y });
     switch (p.kind) {
       case 'heal':
-        this.hp = Math.min(this.maxHp, this.hp + PICKUPS.healAmount);
+        this.hp = Math.min(this.maxHp, this.hp + PICKUPS.healAmount * (1 + this.time * PICKUPS.healScalePerSec));
         break;
       case 'magnet':
         this.vacuumDrops();
         break;
       case 'bomb': {
         this.events.push({ type: 'bomb' });
+        const bombDmg = PICKUPS.bombDamage * (1 + this.time * PICKUPS.bombScalePerSec);
         for (const e of [...this.enemies]) {
           if (this.tryAbsorbShield(e, true)) continue;
-          this.damageEnemy(e, PICKUPS.bombDamage);
+          this.damageEnemy(e, bombDmg);
         }
         break;
       }
@@ -3668,6 +3782,7 @@ export class GameState {
 
   private gainExp(amount: number): void {
     this.exp += amount * this.expMul;
+    const startLevel = this.level;
     let leveled = 0;
     while (this.exp >= this.expToNext) {
       this.exp -= this.expToNext;
@@ -3689,9 +3804,9 @@ export class GameState {
         this.levelAegisReduce = LEVEL_AEGIS.reduceBase + LEVEL_AEGIS.reducePerLv * (aegisLv - 1);
       }
     }
-    if (this.pendingLevelUps > 0) {
+    if (this.pendingLevelUps > 0 && shouldOpenLevelUp(startLevel, this.level)) {
       this.events.push({ type: 'levelUp', x: this.playerX, y: this.playerY });
-      this.status = 'levelup'; // main 루프에서 감지해 일시정지 + UI 표시
+      this.status = 'levelup';
     }
   }
 
