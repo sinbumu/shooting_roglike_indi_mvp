@@ -3,7 +3,7 @@ import type {
   ShipDef, ShipId, PassiveDef, PassiveId,
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
-  AffixId, StatBoostId, TacticalId,
+  AffixId, StatBoostId, TacticalId, WeaponTag,
   ShipSkinId, ProjSkinId, DroneDef, DroneId, PilotTraitId,
 } from './types';
 
@@ -198,6 +198,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   blade: {
     id: 'blade', name: '플라즈마 블레이드', tier: 1, icon: '⚔️', color: '#67e8f9',
     desc: '전방 180도를 베어 적 탄막을 소멸시키는 근접 검',
+    tags: ['melee'],
     cooldownMs: 420,
     projectile: {
       damage: 14, speed: 0, radius: 8, count: 1, spreadDeg: 180, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
@@ -207,6 +208,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   rotor: {
     id: 'rotor', name: '회전 톱날', tier: 2, icon: '⚙️', color: '#94a3b8',
     desc: '[블레이드+스프레드] 주위를 도는 톱날 2개. 인파이팅 방어',
+    tags: ['aura'],
     cooldownMs: 120,
     projectile: {
       damage: 7, speed: 0, radius: 10, count: 2, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
@@ -216,6 +218,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   beamSword: {
     id: 'beamSword', name: '빔 소드', tier: 2, icon: '🗡️', color: '#38bdf8',
     desc: '[블레이드+벌컨] 화면 끝까지 전방을 가르는 광역 참격',
+    tags: ['melee'],
     cooldownMs: 1400,
     projectile: {
       damage: 48, speed: 0, radius: 13, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
@@ -225,6 +228,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   halo: {
     id: 'halo', name: '발키리의 후광', tier: 3, icon: '😇', color: '#fde68a',
     desc: '[톱날+노바] 빛의 고리가 적을 끌어당기며 갈아버림',
+    tags: ['aura'],
     cooldownMs: 100,
     projectile: {
       damage: 8, speed: 0, radius: 14, count: 1, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
@@ -234,6 +238,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   cleaver: {
     id: 'cleaver', name: '차원 절단기', tier: 3, icon: '✂️', color: '#c084fc',
     desc: '[빔소드+레이저] 벤 궤적에 2.5초 차원 균열 DoT',
+    tags: ['melee'],
     cooldownMs: 1400,
     projectile: {
       damage: 42, speed: 0, radius: 14, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
@@ -245,6 +250,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   mine: {
     id: 'mine', name: '중력 지뢰', tier: 1, icon: '💣', color: '#fb923c',
     desc: '이동 궤적 뒤에 3초 후 폭발하는 지뢰를 설치',
+    tags: ['drop'],
     cooldownMs: 720,
     projectile: {
       damage: 22, speed: 0, radius: 10, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 3,
@@ -254,6 +260,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   seekerMine: {
     id: 'seekerMine', name: '추적 지뢰', tier: 2, icon: '🪲', color: '#f97316',
     desc: '[지뢰+호밍] 바닥에 깔린 지뢰가 최근접 적을 기어가 폭발',
+    tags: ['drop'],
     cooldownMs: 760,
     projectile: {
       damage: 26, speed: 90, radius: 10, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4.5,
@@ -262,16 +269,18 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   singularity: {
     id: 'singularity', name: '특이점 폭탄', tier: 2, icon: '🕳️', color: '#818cf8',
-    desc: '[지뢰+스프레드] 폭발 전 적을 중앙으로 끌어당긴 뒤 타격',
+    desc: '[지뢰+스프레드] 전방으로 던져 폭발 전 적을 끌어당긴 뒤 타격',
+    tags: ['drop'],
     cooldownMs: 980,
     projectile: {
-      damage: 32, speed: 0, radius: 12, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 2.4,
+      damage: 32, speed: 180, radius: 12, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 2.4,
       explodeRadius: 92, drop: { fuse: 2.4, pullRadius: 130, pullForce: 220 },
     },
   },
   predator: {
     id: 'predator', name: '프레데터 스웜', tier: 3, icon: '🦂', color: '#ef4444',
     desc: '[추적지뢰+스웜] 1차 폭발 후 소형 유도탄 4발로 2차 전개',
+    tags: ['drop'],
     cooldownMs: 820,
     projectile: {
       damage: 20, speed: 100, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
@@ -281,6 +290,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   eventHorizon: {
     id: 'eventHorizon', name: '이벤트 호라이즌', tier: 3, icon: '🌑', color: '#1e1b4b',
     desc: '[특이점+모선] 4초간 유지되는 블랙홀 장판. 붕괴와 흡인',
+    tags: ['drop'],
     cooldownMs: 1600,
     projectile: {
       damage: 14, speed: 0, radius: 16, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 1.2,
@@ -678,7 +688,7 @@ export const DRONES: Record<DroneId, DroneDef> = {
   amplifier: {
     id: 'amplifier', name: '증폭 드론', icon: '📡', color: '#818cf8',
     tag: '[쿨타임 버프]',
-    desc: '15초마다 반경 80px 오라를 깔아, 안에 있으면 최종 쿨타임 40% 감소.',
+    desc: '15초마다 반경 80px 오라를 깔아, 안에 있으면 최종 쿨타임이 레벨에 따라 감소.',
     unlockCost: 1200, maxLevel: 5, baseCost: 600, costMul: 1.5,
   },
 };
@@ -692,8 +702,18 @@ export const DRONE_FX = {
   amplifierInterval: 15,
   amplifierRadius: 80,
   amplifierDuration: 6,
+  /** Lv.1 최종 쿨 배율 (0.6 = 40% 감소) */
   amplifierCooldownMul: 0.6,
+  amplifierCooldownMulPerLv: 0.05,
+  amplifierCooldownMulFloor: 0.4,
 } as const;
+
+export function ampCooldownMul(level: number): number {
+  return Math.max(
+    DRONE_FX.amplifierCooldownMulFloor,
+    DRONE_FX.amplifierCooldownMul - DRONE_FX.amplifierCooldownMulPerLv * (level - 1),
+  );
+}
 
 // ------------------------------------------------------------
 // 보스전
@@ -811,23 +831,68 @@ export const AFFIXES: Record<AffixId, {
   icon: string;
   color: string;
   weight: number;
+  tags: WeaponTag[];
 }> = {
   split: {
     id: 'split', name: '분열', label: '[분열]',
     desc: '명중 소멸 시 3갈래로 쪼개짐',
-    icon: '✳️', color: '#f472b6', weight: 30,
+    icon: '✳️', color: '#f472b6', weight: 30, tags: ['projectile'],
   },
   pierce: {
     id: 'pierce', name: '관통', label: '[관통]',
     desc: '투사체 관통 횟수 +2',
-    icon: '➡️', color: '#4ade80', weight: 30,
+    icon: '➡️', color: '#4ade80', weight: 30, tags: ['projectile'],
   },
   chain: {
     id: 'chain', name: '연쇄', label: '[연쇄]',
     desc: '명중 시 가까운 적에게 전이',
-    icon: '🔗', color: '#fbbf24', weight: 30,
+    icon: '🔗', color: '#fbbf24', weight: 30, tags: ['projectile'],
+  },
+  afterimage: {
+    id: 'afterimage', name: '잔상', label: '[잔상]',
+    desc: '타격 0.5초 뒤 60% 크기·데미지로 한 번 더 벤다',
+    icon: '👻', color: '#67e8f9', weight: 30, tags: ['melee'],
+  },
+  echo: {
+    id: 'echo', name: '메아리', label: '[메아리]',
+    desc: '처치 시 20% 확률로 그 자리에서 폭발',
+    icon: '💥', color: '#fb923c', weight: 30, tags: ['melee'],
+  },
+  brilliance: {
+    id: 'brilliance', name: '화려한 빛', label: '[화려한 빛]',
+    desc: '타격 지점이 커졌다 줄어드는 광역 장판',
+    icon: '✨', color: '#fde68a', weight: 30, tags: ['melee'],
   },
 };
+
+export const AFFIX_FX = {
+  afterimageDelay: 0.5,
+  afterimageMul: 0.6,
+  echoChance: 0.2,
+  echoRadius: 52,
+  brillianceLife: 0.45,
+  brillianceRadiusMul: 0.22,
+} as const;
+
+export function weaponTags(def: WeaponDef): WeaponTag[] {
+  if (def.tags && def.tags.length > 0) return def.tags;
+  if (def.projectile.melee) return ['melee'];
+  if (def.projectile.orbit) return ['aura'];
+  if (def.projectile.drop) return ['drop'];
+  return ['projectile'];
+}
+
+export function compatibleAffixes(weaponId: WeaponId): AffixId[] {
+  const tags = weaponTags(WEAPONS[weaponId]);
+  return (Object.keys(AFFIXES) as AffixId[]).filter((id) =>
+    AFFIXES[id].tags.some((t) => tags.includes(t)),
+  );
+}
+
+export function isTickWeapon(id: WeaponId): boolean {
+  const tags = weaponTags(WEAPONS[id]);
+  return tags.includes('melee') || tags.includes('aura');
+}
 
 /** 공허의 제단 */
 export const VOID_ALTAR = {

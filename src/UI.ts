@@ -2,7 +2,7 @@ import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, Chal
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
   STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
-  COMBAT, RECIPES, DRONES, DRONE_FX, PILOT_TRAITS,
+  COMBAT, RECIPES, DRONES, DRONE_FX, PILOT_TRAITS, ampCooldownMul, isTickWeapon,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -19,7 +19,13 @@ function droneStatLine(id: DroneId, lv: number): string {
   if (id === 'defender') {
     return `5초마다 날아오는 투사체 최대 ${DRONE_FX.defenderBase + (lv - 1)}개 요격.`;
   }
-  return `15초마다 반경 ${DRONE_FX.amplifierRadius}px 오라. 안에 있으면 최종 쿨타임 40% 감소.`;
+  return `15초마다 반경 ${DRONE_FX.amplifierRadius}px 오라. 안에 있으면 최종 쿨타임 ${Math.round((1 - ampCooldownMul(lv)) * 100)}% 감소.`;
+}
+
+function fmtDamage(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return Math.round(n).toLocaleString();
 }
 
 function fmtCredits(n: number): string {
@@ -796,7 +802,10 @@ export class UI {
     const buffBits: string[] = [];
     if ((slot.damageBonus ?? 0) > 0) buffBits.push(`데미지 +${Math.round((slot.damageBonus ?? 0) * 100)}%`);
     if ((slot.speedBonus ?? 0) > 0) buffBits.push(`투속 +${Math.round((slot.speedBonus ?? 0) * 100)}%`);
-    if ((slot.cooldownBonus ?? 0) > 0) buffBits.push(`쿨 -${Math.round((slot.cooldownBonus ?? 0) * 100)}%`);
+    if ((slot.cooldownBonus ?? 0) > 0) {
+      const pct = Math.round((slot.cooldownBonus ?? 0) * 100);
+      buffBits.push(isTickWeapon(slot.weaponId) ? `빈도 +${pct}%` : `쿨 -${pct}%`);
+    }
     if ((slot.radiusBonus ?? 0) > 0) buffBits.push(`크기 +${Math.round((slot.radiusBonus ?? 0) * 100)}%`);
     const buffLine = buffBits.length
       ? `<br/><span class="tt-affix">크래프트 ${buffBits.join(' · ')}</span>`
@@ -878,7 +887,7 @@ export class UI {
       this.cardContainer.appendChild(card);
     }
     this.levelupOverlay.classList.remove('hidden');
-    this.setFocusGroup([...this.cardContainer.querySelectorAll('button')]);
+    this.setFocusGroup([...this.cardContainer.querySelectorAll('button')], -1);
   }
 
   hideLevelUp(): void {
@@ -910,7 +919,7 @@ export class UI {
         return `<div class="dps-row">
           <span class="dps-name">${def.icon} ${def.name}</span>
           <span class="dps-bar"><i style="width:${pct.toFixed(1)}%;background:${def.color}"></i></span>
-          <span class="dps-pct">${pct.toFixed(0)}%</span>
+          <span class="dps-pct">${pct.toFixed(0)}% · ${fmtDamage(e.dmg)}</span>
         </div>`;
       }).join('')}</div>`;
     return `
@@ -1064,11 +1073,11 @@ export class UI {
     return false;
   }
 
-  private setFocusGroup(els: HTMLElement[]): void {
+  private setFocusGroup(els: HTMLElement[], startIdx = 0): void {
     this.clearFocus();
     this.focusEls = els.filter(Boolean);
-    this.focusIdx = 0;
-    this.applyFocus();
+    this.focusIdx = startIdx;
+    if (this.focusIdx >= 0) this.applyFocus();
   }
 
   private clearFocus(): void {
@@ -1079,6 +1088,11 @@ export class UI {
 
   private moveFocus(delta: number): void {
     if (this.focusEls.length === 0) return;
+    if (this.focusIdx < 0) {
+      this.focusIdx = 0;
+      this.applyFocus();
+      return;
+    }
     this.focusEls[this.focusIdx]?.classList.remove('focused');
     this.focusIdx = (this.focusIdx + delta + this.focusEls.length) % this.focusEls.length;
     this.applyFocus();
@@ -1091,6 +1105,7 @@ export class UI {
   }
 
   private activateFocus(): boolean {
+    if (this.focusIdx < 0) return true;
     const el = this.focusEls[this.focusIdx];
     if (!el) return false;
     el.click();
@@ -1114,9 +1129,12 @@ export function craftLockedPreviewHtml(): string {
       <li>${AFFIXES.split.icon} ${AFFIXES.split.label} 투사체 분열</li>
       <li>${AFFIXES.pierce.icon} ${AFFIXES.pierce.label} 관통 횟수 증가</li>
       <li>${AFFIXES.chain.icon} ${AFFIXES.chain.label} 적중 시 전이</li>
+      <li>${AFFIXES.afterimage.icon} ${AFFIXES.afterimage.label} 근접 잔상 타격</li>
+      <li>${AFFIXES.echo.icon} ${AFFIXES.echo.label} 처치 시 폭발</li>
+      <li>${AFFIXES.brilliance.icon} ${AFFIXES.brilliance.label} 타격 광역 파동</li>
       <li>💪 [강화] 무기 기본 데미지 이번 런 동안 +${dmgPct}% 증가</li>
       <li>💨 [강화] 투사체 속도 이번 런 동안 +${Math.round(ARSENAL.buffSpeed * 100)}%</li>
-      <li>⏱️ [강화] 발사 쿨타임 이번 런 동안 -${Math.round(ARSENAL.buffCooldown * 100)}%</li>
+      <li>⏱️ [강화] 발사 쿨타임(근접·오라는 타격 주기) 이번 런 동안 -${Math.round(ARSENAL.buffCooldown * 100)}%</li>
       <li>🔘 [강화] 투사체·폭발 반경 이번 런 동안 +${Math.round(ARSENAL.buffRadius * 100)}%</li>
     </ul>
   `;
@@ -1149,9 +1167,10 @@ export function craftArsenalPreviewHtml(state: GameState): string {
     const spdB = Math.round((slot.speedBonus ?? 0) * 100);
     const cdB = Math.round((slot.cooldownBonus ?? 0) * 100);
     const radB = Math.round((slot.radiusBonus ?? 0) * 100);
+    const cdLabel = isTickWeapon(slot.weaponId) ? `빈도 +${cdB}%` : `쿨 -${cdB}%`;
     return `<li>${def.icon} <b>${def.name}</b> Lv.${slot.level}<br/>
-      데미지 ${dmg} × ${p.count} · 쿨 ${cd}s<br/>
-      어픽스 ${affix} · 데미지 +${dmgB}% · 투속 +${spdB}% · 쿨 -${cdB}% · 크기 +${radB}%</li>`;
+      데미지 ${dmg} × ${p.count} · 주기 ${cd}s<br/>
+      어픽스 ${affix} · 데미지 +${dmgB}% · 투속 +${spdB}% · ${cdLabel} · 크기 +${radB}%</li>`;
   }).join('');
   return `<p>장착 중 종결 무기</p><ul>${rows}</ul>`;
 }

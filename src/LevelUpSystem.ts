@@ -4,6 +4,7 @@ import type {
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
   ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP, SHIPS, VOID_ALTAR, PLAYER,
+  compatibleAffixes, isTickWeapon,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -93,6 +94,7 @@ function buildEndgamePool(state: GameState): LevelUpChoice[] {
     if (slot.affix) continue;
     const def = WEAPONS[slot.weaponId];
     for (const ax of Object.values(AFFIXES)) {
+      if (!compatibleAffixes(slot.weaponId).includes(ax.id)) continue;
       pool.push({
         kind: 'affix',
         weight: ax.weight,
@@ -180,18 +182,20 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     && state.weapons.length > 0
     && state.weapons.every((w) => w.level >= LEVELING.maxWeaponLevel)
   ) {
-    const lastId = state.acquireOrder[state.acquireOrder.length - 1]
-      ?? state.weapons[state.weapons.length - 1].weaponId;
-    const from = WEAPONS[lastId];
-    pool.push({
-      kind: 'evolve',
-      weight: 80,
-      title: `${from.name} 진화`,
-      desc: `마지막 획득 무기를 한 티어 위 무작위 무장 Lv.1로 교체합니다.`,
-      icon: '🧬',
-      color: '#f0abfc',
-      weaponIds: [lastId],
-    });
+    const evolveId = [...state.acquireOrder].reverse().find((id) => WEAPONS[id].tier !== 3)
+      ?? state.weapons.map((w) => w.weaponId).reverse().find((id) => WEAPONS[id].tier !== 3);
+    if (evolveId) {
+      const from = WEAPONS[evolveId];
+      pool.push({
+        kind: 'evolve',
+        weight: 80,
+        title: `${from.name} 진화`,
+        desc: `마지막 획득 무기를 한 티어 위 무작위 무장 Lv.1로 교체합니다.`,
+        icon: '🧬',
+        color: '#f0abfc',
+        weaponIds: [evolveId],
+      });
+    }
   }
 
   if (state.passives.length < state.maxPassiveSlots) {
@@ -330,13 +334,17 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function pickUniqueOps(count: number): Exclude<CraftOp, 'affix'>[] {
+function pickUniqueOps(count: number, slot?: WeaponSlot): Exclude<CraftOp, 'affix'>[] {
   const pool: Exclude<CraftOp, 'affix'>[] = ['damage', 'speed', 'cooldown', 'radius'];
-  for (let i = pool.length - 1; i > 0; i--) {
+  const filtered = slot && isTickWeapon(slot.weaponId)
+    ? pool.filter((op) => op !== 'speed')
+    : pool;
+  const arr = [...filtered];
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return pool.slice(0, count);
+  return arr.slice(0, count);
 }
 
 function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
@@ -348,8 +356,8 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
       weight: 0,
       title: `${def.name} 어픽스 ${reroll ? '리롤' : '부여'}`,
       desc: reroll
-        ? `현재 접사를 다른 무작위 어픽스로 바꿉니다.`
-        : `무작위 T0 어픽스(분열/관통/연쇄)를 부여합니다.`,
+        ? `현재 접사를 이 무기에 맞는 다른 무작위 어픽스로 바꿉니다.`
+        : `이 무기에 맞는 무작위 어픽스를 부여합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
@@ -384,11 +392,14 @@ function craftCard(slot: WeaponSlot, op: CraftOp): LevelUpChoice {
   }
   if (op === 'cooldown') {
     const pct = Math.round(ARSENAL.buffCooldown * 100);
+    const tick = isTickWeapon(slot.weaponId);
     return {
       kind: 'craft',
       weight: 0,
-      title: `${def.name} 쿨타임 -${pct}%`,
-      desc: `이 무기의 발사 쿨타임이 이번 게임(런) 동안 ${pct}% 감소합니다.`,
+      title: tick ? `${def.name} 공격 빈도 +${pct}%` : `${def.name} 쿨타임 -${pct}%`,
+      desc: tick
+        ? `이 무기의 타격 주기가 이번 게임(런) 동안 ${pct}% 빨라집니다.`
+        : `이 무기의 발사 쿨타임이 이번 게임(런) 동안 ${pct}% 감소합니다.`,
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
@@ -426,10 +437,15 @@ export function generateCraftChoices(state: GameState): LevelUpChoice[] {
     ? t3
     : state.weapons.filter((s) => WEAPONS[s.weaponId].tier === maxTier);
 
-  const ops = pickUniqueOps(2);
+  const ops = pickUniqueOps(2, t3.length > 0 ? pickRandom(t3) : pickRandom(targets));
   const cards: LevelUpChoice[] = [];
   if (t3.length > 0) {
-    cards.push(craftCard(pickRandom(t3), 'affix'));
+    const affixSlot = t3.find((s) => compatibleAffixes(s.weaponId).length > 0) ?? pickRandom(t3);
+    if (compatibleAffixes(affixSlot.weaponId).length > 0) {
+      cards.push(craftCard(affixSlot, 'affix'));
+    } else {
+      cards.push(craftCard(affixSlot, 'damage'));
+    }
     for (const op of ops) cards.push(craftCard(pickRandom(t3), op));
   } else {
     for (const op of ops) cards.push(craftCard(pickRandom(targets), op));
@@ -440,8 +456,9 @@ export function generateCraftChoices(state: GameState): LevelUpChoice[] {
   return cards.slice(0, 3);
 }
 
-function randomAffix(): AffixId {
-  const ids = Object.keys(AFFIXES) as AffixId[];
+function randomAffix(weaponId?: WeaponId): AffixId | null {
+  const ids = weaponId ? compatibleAffixes(weaponId) : (Object.keys(AFFIXES) as AffixId[]);
+  if (ids.length === 0) return null;
   return ids[Math.floor(Math.random() * ids.length)];
 }
 
@@ -463,12 +480,15 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
         cooldownLeft: 200,
       };
       if (WEAPONS[resultId].tier === 3 && Math.random() < ENDGAME.tier3AffixChance) {
-        result.affix = randomAffix();
-        const ax = AFFIXES[result.affix];
-        state.events.push({
-          type: 'banner',
-          text: `${ax.label} ${WEAPONS[resultId].name}!`,
-        });
+        const axId = randomAffix(resultId);
+        if (axId) {
+          result.affix = axId;
+          const ax = AFFIXES[result.affix];
+          state.events.push({
+            type: 'banner',
+            text: `${ax.label} ${WEAPONS[resultId].name}!`,
+          });
+        }
       }
       state.weapons.push(result);
       state.noteWeapon(resultId);
@@ -546,6 +566,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
     }
     case 'evolve': {
       const fromId = (choice.weaponIds as WeaponId[])[0];
+      if (WEAPONS[fromId].tier === 3) break;
       const slot = [...state.weapons].reverse().find((w) => w.weaponId === fromId);
       if (!slot) break;
       const from = WEAPONS[fromId];

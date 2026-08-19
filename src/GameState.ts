@@ -9,7 +9,8 @@ import {
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
   SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS, HOMING,
   LEGION, LEVEL_AEGIS, TRAPPER, VORTEX, DRONE_FX,
-  VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX,
+  VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX,
+  compatibleAffixes, ampCooldownMul,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -126,7 +127,9 @@ export interface Slash {
   weaponId: WeaponId;
   deflect: boolean;
   hitIds: Set<number>;
-  leaveZone?: { duration: number; tick: number };
+  leaveZone?: { duration: number; tick: number; radius: number };
+  fromAfterimage?: boolean;
+  afterimageQueued?: boolean;
 }
 
 export interface Orbiter {
@@ -156,6 +159,8 @@ export interface Mine {
   split: number;
   zoneDuration: number;
   zoneTick: number;
+  vx: number;
+  vy: number;
 }
 
 export interface HazardZone {
@@ -172,6 +177,8 @@ export interface HazardZone {
   pull: number;
   color: string;
   weaponId: WeaponId;
+  pulsePeak?: number;
+  pulseMaxLife?: number;
 }
 
 export interface Pylon {
@@ -272,7 +279,7 @@ export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover'
 export type FxEvent =
   | { type: 'enemyDied'; x: number; y: number; color: string; radius: number }
   | { type: 'enemyHit'; x: number; y: number; color: string; damage: number }
-  | { type: 'fired'; x: number; y: number; color: string; weaponId?: WeaponId; angle?: number }
+  | { type: 'fired'; x: number; y: number; color: string; weaponId?: WeaponId; angle?: number; arcDeg?: number; range?: number; orbitRadius?: number }
   | { type: 'gemPickup'; x: number; y: number }
   | { type: 'playerHit' }
   | { type: 'levelUp'; x: number; y: number }
@@ -414,6 +421,7 @@ export class GameState {
   pylons: Pylon[] = [];
   interceptBeams: InterceptBeam[] = [];
   ampAura: AmpAura | null = null;
+  private pendingAfterimages: { left: number; slash: Slash }[] = [];
 
   time = 0;
   kills = 0;
@@ -546,6 +554,7 @@ export class GameState {
     this.droneLevel = this.droneId ? Math.max(1, meta.droneLevels?.[this.droneId] ?? 1) : 0;
     this.droneTimer = 0;
     this.ampAura = null;
+    this.pendingAfterimages = [];
     this.applyPassiveEffects();
     this.weapons = [{ weaponId: ship.startingWeapon, level: 1, cooldownLeft: 300 }];
     this.status = 'playing';
@@ -618,10 +627,10 @@ export class GameState {
 
   /** 어픽스 없는 랜덤 무기에 부여. 성공 여부 반환 */
   grantRandomAffix(): boolean {
-    const candidates = this.weapons.filter((w) => !w.affix);
+    const candidates = this.weapons.filter((w) => !w.affix && compatibleAffixes(w.weaponId).length > 0);
     if (candidates.length === 0) return false;
     const slot = candidates[Math.floor(Math.random() * candidates.length)];
-    const ids = Object.keys(AFFIXES) as AffixId[];
+    const ids = compatibleAffixes(slot.weaponId);
     slot.affix = ids[Math.floor(Math.random() * ids.length)];
     const ax = AFFIXES[slot.affix];
     this.events.push({
@@ -663,8 +672,9 @@ export class GameState {
   rerollAffix(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
     if (!slot || WEAPONS[weaponId].tier !== 3 || !slot.affix) return false;
-    const ids = (Object.keys(AFFIXES) as AffixId[]).filter((id) => id !== slot.affix);
-    slot.affix = ids[Math.floor(Math.random() * ids.length)] ?? slot.affix;
+    const ids = compatibleAffixes(weaponId).filter((id) => id !== slot.affix);
+    if (ids.length === 0) return false;
+    slot.affix = ids[Math.floor(Math.random() * ids.length)];
     this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 리롤!` });
     return true;
   }
@@ -673,7 +683,8 @@ export class GameState {
   grantAffix(weaponId: WeaponId): boolean {
     const slot = this.weapons.find((w) => w.weaponId === weaponId);
     if (!slot || WEAPONS[weaponId].tier !== 3 || slot.affix) return false;
-    const ids = Object.keys(AFFIXES) as AffixId[];
+    const ids = compatibleAffixes(weaponId);
+    if (ids.length === 0) return false;
     slot.affix = ids[Math.floor(Math.random() * ids.length)];
     this.events.push({ type: 'banner', text: `${AFFIXES[slot.affix].label} 부여!` });
     return true;
@@ -1041,7 +1052,7 @@ export class GameState {
           && this.skillActiveLeft > 0
           ? AWAKEN.stasisCooldownMul : 1;
         const cdScale = (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) * this.cooldownMul
-          * (this.inAmplifierAura() ? DRONE_FX.amplifierCooldownMul : 1)
+          * (this.inAmplifierAura() ? ampCooldownMul(this.droneLevel) : 1)
           * stasis;
         const craftCd = Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0);
         const raw = def.cooldownMs * cdScale * (1 - craftCd);
@@ -1076,12 +1087,14 @@ export class GameState {
     const sizeMul = 1 + (slot.radiusBonus ?? 0);
 
     if (p.melee) {
+      const arcDeg = Math.min(360, p.melee.arcDeg * sizeMul);
+      const range = p.melee.range * sizeMul;
       this.slashes.push({
         x: this.playerX,
         y: this.playerY,
         angle: baseAngle,
-        arcDeg: p.melee.arcDeg,
-        range: p.melee.range * sizeMul,
+        arcDeg,
+        range,
         life: p.melee.duration,
         maxLife: p.melee.duration,
         damage,
@@ -1090,13 +1103,13 @@ export class GameState {
         deflect: p.melee.deflect,
         hitIds: new Set(),
         leaveZone: p.drop?.zoneDuration
-          ? { duration: p.drop.zoneDuration, tick: p.drop.zoneTick ?? 0.12 }
+          ? { duration: p.drop.zoneDuration, tick: p.drop.zoneTick ?? 0.12, radius: 18 * sizeMul }
           : undefined,
       });
       this.events.push({
         type: 'fired',
         x: this.playerX, y: this.playerY - PLAYER.radius,
-        color, weaponId: slot.weaponId, angle: baseAngle,
+        color, weaponId: slot.weaponId, angle: baseAngle, arcDeg, range,
       });
       return;
     }
@@ -1108,17 +1121,23 @@ export class GameState {
           type: 'fired',
           x: this.playerX, y: this.playerY,
           color, weaponId: slot.weaponId,
+          orbitRadius: p.orbit.radius * sizeMul,
         });
       }
       return;
     }
 
     if (p.drop) {
-      const backX = this.playerX - this.lastAimX * (PLAYER.radius + 18);
-      const backY = this.playerY - this.lastAimY * (PLAYER.radius + 18);
+      const thrown = slot.weaponId === 'singularity' && p.speed > 0;
+      const spawnX = thrown
+        ? this.playerX + this.lastAimX * (PLAYER.radius + 10)
+        : this.playerX - this.lastAimX * (PLAYER.radius + 18);
+      const spawnY = thrown
+        ? this.playerY + this.lastAimY * (PLAYER.radius + 10)
+        : this.playerY - this.lastAimY * (PLAYER.radius + 18);
       this.mines.push({
-        x: backX,
-        y: backY,
+        x: spawnX,
+        y: spawnY,
         radius: p.radius * sizeMul,
         fuse: p.drop.fuse,
         damage,
@@ -1131,10 +1150,12 @@ export class GameState {
         split: p.drop.split ?? 0,
         zoneDuration: p.drop.zoneDuration ?? 0,
         zoneTick: p.drop.zoneTick ?? 0.15,
+        vx: thrown ? this.lastAimX * p.speed : 0,
+        vy: thrown ? this.lastAimY * p.speed : 0,
       });
       this.events.push({
         type: 'fired',
-        x: backX, y: backY,
+        x: spawnX, y: spawnY,
         color, weaponId: slot.weaponId,
       });
       return;
@@ -1912,6 +1933,10 @@ export class GameState {
     }
   }
 
+  private weaponAffix(id: WeaponId): AffixId | undefined {
+    return this.weapons.find((w) => w.weaponId === id)?.affix;
+  }
+
   private updateSlashes(dt: number): void {
     for (let i = this.slashes.length - 1; i >= 0; i--) {
       const s = this.slashes[i];
@@ -1930,6 +1955,7 @@ export class GameState {
         s.hitIds.add(e.id);
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, s.damage, s.weaponId);
+        this.procMeleeAffix(s, e);
       }
       if (s.deflect) {
         for (let k = this.enemyProjectiles.length - 1; k >= 0; k--) {
@@ -1952,7 +1978,7 @@ export class GameState {
           this.zones.push({
             kind: 'segment',
             x: s.x, y: s.y, x2, y2,
-            radius: 18,
+            radius: s.leaveZone.radius,
             life: s.leaveZone.duration,
             tickLeft: 0,
             tickInterval: s.leaveZone.tick,
@@ -1965,11 +1991,70 @@ export class GameState {
         this.slashes.splice(i, 1);
       }
     }
+    for (let i = this.pendingAfterimages.length - 1; i >= 0; i--) {
+      const p = this.pendingAfterimages[i];
+      p.left -= dt;
+      if (p.left > 0) continue;
+      this.slashes.push(p.slash);
+      this.events.push({
+        type: 'fired',
+        x: p.slash.x, y: p.slash.y,
+        color: p.slash.color,
+        weaponId: p.slash.weaponId,
+        angle: p.slash.angle,
+        arcDeg: p.slash.arcDeg,
+        range: p.slash.range,
+      });
+      this.pendingAfterimages.splice(i, 1);
+    }
+  }
+
+  private procMeleeAffix(s: Slash, e: Enemy): void {
+    const ax = this.weaponAffix(s.weaponId);
+    if (ax === 'afterimage' && !s.fromAfterimage && !s.afterimageQueued) {
+      s.afterimageQueued = true;
+      const mul = AFFIX_FX.afterimageMul;
+      this.pendingAfterimages.push({
+        left: AFFIX_FX.afterimageDelay,
+        slash: {
+          x: s.x, y: s.y, angle: s.angle,
+          arcDeg: s.arcDeg * mul,
+          range: s.range * mul,
+          life: s.maxLife,
+          maxLife: s.maxLife,
+          damage: s.damage * mul,
+          color: s.color,
+          weaponId: s.weaponId,
+          deflect: false,
+          hitIds: new Set(),
+          fromAfterimage: true,
+        },
+      });
+    }
+    if (ax === 'brilliance') {
+      const peak = Math.max(24, s.range * AFFIX_FX.brillianceRadiusMul);
+      this.zones.push({
+        kind: 'circle',
+        x: e.x, y: e.y, x2: e.x, y2: e.y,
+        radius: 8,
+        life: AFFIX_FX.brillianceLife,
+        tickLeft: 0,
+        tickInterval: 0.08,
+        damage: s.damage * 0.35,
+        pull: 0,
+        color: s.color,
+        weaponId: s.weaponId,
+        pulsePeak: peak,
+        pulseMaxLife: AFFIX_FX.brillianceLife,
+      });
+    }
   }
 
   private updateMines(dt: number): void {
     for (let i = this.mines.length - 1; i >= 0; i--) {
       const m = this.mines[i];
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
       if (m.seekSpeed > 0) {
         const t = this.nearestEnemy(m.x, m.y, new Set());
         if (t) {
@@ -2051,6 +2136,10 @@ export class GameState {
       const z = this.zones[i];
       z.life -= dt;
       z.tickLeft -= dt;
+      if (z.pulsePeak && z.pulseMaxLife) {
+        const t = 1 - Math.max(0, z.life) / z.pulseMaxLife;
+        z.radius = z.pulsePeak * Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+      }
       if (z.pull > 0) {
         for (const e of this.enemies) {
           const dx = z.x - e.x;
@@ -2565,7 +2654,7 @@ export class GameState {
     return best;
   }
 
-  private damageEnemy(e: Enemy, dmg: number, weaponId?: WeaponId): void {
+  private damageEnemy(e: Enemy, dmg: number, weaponId?: WeaponId, fromEcho = false): void {
     if (this.isCloaked(e)) return;
     if (this.inGuardianAura(e)) dmg *= GUARDIAN.damageTakenMul;
     const prevRatio = e.hp / e.maxHp;
@@ -2641,8 +2730,37 @@ export class GameState {
         if (e.elite) this.vacuumDrops();
       }
 
+      if (
+        !fromEcho
+        && weaponId
+        && this.weaponAffix(weaponId) === 'echo'
+        && Math.random() < AFFIX_FX.echoChance
+      ) {
+        this.echoBurst(e.x, e.y, weaponId, e.id);
+      }
+
       const idx = this.enemies.indexOf(e);
       if (idx >= 0) this.enemies.splice(idx, 1);
+    }
+  }
+
+  private echoBurst(x: number, y: number, weaponId: WeaponId, skipId: number): void {
+    const slot = this.weapons.find((w) => w.weaponId === weaponId);
+    const def = WEAPONS[weaponId];
+    const sizeMul = 1 + (slot?.radiusBonus ?? 0);
+    const r = AFFIX_FX.echoRadius * sizeMul;
+    const dmg = def.projectile.damage
+      * (1 + ((slot?.level ?? 1) - 1) * LEVELING.damagePerLevel)
+      * this.damageMul
+      * (1 + (slot?.damageBonus ?? 0))
+      * 0.8;
+    this.events.push({ type: 'blast', x, y, color: def.color, radius: r * 0.7 });
+    for (const other of [...this.enemies]) {
+      if (other.id === skipId) continue;
+      if ((other.x - x) ** 2 + (other.y - y) ** 2 > r * r) continue;
+      if (this.isCloaked(other)) continue;
+      if (this.tryAbsorbShield(other, true)) continue;
+      this.damageEnemy(other, dmg, weaponId, true);
     }
   }
 

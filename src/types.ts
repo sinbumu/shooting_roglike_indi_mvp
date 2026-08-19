@@ -86,6 +86,8 @@ export interface ProjectileSpec {
   };
 }
 
+export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop';
+
 export interface WeaponDef {
   id: WeaponId;
   name: string;
@@ -95,6 +97,8 @@ export interface WeaponDef {
   desc: string;
   cooldownMs: number;
   projectile: ProjectileSpec;
+  /** 없으면 projectile. 근접/오라/장판만 명시 */
+  tags?: WeaponTag[];
 }
 
 export interface Recipe {
@@ -307,7 +311,7 @@ export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube';
 export type PilotTraitId = 'lastStand' | 'turretDark' | 'executioner';
 
 /** Tier3 / 엔드게임 무기 접사 */
-export type AffixId = 'split' | 'pierce' | 'chain';
+export type AffixId = 'split' | 'pierce' | 'chain' | 'afterimage' | 'echo' | 'brilliance';
 
 /** 한계 돌파 미세 스탯 */
 export type StatBoostId = 'projSpeed' | 'critMul' | 'moveSpeed';

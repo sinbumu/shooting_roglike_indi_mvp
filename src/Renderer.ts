@@ -305,12 +305,15 @@ export class Renderer {
           const spec = ev.weaponId ? WEAPONS[ev.weaponId].projectile : undefined;
           if (spec?.melee) {
             this.slashFlash(
-              ev.x, ev.y, hex(ev.color), spec.melee.arcDeg, spec.melee.range,
+              ev.x, ev.y, hex(ev.color),
+              ev.arcDeg ?? spec.melee.arcDeg,
+              ev.range ?? spec.melee.range,
               ev.angle ?? Math.atan2(state.lastAimY, state.lastAimX),
             );
           } else if (spec?.orbit) {
+            const r = ev.orbitRadius ?? spec.orbit.radius;
             this.spawnParticle({
-              x: ev.x, y: ev.y, life: 0.35, sizeFrom: 28, sizeTo: spec.orbit.radius * 2.2,
+              x: ev.x, y: ev.y, life: 0.35, sizeFrom: 28, sizeTo: r * 2.2,
               tint: hex(ev.color), alphaFrom: 0.7, ring: true,
             });
           } else if (spec?.drop) {
