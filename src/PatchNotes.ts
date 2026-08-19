@@ -7,6 +7,13 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.8',
+    date: '2026-08-20',
+    changes: [
+      '🩸 크림슨 팩트 혈사포: 에너지 빔 대신 한 방향으로 고속 분출되는 피분수 연출로 교체했습니다',
+    ],
+  },
+  {
     version: 'v1.9.7',
     date: '2026-08-20',
     changes: [

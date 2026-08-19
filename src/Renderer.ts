@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import type { GameState } from './GameState';
+import type { GameState, Beam } from './GameState';
 import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, isSummonFamily, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
@@ -482,8 +482,24 @@ export class Renderer {
             this.flashColor = 0xef4444;
             this.shake(8, 0.35);
           } else if (ev.id === 'bloodStream') {
-            this.flashAlpha = 0.24;
-            this.flashColor = 0xfb7185;
+            this.flashAlpha = 0.28;
+            this.flashColor = 0x9f1239;
+            this.shake(7, 0.32);
+            for (let i = 0; i < 10; i++) {
+              const a = Math.atan2(state.lastAimY, state.lastAimX) + (Math.random() - 0.5) * 0.5;
+              const spd = 280 + Math.random() * 420;
+              this.spawnParticle({
+                x: ev.x, y: ev.y,
+                vx: Math.cos(a) * spd,
+                vy: Math.sin(a) * spd,
+                life: 0.22 + Math.random() * 0.14,
+                sizeFrom: 8 + Math.random() * 10,
+                sizeTo: 2,
+                tint: i % 3 === 0 ? 0xf43f5e : 0x9f1239,
+                alphaFrom: 0.95,
+                drag: 0.8,
+              });
+            }
           }
           break;
         }
@@ -1327,10 +1343,10 @@ export class Renderer {
     }
     if (state.skillActiveLeft > 0 && skill.id === 'bloodStream') {
       const glow = this.glowPool.get();
-      glow.tint = 0xfb7185;
+      glow.tint = 0x9f1239;
       glow.position.set(x, y);
-      glow.width = glow.height = PLAYER.radius * 5.4 + Math.sin(this.elapsed * 18) * 8;
-      glow.alpha = 0.55;
+      glow.width = glow.height = PLAYER.radius * 5.8 + Math.sin(this.elapsed * 26) * 10;
+      glow.alpha = 0.5 + Math.sin(this.elapsed * 20) * 0.12;
     }
     if (state.immortalLeft > 0) {
       const glow = this.glowPool.get();
@@ -2480,9 +2496,95 @@ export class Renderer {
     }
   }
 
+  private drawBloodStream(g: Graphics, b: Beam): void {
+    const c = Math.cos(b.angle);
+    const s = Math.sin(b.angle);
+    const px = -s;
+    const py = c;
+    const len = b.length;
+    const segs = 16;
+    const flow = this.elapsed * 26;
+
+    const ribbon = (amp: number, halfW: number, col: number, alpha: number, seed: number): void => {
+      const pts: number[] = [];
+      for (let i = 0; i <= segs; i++) {
+        const u = i / segs;
+        const dist = u * len;
+        const flare = 1 + u * 0.28;
+        const jag = Math.sin(u * 13 - flow + seed) * amp
+          + Math.sin(u * 29 + flow * 0.55 + seed) * amp * 0.4;
+        const w = halfW * flare + jag;
+        pts.push(b.x + c * dist + px * w, b.y + s * dist + py * w);
+      }
+      for (let i = segs; i >= 0; i--) {
+        const u = i / segs;
+        const dist = u * len;
+        const flare = 1 + u * 0.28;
+        const jag = Math.sin(u * 13 - flow + seed) * amp
+          + Math.sin(u * 29 + flow * 0.55 + seed) * amp * 0.4;
+        const w = halfW * flare + jag;
+        pts.push(b.x + c * dist - px * w, b.y + s * dist - py * w);
+      }
+      g.poly(pts, true).fill({ color: col, alpha });
+    };
+
+    ribbon(6.2, b.width * 0.78, 0x3f0a12, 0.62, 0.15);
+    ribbon(4.6, b.width * 0.5, 0x9f1239, 0.72, 1.8);
+    ribbon(3.2, b.width * 0.22, 0xe11d48, 0.58, 3.6);
+
+    for (let i = 0; i < 12; i++) {
+      const u = ((flow * 0.07 + i * 0.083) % 1 + 1) % 1;
+      const dist = u * len;
+      const jag = Math.sin(i * 2.3 + flow) * b.width * 0.38;
+      const x = b.x + c * dist + px * jag;
+      const y = b.y + s * dist + py * jag;
+      const streak = 16 + (1 - u) * 28;
+      g.moveTo(x - c * streak, y - s * streak)
+        .lineTo(x + c * 8, y + s * 8)
+        .stroke({
+          width: Math.max(1.2, 2.6 - u * 1.2),
+          color: i % 3 === 0 ? 0xf43f5e : 0xbe123c,
+          alpha: 0.82 - u * 0.4,
+        });
+    }
+
+    const gush = b.width * 0.52 + Math.sin(this.elapsed * 32) * 3.5;
+    g.circle(b.x, b.y, gush * 1.15).fill({ color: 0x7f1d1d, alpha: 0.78 });
+    g.circle(b.x, b.y, gush * 0.55).fill({ color: 0xf43f5e, alpha: 0.72 });
+
+    if (this.particles.length < PERF.particleCap * 0.72) {
+      const spread = (Math.random() - 0.5) * 0.28;
+      const ca = Math.cos(b.angle + spread);
+      const sa = Math.sin(b.angle + spread);
+      const spd = 480 + Math.random() * 340;
+      this.spawnParticle({
+        x: b.x + ca * 10,
+        y: b.y + sa * 10,
+        vx: ca * spd,
+        vy: sa * spd,
+        life: 0.16 + Math.random() * 0.12,
+        sizeFrom: 6 + Math.random() * 9,
+        sizeTo: 1.5,
+        tint: Math.random() < 0.4 ? 0xf43f5e : 0x9f1239,
+        alphaFrom: 0.92,
+        drag: 0.55,
+      });
+    }
+
+    const glow = this.glowPool.get();
+    glow.tint = 0x9f1239;
+    glow.position.set(b.x, b.y);
+    glow.width = glow.height = b.width * 5.2;
+    glow.alpha = 0.5;
+  }
+
   private drawBeams(state: GameState): void {
     const g = this.projG;
     for (const b of state.beams) {
+      if (b.style === 'blood') {
+        this.drawBloodStream(g, b);
+        continue;
+      }
       const x2 = b.x + Math.cos(b.angle) * b.length;
       const y2 = b.y + Math.sin(b.angle) * b.length;
       const color = hex(b.color);

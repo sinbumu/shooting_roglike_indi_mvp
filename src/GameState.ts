@@ -88,6 +88,8 @@ export interface Beam {
   weaponId?: WeaponId;
   /** world면 발화점 고정 (둠스데이 폭주 레이저) */
   anchor?: 'world';
+  /** 혈사포: 피분수 연출 */
+  style?: 'blood';
 }
 
 export interface Enemy {
@@ -1309,8 +1311,9 @@ export class GameState {
         life: skill.duration ?? 2.5,
         tickLeft: 0,
         tickInterval: 0.1,
-        color: '#fb7185',
+        color: '#9f1239',
         ignoreShield: true,
+        style: 'blood',
       });
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
