@@ -321,6 +321,9 @@ export class GameState {
   playerY = CANVAS.height * 0.78;
   moveX = 0;
   moveY = 0;
+  /** 관성 속도 (px/초) */
+  velX = 0;
+  velY = 0;
   /** 키보드 Shift 정밀 비행 */
   isFocusing = false;
   shipId: ShipId = 'scout';
@@ -510,6 +513,8 @@ export class GameState {
     this.pendingAltarRewards = 0;
     this.lastAimX = 0;
     this.lastAimY = -1;
+    this.velX = 0;
+    this.velY = 0;
     this.isFocusing = false;
     this.skillCdLeft = 0;
     this.skillActiveLeft = 0;
@@ -983,10 +988,8 @@ export class GameState {
       dirX = mx / mag;
       dirY = my / mag;
       analog = Math.min(1, mag);
-      if (mag > 0.15) {
-        this.lastAimX = dirX;
-        this.lastAimY = dirY;
-      }
+      this.lastAimX = dirX;
+      this.lastAimY = dirY;
     }
     if (this.isFocusing) analog *= PLAYER.focusSpeedMul;
 
@@ -1003,14 +1006,23 @@ export class GameState {
     const skill = SHIPS[this.shipId].activeSkill;
     const locked = this.skillActiveLeft > 0 && skill.id === 'aegis';
     if (!locked) {
-      this.playerX += dirX * this.moveSpeed * analog * dt;
-      this.playerY += dirY * this.moveSpeed * analog * dt;
+      const targetVx = dirX * this.moveSpeed * analog;
+      const targetVy = dirY * this.moveSpeed * analog;
+      const rate = analog > 0.001 ? PLAYER.accel : PLAYER.friction;
+      const k = 1 - Math.exp(-rate * dt);
+      this.velX += (targetVx - this.velX) * k;
+      this.velY += (targetVy - this.velY) * k;
+      this.playerX += this.velX * dt;
+      this.playerY += this.velY * dt;
       const r = PLAYER.radius;
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
       this.applyVortexPull(dt);
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
+    } else {
+      this.velX = 0;
+      this.velY = 0;
     }
 
     if (this.invincibleLeft > 0) this.invincibleLeft -= dt * 1000;

@@ -8,17 +8,14 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const srcDir = path.resolve(
-  '/Users/blockoxyz/.cursor/projects/Users-blockoxyz-Documents-GitHub-shooting-roglike-indi-mvp/assets',
-);
+const srcDir = path.join(root, 'assets/raw');
 const outDir = path.join(root, 'public/assets/sprites');
 
+/** 신규만 처리. 기존 19장은 public/assets/sprites 원본을 유지한다. */
 const NAMES = [
-  'ship_scout', 'ship_fortress', 'ship_hunter',
-  'enemy_drone', 'enemy_zigzag', 'enemy_dasher', 'enemy_rusher', 'enemy_tank',
-  'enemy_shielder', 'enemy_teleporter', 'enemy_splinter', 'enemy_mirage', 'enemy_guardian',
-  'boss_boss', 'boss_bossSeraph',
-  'pickup_heal', 'pickup_magnet', 'pickup_bomb', 'pickup_cube',
+  'enemy_trapper', 'enemy_vortex',
+  'enemy_warden', 'enemy_herald', 'enemy_architect',
+  'pickup_goldCube',
 ];
 
 function isMagenta(r, g, b) {

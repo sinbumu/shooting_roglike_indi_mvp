@@ -7,6 +7,16 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.7.1',
+    date: '2026-08-19',
+    changes: [
+      '🎨 트래퍼·보텍스·군단장 3종·황금 큐브 고유 스프라이트',
+      '🕹️ 이동 관성 · 조이스틱 데드존 · 대시가 마지막 조준을 유지',
+      '✨ 피격 무적 알파 펄스 · 엔진 트레일 · 참격 잔상 · 지뢰/드론 실루엣',
+      '🔊 마스터 컴프 · 월드 SFX 스테레오 팬 · 일시정지 덕킹 · 스테이지 BGM 팔레트',
+    ],
+  },
+  {
     version: 'v1.7.0',
     date: '2026-08-19',
     changes: [

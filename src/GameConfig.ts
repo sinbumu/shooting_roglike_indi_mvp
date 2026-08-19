@@ -30,12 +30,18 @@ export const PLAYER = {
   maxWeaponSlots: 5,
   /** 런 중 패시브 슬롯 최대 */
   maxPassiveSlots: 4,
+  /** 입력 중 목표 속도로의 지수 접근 계수 */
+  accel: 14,
+  /** 입력 해제 시 감속 계수 (살짝 미끄러짐) */
+  friction: 10,
 } as const;
 
 /** 가상 조이스틱 설정 (CSS px 기준) */
 export const JOYSTICK = {
   /** 스틱 최대 이동 반경 */
   radius: 56,
+  /** 정규화 벡터 안쪽 데드존. 바깥은 재정규화 */
+  deadzone: 0.12,
 } as const;
 
 export const LEVELING = {

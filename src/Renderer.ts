@@ -18,6 +18,15 @@ interface Star {
   speed: number;
 }
 
+interface Drift {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  speed: number;
+  phase: number;
+}
+
 /** 수명 기반 파티클 (additive blend 글로우/링) */
 interface Particle {
   sprite: Sprite;
@@ -192,6 +201,7 @@ export class Renderer {
   private freeTexts: Text[] = [];
 
   private stars: Star[] = [];
+  private drifts: Drift[] = [];
   private elapsed = 0;
 
   // 화면 흔들림 / 피격 플래시
@@ -234,6 +244,16 @@ export class Renderer {
         speed: Math.random() * 60 + 25,
       });
     }
+    for (let i = 0; i < 22; i++) {
+      this.drifts.push({
+        x: Math.random() * CANVAS.width,
+        y: Math.random() * CANVAS.height,
+        w: 2 + Math.random() * 10,
+        h: 1 + Math.random() * 4,
+        speed: 18 + Math.random() * 40,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
   }
 
   // ==========================================================
@@ -252,7 +272,7 @@ export class Renderer {
     this.coreG.clear();
 
     this.drawBackground(state);
-    this.drawStars(dt, state.status !== 'gameover');
+    this.drawStars(dt, state);
     this.drawAltarAndHazards(state);
     this.drawGems(state);
     this.drawPickups(state);
@@ -618,6 +638,16 @@ export class Renderer {
       x, y, life: 0.16, sizeFrom: 16, sizeTo: Math.min(80, range * 0.12),
       tint, alphaFrom: 0.75, ring: true,
     });
+    this.spawnParticle({
+      x: x + Math.cos(base) * range * 0.28,
+      y: y + Math.sin(base) * range * 0.28,
+      life: 0.34,
+      sizeFrom: Math.min(90, range * 0.22),
+      sizeTo: Math.min(140, range * 0.42),
+      tint,
+      alphaFrom: 0.42,
+      ring: true,
+    });
   }
 
   private gemBurst(x: number, y: number): void {
@@ -716,9 +746,10 @@ export class Renderer {
     g.rect(0, 0, CANVAS.width, CANVAS.height * 0.55).fill({ color: state.bgTop, alpha: 0.95 });
   }
 
-  private drawStars(dt: number, scrolling: boolean): void {
+  private drawStars(dt: number, state: GameState): void {
     const g = this.starG;
     g.clear();
+    const scrolling = state.status !== 'gameover';
     for (const s of this.stars) {
       if (scrolling) {
         s.y += s.speed * dt;
@@ -728,6 +759,33 @@ export class Renderer {
         }
       }
       g.rect(s.x, s.y, s.size, s.size * 2.2).fill({ color: 0xffffff, alpha: 0.25 + s.size * 0.3 });
+    }
+
+    for (const d of this.drifts) {
+      if (scrolling) {
+        d.y += d.speed * dt;
+        if (d.y > CANVAS.height + 24) {
+          d.y = -24;
+          d.x = Math.random() * CANVAS.width;
+        }
+      }
+      const flicker = 0.08 + 0.05 * Math.sin(this.elapsed * 2.2 + d.phase);
+      if (state.stageId === 'orbit') {
+        g.rect(d.x, d.y, d.w, d.h).fill({ color: 0x94a3b8, alpha: 0.1 + flicker });
+        g.circle(d.x + d.w * 0.5, d.y, 1.4).fill({ color: 0x7dd3fc, alpha: 0.22 });
+      } else if (state.stageId === 'rift') {
+        g.moveTo(d.x, d.y).lineTo(d.x + d.w * 2.4, d.y + d.h * 6)
+          .stroke({ width: 1.2, color: 0xfb7185, alpha: 0.12 + flicker });
+      }
+    }
+    if (state.stageId === 'legion') {
+      const off = (this.elapsed * 22) % 48;
+      for (let x = -off; x < CANVAS.width + 48; x += 48) {
+        g.moveTo(x, 0).lineTo(x, CANVAS.height).stroke({ width: 1, color: 0xfbbf24, alpha: 0.045 });
+      }
+      for (let y = -off; y < CANVAS.height + 48; y += 48) {
+        g.moveTo(0, y).lineTo(CANVAS.width, y).stroke({ width: 1, color: 0xa78bfa, alpha: 0.035 });
+      }
     }
   }
 
@@ -742,28 +800,35 @@ export class Renderer {
 
     if (state.status === 'playing' && dt > 0) {
       const focus = state.isFocusing;
+      const backX = -state.lastAimX;
+      const backY = -state.lastAimY;
+      const spd = Math.hypot(state.velX, state.velY);
+      const trail = Math.min(1, spd / Math.max(80, state.moveSpeed));
+      const puff = focus ? 0.45 : 0.55 + trail * 0.7;
       this.spawnParticle({
-        x: x + (Math.random() - 0.5) * (focus ? 3 : 6),
-        y: y + 13,
-        vy: (focus ? 70 : 130) + Math.random() * (focus ? 30 : 60),
-        life: 0.22 + Math.random() * 0.1,
-        sizeFrom: (focus ? 4 : 9) + Math.random() * (focus ? 2 : 5),
+        x: x + backX * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
+        y: y + backY * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
+        vx: backX * (30 + trail * 90) + (Math.random() - 0.5) * 20,
+        vy: backY * (30 + trail * 90) + (Math.random() - 0.5) * 20,
+        life: 0.2 + Math.random() * 0.12 + trail * 0.08,
+        sizeFrom: (focus ? 4 : 8) + Math.random() * (focus ? 2 : 5) + trail * 4,
         sizeTo: 2,
         tint: 0xfb923c,
-        alphaFrom: focus ? 0.4 : 0.75,
+        alphaFrom: puff,
       });
     }
 
-    if (state.invincibleLeft > 0 && state.shieldLeft <= 0 && Math.floor(this.elapsed * 14) % 2 === 0) return;
+    const iframe = state.invincibleLeft > 0 && state.shieldLeft <= 0;
+    const pulse = iframe ? 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(this.elapsed * 22)) : 1;
 
     const engine = this.glowPool.get();
     engine.tint = 0xfb923c;
-    engine.position.set(x, y + 14);
+    engine.position.set(x - state.lastAimX * 12, y - state.lastAimY * 12);
     const engineSize = state.isFocusing
       ? 14 + Math.sin(this.elapsed * 20) * 3
       : 26 + Math.sin(this.elapsed * 28) * 7;
     engine.width = engine.height = engineSize;
-    engine.alpha = state.isFocusing ? 0.55 : 0.9;
+    engine.alpha = (state.isFocusing ? 0.55 : 0.9) * pulse;
 
     const shipTex = this.atlas.ships[state.shipId as ShipId];
     if (state.shieldLeft > 0) {
@@ -812,21 +877,22 @@ export class Renderer {
       this.playerSprite.width = size;
       this.playerSprite.height = size;
       this.playerSprite.tint = state.shipSkinTint ? hex(state.shipSkinTint) : 0xffffff;
+      this.playerSprite.alpha = pulse;
       if (state.isFocusing) {
-        g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 });
-        g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 });
+        g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 * pulse });
+        g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 * pulse });
       }
       return;
     }
 
     // Graphics 폴백
     g.poly([x, y - PLAYER.radius - 4, x - 13, y + 10, x - 4, y + 6, x, y + 9, x + 4, y + 6, x + 13, y + 10], true)
-      .fill(0x7dd3fc)
-      .stroke({ width: 1.5, color: 0xe0f2fe });
-    g.circle(x, y - 2, 3.5).fill(0xf0f9ff);
+      .fill({ color: 0x7dd3fc, alpha: pulse })
+      .stroke({ width: 1.5, color: 0xe0f2fe, alpha: pulse });
+    g.circle(x, y - 2, 3.5).fill({ color: 0xf0f9ff, alpha: pulse });
     if (state.isFocusing) {
-      g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 });
-      g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 });
+      g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 * pulse });
+      g.circle(x, y, 5.5).stroke({ width: 1.6, color: 0xfacc15, alpha: 0.9 * pulse });
     }
   }
 
@@ -853,11 +919,6 @@ export class Renderer {
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (e.elite) spr.tint = 0xfbbf24;
-        else if (e.def.id === 'warden') spr.tint = 0xf87171;
-        else if (e.def.id === 'herald') spr.tint = 0xc084fc;
-        else if (e.def.id === 'architect') spr.tint = 0x67e8f9;
-        else if (e.def.id === 'trapper') spr.tint = 0xef4444;
-        else if (e.def.id === 'vortex') spr.tint = 0x312e81;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
         else if (e.mutation === 'burst') spr.tint = 0xe879f9;
@@ -1218,15 +1279,17 @@ export class Renderer {
     }
     for (const m of state.mines) {
       const color = hex(m.color);
+      const idle = 1 + Math.sin(this.elapsed * 5 + m.x * 0.05) * 0.12;
+      const r = m.radius * idle;
       const blink = m.fuse < 0.6 && Math.floor(this.elapsed * 12) % 2 === 0;
-      g.circle(m.x, m.y, m.radius).fill(blink ? 0xffffff : color);
-      g.circle(m.x, m.y, m.radius + 3).stroke({ width: 1.5, color, alpha: 0.7 });
+      g.circle(m.x, m.y, r).fill({ color: blink ? 0xffffff : color, alpha: blink ? 1 : 0.88 + idle * 0.08 });
+      g.circle(m.x, m.y, r + 3).stroke({ width: 1.5, color, alpha: 0.55 + idle * 0.2 });
       if (m.pullRadius > 0) {
         g.circle(m.x, m.y, m.pullRadius)
           .stroke({ width: 1.5, color, alpha: 0.22 + Math.sin(this.elapsed * 6) * 0.08 });
       }
       if (m.seekSpeed > 0) {
-        g.moveTo(m.x, m.y - m.radius - 4)
+        g.moveTo(m.x, m.y - r - 4)
           .lineTo(m.x + 4, m.y - 1)
           .lineTo(m.x - 4, m.y - 1)
           .fill(blink ? 0xffffff : color);
@@ -1263,14 +1326,16 @@ export class Renderer {
         : state.droneId === 'retriever' ? 0x38bdf8
         : state.droneId === 'defender' ? 0x86efac
         : 0x818cf8;
-      g.circle(dx, dy, 6).fill(col);
-      g.moveTo(dx - 10, dy).lineTo(dx - 4, dy - 5).lineTo(dx - 4, dy + 5).fill(col);
-      g.moveTo(dx + 10, dy).lineTo(dx + 4, dy - 5).lineTo(dx + 4, dy + 5).fill(col);
+      const s = 6.5;
+      g.poly([dx, dy - s, dx + s * 0.75, dy, dx, dy + s * 0.85, dx - s * 0.75, dy], true).fill(col);
+      g.poly([dx - 3, dy + 2, dx - 9, dy + 8, dx - 1, dy + 6], true).fill(col);
+      g.poly([dx + 3, dy + 2, dx + 9, dy + 8, dx + 1, dy + 6], true).fill(col);
+      g.circle(dx, dy - 1, 2).fill(0xf8fafc);
       const glow = this.glowPool.get();
       glow.tint = col;
-      glow.position.set(dx, dy);
-      glow.width = glow.height = 22;
-      glow.alpha = 0.7;
+      glow.position.set(dx, dy + 5);
+      glow.width = glow.height = 16;
+      glow.alpha = 0.75;
     }
     if (state.turretDarkActive) {
       const pulse = 0.18 + Math.sin(this.elapsed * 6) * 0.06;

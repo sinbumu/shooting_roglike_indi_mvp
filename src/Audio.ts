@@ -1,4 +1,6 @@
+import { CANVAS } from './GameConfig';
 import type { FxEvent } from './GameState';
+import type { StageId } from './types';
 
 // ============================================================
 // Web Audio 기반 사운드 — 외부 애셋 없이 전부 합성한다.
@@ -35,8 +37,14 @@ function colorPitchBias(color: string): number {
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
+  private compressor: DynamicsCompressorNode | null = null;
+  private sfxBus: GainNode | null = null;
   private bgmBus: GainNode | null = null;
+  private bgmFilter: BiquadFilterNode | null = null;
   private muted = false;
+  private paused = false;
+  private sfxPan = 0;
+  private stageMood: StageId = 'orbit';
 
   private noiseBuffer: AudioBuffer | null = null;
   private lastShotAt = 0;
@@ -60,13 +68,32 @@ export class AudioManager {
       return;
     }
     this.ctx = new AudioContext();
+
+    this.compressor = this.ctx.createDynamicsCompressor();
+    this.compressor.threshold.value = -18;
+    this.compressor.knee.value = 12;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.003;
+    this.compressor.release.value = 0.12;
+    this.compressor.connect(this.ctx.destination);
+
     this.master = this.ctx.createGain();
     this.master.gain.value = this.muted ? 0 : 0.5;
-    this.master.connect(this.ctx.destination);
+    this.master.connect(this.compressor);
+
+    this.sfxBus = this.ctx.createGain();
+    this.sfxBus.gain.value = 1;
+    this.sfxBus.connect(this.master);
+
+    this.bgmFilter = this.ctx.createBiquadFilter();
+    this.bgmFilter.type = 'lowpass';
+    this.bgmFilter.frequency.value = 18000;
+    this.bgmFilter.Q.value = 0.7;
 
     this.bgmBus = this.ctx.createGain();
     this.bgmBus.gain.value = 1;
-    this.bgmBus.connect(this.master);
+    this.bgmBus.connect(this.bgmFilter);
+    this.bgmFilter.connect(this.master);
 
     // 화이트 노이즈 버퍼 (폭발·퍼커션용)
     const len = Math.floor(this.ctx.sampleRate * 0.5);
@@ -85,12 +112,25 @@ export class AudioManager {
     return this.muted;
   }
 
-  suspend(): void {
-    void this.ctx?.suspend();
-  }
-
   resume(): void {
     void this.ctx?.resume();
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (this.sfxBus) {
+      this.sfxBus.gain.setTargetAtTime(paused ? 0 : 1, t, 0.04);
+    }
+    if (this.bgmFilter) {
+      this.bgmFilter.frequency.setTargetAtTime(paused ? 400 : 18000, t, 0.08);
+    }
+    this.applyBgmGain();
+  }
+
+  setStageMood(id: StageId): void {
+    this.stageMood = id;
   }
 
   /**
@@ -99,9 +139,14 @@ export class AudioManager {
    */
   setCombatIntensity(v: number): void {
     this.combatIntensity = Math.max(0, Math.min(1, v));
+    this.applyBgmGain();
+  }
+
+  private applyBgmGain(): void {
     if (!this.ctx || !this.bgmBus) return;
-    const target = 1 - this.combatIntensity * 0.35;
-    this.bgmBus.gain.setTargetAtTime(target, this.ctx.currentTime, 0.25);
+    const combat = 1 - this.combatIntensity * 0.35;
+    const target = this.paused ? combat * 0.28 : combat;
+    this.bgmBus.gain.setTargetAtTime(target, this.ctx.currentTime, this.paused ? 0.08 : 0.25);
   }
 
   // ==========================================================
@@ -110,6 +155,9 @@ export class AudioManager {
 
   handleEvent(ev: FxEvent): void {
     if (!this.ctx) return;
+    this.sfxPan = 'x' in ev && typeof ev.x === 'number'
+      ? Math.max(-0.7, Math.min(0.7, (ev.x / CANVAS.width) * 2 - 1))
+      : 0;
     const now = performance.now();
 
     switch (ev.type) {
@@ -427,8 +475,15 @@ export class AudioManager {
   // 신스 프리미티브
   // ==========================================================
 
+  private connectSfx(node: AudioNode): void {
+    if (!this.ctx || !this.sfxBus) return;
+    const pan = this.ctx.createStereoPanner();
+    pan.pan.value = this.sfxPan;
+    node.connect(pan).connect(this.sfxBus);
+  }
+
   private tone(freq: number, dur: number, opts: ToneOpts = {}): void {
-    if (!this.ctx || !this.master) return;
+    if (!this.ctx || !this.sfxBus) return;
     const t0 = this.ctx.currentTime + (opts.delay ?? 0);
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
@@ -440,7 +495,8 @@ export class AudioManager {
     const vol = opts.gain ?? 0.08;
     g.gain.setValueAtTime(vol, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g).connect(this.master);
+    osc.connect(g);
+    this.connectSfx(g);
     osc.start(t0);
     osc.stop(t0 + dur + 0.02);
   }
@@ -465,7 +521,7 @@ export class AudioManager {
   }
 
   private noise(dur: number, opts: NoiseOpts = {}): void {
-    if (!this.ctx || !this.master || !this.noiseBuffer) return;
+    if (!this.ctx || !this.sfxBus || !this.noiseBuffer) return;
     const t0 = this.ctx.currentTime + (opts.delay ?? 0);
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
@@ -481,7 +537,8 @@ export class AudioManager {
     const vol = opts.gain ?? 0.15;
     g.gain.setValueAtTime(vol, t0);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    src.connect(filter).connect(g).connect(this.master);
+    src.connect(filter).connect(g);
+    this.connectSfx(g);
     src.start(t0);
     src.stop(t0 + dur + 0.02);
   }
@@ -518,17 +575,38 @@ export class AudioManager {
 
   private scheduleBgm(): void {
     if (!this.ctx || !this.bgmBus) return;
-    const eighth = 60 / 132 / 2; // 132 BPM, 8분음표
-    const kickBoost = 1 + this.combatIntensity * 0.45;
+    const mood = this.stageMood;
+    const bpm = mood === 'rift' ? 108 : mood === 'legion' ? 148 : 132;
+    const eighth = 60 / bpm / 2;
+    const kickBoost = 1 + this.combatIntensity * 0.45 + (mood === 'legion' ? 0.25 : 0);
 
-    const bassRoots = [110, 87.31, 130.81, 98]; // A2, F2, C3, G2
-    const chordTones = [
-      [220, 261.63, 329.63], // Am
-      [174.61, 220, 261.63], // F
-      [261.63, 329.63, 392], // C
-      [196, 246.94, 293.66], // G
-    ];
+    const bassRoots = mood === 'rift'
+      ? [98, 82.41, 103.83, 73.42] // G2, E2, Ab2, D2
+      : mood === 'legion'
+        ? [110, 130.81, 146.83, 98] // A2, C3, D3, G2
+        : [110, 87.31, 130.81, 98]; // A2, F2, C3, G2
+    const chordTones = mood === 'rift'
+      ? [
+        [196, 233.08, 293.66], // Gm
+        [155.56, 196, 233.08], // Eb
+        [207.65, 246.94, 311.13], // Ab
+        [146.83, 174.61, 220], // D
+      ]
+      : mood === 'legion'
+        ? [
+          [220, 277.18, 329.63], // Am add
+          [261.63, 329.63, 392], // C
+          [293.66, 369.99, 440], // D
+          [196, 246.94, 293.66], // G
+        ]
+        : [
+          [220, 261.63, 329.63], // Am
+          [174.61, 220, 261.63], // F
+          [261.63, 329.63, 392], // C
+          [196, 246.94, 293.66], // G
+        ];
     const arpOrder = [0, 1, 2, 1];
+    const kickEvery = mood === 'legion' ? 2 : 4;
 
     while (this.nextNoteTime < this.ctx.currentTime + 0.15) {
       const step = this.bgmStep % 64;
@@ -537,8 +615,8 @@ export class AudioManager {
       const barStep = step % 16;
       const octaveUp = Math.floor(this.bgmStep / 64) % 2 === 1;
 
-      // 킥식 노이즈 펄스 (4분음표 on 1·3)
-      if (barStep % 4 === 0) {
+      // 킥식 노이즈 펄스
+      if (barStep % kickEvery === 0) {
         this.bgmNoise(0.08, { gain: 0.045 * kickBoost, freq: 80, delay });
         this.bgmTone(bassRoots[chord] * 0.5, eighth * 1.2, {
           type: 'triangle',
@@ -554,11 +632,16 @@ export class AudioManager {
 
       // 베이스 (4분음표)
       if (step % 2 === 0) {
-        this.bgmTone(bassRoots[chord], eighth * 1.8, { type: 'triangle', gain: 0.048, delay });
+        this.bgmTone(bassRoots[chord], eighth * 1.8, {
+          type: 'triangle',
+          gain: mood === 'rift' ? 0.055 : 0.048,
+          delay,
+        });
       }
       // 아르페지오 (8분음표) — 격 마디마다 옥타브 업
       const tone = chordTones[chord][arpOrder[step % 4]] * (octaveUp ? 2 : 1);
-      this.bgmTone(tone, eighth * 0.85, { type: 'sine', gain: octaveUp ? 0.022 : 0.028, delay });
+      const arpGain = mood === 'rift' ? (octaveUp ? 0.016 : 0.022) : (octaveUp ? 0.022 : 0.028);
+      this.bgmTone(tone, eighth * 0.85, { type: 'sine', gain: arpGain, delay });
 
       this.bgmStep++;
       this.nextNoteTime += eighth;

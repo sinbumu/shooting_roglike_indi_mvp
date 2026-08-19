@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.7.0 제단/재해/코어 각성/파일럿 특성** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.7.1 필감·비주얼·오디오 폴리시** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -26,6 +26,7 @@
 | 스테이지·무기 폴리시? | **완료** — orbit→rift→legion · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 ([docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md)) |
 | 수평 콘텐츠? | **완료** — 근접·장판 무기 10종 · 트래퍼/보텍스 · 격납고 드론 베이 ([docs/DESIGN_UPDATE_CONTENT_EXPANSION.md](./docs/DESIGN_UPDATE_CONTENT_EXPANSION.md)) |
 | v1.7 엔드게임 확장? | **완료** — 공허의 제단 · 스테이지 재해 · 코어 각성 · 파일럿 특성 ([docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md](./docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md)) |
+| v1.7.1 필감 폴리시? | **완료** — 고유 스프라이트 · 관성/데드존 · 오디오 버스 · 스테이지 주스 ([docs/DESIGN_UPDATE_FEEL_POLISH.md](./docs/DESIGN_UPDATE_FEEL_POLISH.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -77,6 +78,7 @@
 - [x] v1.5.0: 군단 스테이지 · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 · 진화 카드  
 - [x] v1.6.0: 근접·장판 트리 10종 · 트래퍼/보텍스 · 격납고 드론 베이  
 - [x] v1.7.0: 공허의 제단 · 스테이지 환경 재해 · Lv.50 코어 각성 · 보스 코어/파일럿 특성  
+- [x] v1.7.1: 고유 스프라이트 · 이동 관성/데드존 · 오디오 컴프·팬·일시정지 덕킹 · 스테이지 주스 
 
 ---
 
@@ -266,4 +268,5 @@
 | [docs/DESIGN_UPDATE_V1_6_HOTFIX.md](./docs/DESIGN_UPDATE_V1_6_HOTFIX.md) | v1.6 핫픽스: 문서 동기화 · 트래퍼 투기장 · UX (구현 완료) |
 | [docs/DESIGN_UPDATE_DRONE_UI_HOTFIX.md](./docs/DESIGN_UPDATE_DRONE_UI_HOTFIX.md) | 격납고 드론 베이 모달 분리 (구현 완료) |
 | [docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md](./docs/DESIGN_UPDATE_ENDGAME_EXPANSION.md) | 제단·환경 재해·코어 각성·파일럿 특성 (구현 완료) |
+| [docs/DESIGN_UPDATE_FEEL_POLISH.md](./docs/DESIGN_UPDATE_FEEL_POLISH.md) | v1.7.1 필감·비주얼·오디오 폴리시 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

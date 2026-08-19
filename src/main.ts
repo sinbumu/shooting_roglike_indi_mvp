@@ -75,8 +75,17 @@ canvas.addEventListener('pointermove', (e) => {
     dx = (dx / dist) * JOYSTICK.radius;
     dy = (dy / dist) * JOYSTICK.radius;
   }
-  joyVecX = dx / JOYSTICK.radius;
-  joyVecY = dy / JOYSTICK.radius;
+  const mag = dist > JOYSTICK.radius ? 1 : dist / JOYSTICK.radius;
+  const dz = JOYSTICK.deadzone;
+  if (mag < dz) {
+    joyVecX = 0;
+    joyVecY = 0;
+  } else {
+    const scaled = (mag - dz) / (1 - dz);
+    const inv = dist > 0.0001 ? 1 / dist : 0;
+    joyVecX = dx * inv * scaled;
+    joyVecY = dy * inv * scaled;
+  }
   knobEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 });
 
@@ -130,11 +139,11 @@ function togglePause(): void {
   if (state.status === 'playing') {
     state.status = 'paused';
     ui.showPause();
-    audio.suspend();
+    audio.setPaused(true);
   } else if (state.status === 'paused') {
     state.status = 'playing';
     ui.hidePause();
-    audio.resume();
+    audio.setPaused(false);
   }
 }
 
@@ -275,6 +284,7 @@ function loop(now: number): void {
 
   processEvents();
   audio.setCombatIntensity(state.bossId != null ? 1 : 0);
+  audio.setStageMood(state.stageId);
   renderer.render(state, dt);
   ui.updateHUD(state);
   requestAnimationFrame(loop);
@@ -293,6 +303,7 @@ function beginRun(): void {
   ui.hideStart();
   audio.init();
   audio.resume();
+  audio.setPaused(false);
 }
 
 function backToHangar(): void {
@@ -306,6 +317,7 @@ function backToHangar(): void {
   ui.hideVictory();
   ui.hidePause();
   ui.showStart({ animateCreditsFrom: from });
+  audio.setPaused(false);
 }
 
 ui.bindHangar(meta, () => {
