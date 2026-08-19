@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.7',
+    date: '2026-08-20',
+    changes: [
+      '⚔️ 거합도: 히트박스 네모 테두리를 제거하고, 칼날이 화면을 가로질러 훑는 참격만 남겼습니다',
+      '〰️ 진동 채찍 장판을 단색 막대에서 파지직 번개 궤적으로 바꿨습니다',
+    ],
+  },
+  {
     version: 'v1.9.6',
     date: '2026-08-20',
     changes: [

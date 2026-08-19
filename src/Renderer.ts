@@ -880,6 +880,67 @@ export class Renderer {
     return Math.sin(this.elapsed * 24) > 0 ? 0xef4444 : 0xfca5a5;
   }
 
+  private drawCrackleSegment(
+    g: Graphics,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    radius: number,
+    color: number,
+    alpha: number,
+  ): void {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const px = -dy / len;
+    const py = dx / len;
+    const segs = Math.max(5, Math.min(18, Math.floor(len / 16)));
+    const flicker = Math.floor(this.elapsed * 26);
+    const pulse = 0.72 + Math.sin(this.elapsed * 22) * 0.28;
+
+    const bolt = (amp: number, width: number, col: number, a: number, seed: number): void => {
+      g.moveTo(x1, y1);
+      for (let i = 1; i <= segs; i++) {
+        const t = i / segs;
+        const jag = Math.sin(t * 19 + seed + flicker * 1.9) * amp
+          + Math.sin(t * 37 + seed * 1.4 + flicker * 0.7) * amp * 0.4;
+        g.lineTo(x1 + dx * t + px * jag, y1 + dy * t + py * jag);
+      }
+      g.stroke({ width, color: col, alpha: a * pulse * alpha });
+    };
+
+    bolt(radius * 0.35, Math.max(8, radius * 0.7), color, 0.2, 0.4);
+    bolt(radius * 0.85, 2.4, 0xffffff, 0.78, 2.2);
+    bolt(radius * 0.65, 1.5, color, 0.9, 5.1);
+
+    const sparks = 3;
+    for (let i = 0; i < sparks; i++) {
+      const t = ((flicker * 0.13 + i * 0.31) % 1 + 1) % 1;
+      const jag = Math.sin(t * 23 + flicker + i) * radius * 0.55;
+      const sx = x1 + dx * t + px * jag;
+      const sy = y1 + dy * t + py * jag;
+      g.circle(sx, sy, 1.4 + (i % 2)).fill({ color: 0xffffff, alpha: 0.55 * pulse * alpha });
+    }
+
+    if (this.particles.length < PERF.particleCap * 0.55 && Math.random() < 0.35) {
+      const t = Math.random();
+      const jag = (Math.random() - 0.5) * radius;
+      this.spawnParticle({
+        x: x1 + dx * t + px * jag,
+        y: y1 + dy * t + py * jag,
+        vx: px * (40 + Math.random() * 50) * (Math.random() < 0.5 ? -1 : 1),
+        vy: py * (40 + Math.random() * 50) * (Math.random() < 0.5 ? -1 : 1),
+        life: 0.12 + Math.random() * 0.1,
+        sizeFrom: 5 + Math.random() * 5,
+        sizeTo: 1,
+        tint: Math.random() < 0.45 ? 0xffffff : color,
+        alphaFrom: 0.9,
+        drag: 2.8,
+      });
+    }
+  }
+
   private blitFx(
     tex: Texture,
     x: number,
@@ -972,44 +1033,51 @@ export class Renderer {
     const t = 1 - Math.max(0, fx.life) / maxLife;
     const fadeStart = 1 - IAIDO_FX.fade / maxLife;
     const a = t < fadeStart ? 1 : Math.max(0, 1 - (t - fadeStart) / Math.max(0.001, 1 - fadeStart));
-    const cx = fx.x + fx.w * 0.5;
     const cy = fx.y + fx.h * 0.5;
-    const thick = fx.h * (0.58 - t * 0.2);
-    this.flashG.moveTo(fx.x - 24, cy).lineTo(fx.x + fx.w + 24, cy)
-      .stroke({ width: thick, color: 0xffffff, alpha: 0.5 * a });
-    this.flashG.moveTo(fx.x, cy).lineTo(fx.x + fx.w, cy)
-      .stroke({ width: Math.max(5, thick * 0.22), color: 0xf8fafc, alpha: 0.95 * a });
-    this.flashG.moveTo(fx.x, cy - fx.h * 0.12).lineTo(fx.x + fx.w, cy + fx.h * 0.1)
-      .stroke({ width: 6, color: 0xef4444, alpha: 0.8 * a });
-    this.flashG.rect(fx.x, fx.y, fx.w, fx.h)
-      .stroke({ width: 2, color: 0xf87171, alpha: 0.4 * a });
+    const sweep = Math.min(1, t / IAIDO_FX.sweep);
+    const ease = 1 - (1 - sweep) ** 3;
+    const xEnd = fx.x + fx.w * Math.max(0.06, ease);
+    const bladeX = xEnd - 8;
+    const coreW = 7 + (1 - t) * 10;
+
+    this.flashG.moveTo(fx.x - 16, cy).lineTo(xEnd + 18, cy)
+      .stroke({ width: coreW * 3.2, color: 0xffffff, alpha: 0.18 * a });
+    this.flashG.moveTo(fx.x, cy).lineTo(xEnd, cy)
+      .stroke({ width: coreW, color: 0xf8fafc, alpha: 0.95 * a });
+    this.flashG.moveTo(fx.x, cy + 5).lineTo(xEnd, cy + 8)
+      .stroke({ width: 3.2, color: 0xef4444, alpha: 0.62 * a });
 
     const tex = fxFrameOnce(this.atlas.fx.slash, Math.min(0.95, t));
     if (tex && this.iaidoSlashSpr && this.iaidoSlashSpr2) {
       this.iaidoSlashSpr.texture = tex;
       this.iaidoSlashSpr.visible = true;
-      this.iaidoSlashSpr.position.set(cx, cy);
-      this.iaidoSlashSpr.rotation = 0;
-      this.iaidoSlashSpr.width = fx.w * 1.08;
-      this.iaidoSlashSpr.height = fx.h * 1.35;
+      this.iaidoSlashSpr.position.set(bladeX, cy);
+      this.iaidoSlashSpr.rotation = -0.14;
+      this.iaidoSlashSpr.width = IAIDO_FX.bladeW;
+      this.iaidoSlashSpr.height = IAIDO_FX.bladeH;
       this.iaidoSlashSpr.tint = 0xffffff;
-      this.iaidoSlashSpr.alpha = 0.92 * a;
+      this.iaidoSlashSpr.alpha = 0.95 * a;
       this.iaidoSlashSpr2.texture = tex;
       this.iaidoSlashSpr2.visible = true;
-      this.iaidoSlashSpr2.position.set(cx, cy);
-      this.iaidoSlashSpr2.rotation = 0.1;
-      this.iaidoSlashSpr2.width = fx.w * 0.95;
-      this.iaidoSlashSpr2.height = fx.h * 0.72;
+      this.iaidoSlashSpr2.position.set(bladeX - 18, cy + 10);
+      this.iaidoSlashSpr2.rotation = 0.08;
+      this.iaidoSlashSpr2.width = IAIDO_FX.bladeW * 0.82;
+      this.iaidoSlashSpr2.height = IAIDO_FX.bladeH * 0.48;
       this.iaidoSlashSpr2.tint = 0xef4444;
-      this.iaidoSlashSpr2.alpha = 0.75 * a;
+      this.iaidoSlashSpr2.alpha = 0.7 * a;
+    }
+
+    if (sweep >= 1) {
+      this.flashG.moveTo(fx.x, cy).lineTo(fx.x + fx.w, cy)
+        .stroke({ width: 1.6, color: 0xffffff, alpha: 0.28 * a });
     }
 
     for (const h of fx.hits) {
-      const s = 14 + t * 10;
+      const s = 12 + t * 8;
       this.flashG.moveTo(h.x - s, h.y - s).lineTo(h.x + s, h.y + s)
-        .stroke({ width: 3.2, color: 0xffffff, alpha: 0.95 * a });
+        .stroke({ width: 2.6, color: 0xffffff, alpha: 0.92 * a });
       this.flashG.moveTo(h.x + s, h.y - s).lineTo(h.x - s, h.y + s)
-        .stroke({ width: 2.6, color: 0xf43f5e, alpha: 0.92 * a });
+        .stroke({ width: 2.1, color: 0xf43f5e, alpha: 0.88 * a });
     }
   }
 
@@ -1951,21 +2019,19 @@ export class Renderer {
     for (const z of state.zones) {
       const color = hex(z.color);
       if (z.kind === 'segment') {
-        g.moveTo(z.x, z.y).lineTo(z.x2, z.y2)
-          .stroke({ width: z.radius * 1.6, color, alpha: 0.35 });
-        g.moveTo(z.x, z.y).lineTo(z.x2, z.y2)
-          .stroke({ width: 3, color: 0xffffff, alpha: 0.5 });
-        const crack = fxFrameOnce(this.atlas.fx.beam, 0.72);
-        if (crack) {
-          const dx = z.x2 - z.x;
-          const dy = z.y2 - z.y;
-          const len = Math.hypot(dx, dy);
+        const fade = Math.min(1, z.life / 0.22);
+        this.drawCrackleSegment(g, z.x, z.y, z.x2, z.y2, z.radius, color, fade);
+        const dx = z.x2 - z.x;
+        const dy = z.y2 - z.y;
+        const len = Math.hypot(dx, dy);
+        const crack = fxFrame(this.atlas.fx.laser, this.elapsed + z.x * 0.01, 16);
+        if (crack && len > 8) {
           this.blitFx(crack, (z.x + z.x2) * 0.5, (z.y + z.y2) * 0.5, {
             rotation: Math.atan2(dy, dx),
             width: len,
-            height: Math.max(18, z.radius * 2.4),
+            height: Math.max(14, z.radius * 1.6),
             tint: color,
-            alpha: 0.55,
+            alpha: 0.28 * fade,
             add: true,
           });
         }

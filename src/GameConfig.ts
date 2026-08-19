@@ -1564,6 +1564,10 @@ export const TERRAIN = {
 export const IAIDO_FX = {
   duration: 0.52,
   fade: 0.16,
+  /** 칼날이 화면을 가로지르는 시간 비율 */
+  sweep: 0.38,
+  bladeW: 240,
+  bladeH: 72,
 } as const;
 
 /** Lv.50 코어 각성 */
