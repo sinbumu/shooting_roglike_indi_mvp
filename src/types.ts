@@ -156,7 +156,7 @@ export interface DroneDef {
   costMul: number;
 }
 
-export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing' | 'iaido' | 'overloadDetonate' | 'bloodStream';
+export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing' | 'iaido' | 'swarmFrenzy' | 'bloodStream';
 
 export type AwakeningId =
   | 'scoutDash'
@@ -167,7 +167,7 @@ export type AwakeningId =
   | 'yakshaAsura'
   | 'yakshaSwordAura'
   | 'overlordLegion'
-  | 'overlordFission'
+  | 'overlordNetwork'
   | 'crimsonImmortal'
   | 'crimsonOverdrive';
 

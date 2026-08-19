@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, slashSweepAngle } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, isSummonFamily, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
@@ -460,7 +460,7 @@ export class Renderer {
             : ev.id === 'aegis' ? 0x86efac
             : ev.id === 'carpetBombing' ? 0xf97316
             : ev.id === 'iaido' ? 0xef4444
-            : ev.id === 'overloadDetonate' ? 0x38bdf8
+            : ev.id === 'swarmFrenzy' ? 0xef4444
             : ev.id === 'bloodStream' ? 0xfb7185
             : 0xc084fc;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.4, sizeFrom: 20, sizeTo: 140, tint, alphaFrom: 0.9, ring: true });
@@ -477,10 +477,10 @@ export class Renderer {
           } else if (ev.id === 'iaido') {
             this.flashAlpha = 0.2;
             this.flashColor = 0xef4444;
-          } else if (ev.id === 'overloadDetonate') {
-            this.flashAlpha = 0.28;
-            this.flashColor = 0x38bdf8;
-            this.shake(10, 0.4);
+          } else if (ev.id === 'swarmFrenzy') {
+            this.flashAlpha = 0.32;
+            this.flashColor = 0xef4444;
+            this.shake(8, 0.35);
           } else if (ev.id === 'bloodStream') {
             this.flashAlpha = 0.24;
             this.flashColor = 0xfb7185;
@@ -530,6 +530,22 @@ export class Renderer {
           this.flashAlpha = 0.35;
           this.flashColor = 0x38bdf8;
           this.shake(8, 0.4);
+          break;
+        case 'empNova':
+          this.flashAlpha = 0.72;
+          this.flashColor = 0x67e8f9;
+          this.shake(16, 0.55);
+          for (let i = 0; i < 7; i++) {
+            this.spawnParticle({
+              x: ev.x, y: ev.y,
+              life: 0.32 + i * 0.07,
+              sizeFrom: 36 + i * 28,
+              sizeTo: 260 + i * 150,
+              tint: i % 2 ? 0xe0f2fe : 0x38bdf8,
+              alphaFrom: 0.92,
+              ring: true,
+            });
+          }
           break;
         case 'execProc':
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 16, sizeTo: 70, tint: 0xf8fafc, alphaFrom: 0.95, ring: true });
@@ -857,6 +873,11 @@ export class Renderer {
     if (id === 'predator') return 'predator';
     if (id === 'spiderMine') return 'spider';
     return 'mine';
+  }
+
+  private frenzyTint(state: GameState, weaponId: WeaponId | undefined, base: number): number {
+    if (!state.isSwarmFrenzy() || !weaponId || !isSummonFamily(weaponId)) return base;
+    return Math.sin(this.elapsed * 24) > 0 ? 0xef4444 : 0xfca5a5;
   }
 
   private blitFx(
@@ -1229,12 +1250,12 @@ export class Renderer {
       glow.width = glow.height = PLAYER.radius * 5.2 + Math.sin(this.elapsed * 22) * 8;
       glow.alpha = 0.55;
     }
-    if (state.skillActiveLeft > 0 && skill.id === 'overloadDetonate') {
+    if (state.skillActiveLeft > 0 && skill.id === 'swarmFrenzy') {
       const glow = this.glowPool.get();
-      glow.tint = 0x38bdf8;
+      glow.tint = 0xef4444;
       glow.position.set(x, y);
-      glow.width = glow.height = PLAYER.radius * 5 + Math.sin(this.elapsed * 16) * 8;
-      glow.alpha = 0.5;
+      glow.width = glow.height = PLAYER.radius * 6.2 + Math.sin(this.elapsed * 20) * 10;
+      glow.alpha = 0.45 + Math.sin(this.elapsed * 24) * 0.2;
     }
     if (state.skillActiveLeft > 0 && skill.id === 'bloodStream') {
       const glow = this.glowPool.get();
@@ -1688,7 +1709,7 @@ export class Renderer {
     const glowOk = n <= PERF.glowProjCap;
     const trailOk = n <= PERF.glowProjCap;
     for (const p of state.projectiles) {
-      const color = hex(p.color);
+      const color = this.frenzyTint(state, p.weaponId, hex(p.color));
       const angle = Math.atan2(p.vy, p.vx);
       const spec = p.weaponId ? PROJ_FX[p.weaponId] : undefined;
       const tex = spec ? fxFrame(this.atlas.fx[spec.fx], this.elapsed + p.x * 0.01, spec.fps ?? 12) : undefined;
@@ -1829,7 +1850,7 @@ export class Renderer {
       }
     }
     for (const o of state.orbiters) {
-      const color = hex(o.color);
+      const color = this.frenzyTint(state, o.weaponId, hex(o.color));
       if (o.ring) {
         const tex = fxFrame(this.atlas.fx.halo, this.elapsed, 8);
         if (tex) {
@@ -1852,6 +1873,7 @@ export class Renderer {
           const size = o.hitRadius * 4.8;
           this.blitFx(tex, x, y, {
             rotation: this.elapsed * 16 + o.angle, width: size, height: size,
+            tint: color,
           });
         } else {
           const tooth = o.hitRadius * 1.35;
@@ -1872,7 +1894,7 @@ export class Renderer {
       }
     }
     for (const m of state.mines) {
-      const color = hex(m.color);
+      const color = this.frenzyTint(state, m.weaponId, hex(m.color));
       const idle = 1 + Math.sin(this.elapsed * 5 + m.x * 0.05) * 0.12;
       const r = m.radius * idle;
       const blink = m.fuse < 0.6 && Math.floor(this.elapsed * 12) % 2 === 0;
@@ -1885,6 +1907,7 @@ export class Renderer {
         else if (fxId === 'singularity') rot = this.elapsed * 1.6;
         this.blitFx(tex, m.x, m.y, {
           rotation: rot, width: size, height: size,
+          tint: color,
           alpha: blink ? 1 : 0.96,
         });
       } else {
@@ -1903,7 +1926,7 @@ export class Renderer {
       }
     }
     for (const s of state.summons) {
-      const color = hex(s.elite ? '#fbbf24' : s.color);
+      const color = this.frenzyTint(state, s.weaponId, hex(s.elite ? '#fbbf24' : s.color));
       const idle = 1 + Math.sin(this.elapsed * 6 + s.x * 0.04) * 0.1;
       const scale = s.elite ? 1.35 : 1;
       const tex = fxFrame(this.atlas.fx.gatling, this.elapsed + s.x * 0.02, 10);
@@ -1924,14 +1947,6 @@ export class Renderer {
         g.circle(s.x, s.y, s.radius * 1.8 + Math.sin(this.elapsed * 8) * 2)
           .stroke({ width: 2, color: 0xfde68a, alpha: 0.7 });
       }
-    }
-    if (state.detonateBeacon) {
-      const b = state.detonateBeacon;
-      const pulse = 10 + Math.sin(this.elapsed * 14) * 4;
-      g.circle(b.x, b.y, pulse).stroke({ width: 2.5, color: 0x38bdf8, alpha: 0.9 });
-      g.circle(b.x, b.y, 5).fill({ color: 0xe0f2fe, alpha: 0.95 });
-      g.moveTo(b.x - 14, b.y).lineTo(b.x + 14, b.y).stroke({ width: 1.5, color: 0x7dd3fc, alpha: 0.8 });
-      g.moveTo(b.x, b.y - 14).lineTo(b.x, b.y + 14).stroke({ width: 1.5, color: 0x7dd3fc, alpha: 0.8 });
     }
     for (const z of state.zones) {
       const color = hex(z.color);

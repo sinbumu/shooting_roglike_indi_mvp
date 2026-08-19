@@ -407,7 +407,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   // ---------- 스파이더 T2/T3 ----------
   interceptorWing: {
     id: 'interceptorWing', name: '요격기 편대', tier: 2, icon: '✈️', color: '#7dd3fc',
-    desc: '[스파이더+스웜] 유도 요격기 살포',
+    desc: '[스파이더+스웜] 유도 요격기 살포. 둠스데이 폭주 시 관통 레이저로 변환',
     tags: ['summon'],
     cooldownMs: 700,
     projectile: { damage: 11, speed: 460, radius: 5, count: 5, spreadDeg: 360, homingTurnRate: 5.6, pierce: 0, lifetime: 2.6 },
@@ -434,14 +434,14 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   doomsday: {
     id: 'doomsday', name: '프로토콜: 둠스데이', tier: 3, icon: '☠️', color: '#ef4444',
-    desc: '[요격기+양자 배터리] 대량 요격 편대',
+    desc: '[요격기+양자 배터리] 군단 폭주 중 요격탄이 화면을 가로지르는 붉은 관통 레이저로 변환',
     tags: ['summon'],
     cooldownMs: 560,
     projectile: { damage: 14, speed: 520, radius: 6, count: 10, spreadDeg: 360, homingTurnRate: 6.0, pierce: 1, lifetime: 2.8 },
   },
   orbitalBattery: {
     id: 'orbitalBattery', name: '궤도 폭격 신호소', tier: 3, icon: '📡', color: '#fde68a',
-    desc: '[자동 포탑+확장 탄창] 강화 포탑 설치',
+    desc: '[자동 포탑+확장 탄창] 군단 폭주 중 폭격 주기 5배·폭발 반경 2배',
     tags: ['drop', 'summon'],
     cooldownMs: 1000,
     projectile: {
@@ -451,7 +451,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   ironMaiden: {
     id: 'ironMaiden', name: '아이언 메이든 군단', tier: 3, icon: '🛡️', color: '#cbd5e1',
-    desc: '[톱니 드론+나노 장갑] 가시 궤도 군단',
+    desc: '[톱니 드론+나노 장갑] 틱 0.1초. 군단 폭주 중 처치 시 기생 드론이 근처 적에게 전염',
     tags: ['summon', 'aura'],
     cooldownMs: 100,
     projectile: {
@@ -714,8 +714,8 @@ export const SHIPS: Record<ShipId, ShipDef> = {
     desc: '본체 화력은 약하지만 소환 편대를 지휘합니다. 스파이더 마인으로 시작.',
     hpMul: 1.2, speedMul: 0.9, startingWeapon: 'spiderMine', unlockCost: 2500,
     activeSkill: {
-      id: 'overloadDetonate', name: '명령: 과부하 자폭', icon: '📡',
-      cooldown: 14, duration: 0.45, dashDist: 140, explodeRadius: 96,
+      id: 'swarmFrenzy', name: '프로토콜: 군단 폭주', icon: '🔥',
+      cooldown: 16, duration: 5,
     },
   },
   crimson: {
@@ -1583,11 +1583,15 @@ export const AWAKEN = {
   mineCap: 20,
   summonCap: 8,
   legionBonus: 5,
-  eliteChance: 0.2,
   eliteMul: 3,
-  fissionRadiusMul: 3,
-  fissionPullLife: 3,
-  fissionPull: 220,
+  eliteDrones: 5,
+  eliteDroneOrbit: 58,
+  frenzyMul: 3,
+  orbitalFrenzyRate: 5,
+  orbitalFrenzyRadius: 2,
+  maidenTick: 0.1,
+  maidenSpreadR: 220,
+  networkStore: 0.5,
   immortalHpFrac: 0.01,
   immortalDuration: 5,
   immortalCd: 60,
@@ -1632,11 +1636,11 @@ export const CORE_AWAKENINGS: Record<ShipId, CoreAwakeningDef[]> = {
   overlord: [
     {
       id: 'overlordLegion', shipId: 'overlord', name: '무한의 군단장', icon: '👑', color: '#38bdf8',
-      desc: '소환수 상한 +5. 자폭 후 재조립 시 20% 확률로 크기·피해 3배 엘리트 드론이 나옵니다.',
+      desc: '소환수 상한 +5. 군단 폭주 시 5초간 초거대 엘리트 드론 5기가 기체 주변에 임시 소환됩니다.',
     },
     {
-      id: 'overlordFission', shipId: 'overlord', name: '핵분열 특이점', icon: '☢️', color: '#a78bfa',
-      desc: '과부하 자폭 반경이 3배가 되고, 중심에 3초간 적을 빨아들이는 중력장이 생깁니다.',
+      id: 'overlordNetwork', shipId: 'overlord', name: '초전도 네트워크', icon: '⚡', color: '#67e8f9',
+      desc: '군단 폭주 동안 소환 피해의 50%를 저장하고, 종료 시 기체 중심의 맵 전체 EMP로 방출합니다.',
     },
   ],
   crimson: [

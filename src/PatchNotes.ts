@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.6',
+    date: '2026-08-20',
+    changes: [
+      '🛸 오버로드 액티브가 자폭에서 군단 폭주(5초, 소환 공속·이속·발사 수 ×3)로 교체됩니다',
+      '소환 T3(둠스데이 레이저 / 궤도 폭격 가속 / 아이언 메이든 전염)와 코어 각성 A/B를 폭주 시너지에 맞게 개편했습니다',
+    ],
+  },
+  {
     version: 'v1.9.5',
     date: '2026-08-20',
     changes: [

@@ -417,6 +417,11 @@ export class AudioManager {
         this.noise(0.5, { gain: 0.12, freq: 2400, highpass: 800 });
         this.tone(1400, 0.2, { type: 'square', slideTo: 200, gain: 0.04 });
         break;
+      case 'empNova':
+        this.noise(0.55, { gain: 0.16, freq: 1800, highpass: 500 });
+        this.tone(90, 0.45, { type: 'sawtooth', slideTo: 28, gain: 0.1 });
+        this.tone(720, 0.22, { type: 'square', slideTo: 140, gain: 0.05 });
+        break;
       case 'execProc':
         this.tone(180, 0.08, { type: 'square', gain: 0.05 });
         this.tone(90, 0.12, { type: 'sawtooth', slideTo: 40, gain: 0.04, delay: 0.02 });
@@ -450,9 +455,9 @@ export class AudioManager {
         } else if (ev.id === 'iaido') {
           this.tone(720, 0.16, { type: 'sine', slideTo: 220, gain: 0.06 });
           this.noise(0.08, { gain: 0.05, freq: 1800, highpass: 900 });
-        } else if (ev.id === 'overloadDetonate') {
-          this.tone(180, 0.18, { type: 'square', slideTo: 70, gain: 0.07 });
-          this.noise(0.22, { gain: 0.12, freq: 220 });
+        } else if (ev.id === 'swarmFrenzy') {
+          this.tone(220, 0.22, { type: 'sawtooth', slideTo: 520, gain: 0.07 });
+          this.noise(0.18, { gain: 0.1, freq: 280 });
         } else if (ev.id === 'bloodStream') {
           this.tone(240, 0.35, { type: 'sawtooth', slideTo: 90, gain: 0.06 });
           this.tone(480, 0.28, { type: 'sine', slideTo: 160, gain: 0.04, delay: 0.04 });

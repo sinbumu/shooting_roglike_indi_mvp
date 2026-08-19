@@ -86,6 +86,8 @@ export interface Beam {
   ignoreShield: boolean;
   affix?: AffixId;
   weaponId?: WeaponId;
+  /** world면 발화점 고정 (둠스데이 폭주 레이저) */
+  anchor?: 'world';
 }
 
 export interface Enemy {
@@ -185,6 +187,8 @@ export interface Summon {
   radius: number;
   color: string;
   elite?: boolean;
+  frenzyTemp?: boolean;
+  orbitAng?: number;
 }
 
 export interface HazardZone {
@@ -393,6 +397,7 @@ export type FxEvent =
   | { type: 'solarFlare' }
   | { type: 'asteroid' }
   | { type: 'empStart' }
+  | { type: 'empNova'; x: number; y: number }
   | { type: 'execProc'; x: number; y: number }
   | { type: 'terrainShieldBlock'; x: number; y: number }
   | { type: 'terrainBoost'; x: number; y: number }
@@ -597,20 +602,10 @@ export class GameState {
   private projPool: Projectile[] = [];
   private hitEventLeft = 0;
   private firedEventLeft = 0;
-  detonateBeacon: { x: number; y: number; life: number } | null = null;
   redOutlineLeft = 0;
   private iaidoCountered = false;
-  private summonRespawn: {
-    weaponId: WeaponId;
-    kind: Summon['kind'] | 'mine';
-    left: number;
-    damage: number;
-    color: string;
-    radius: number;
-    explodeRadius?: number;
-    seekSpeed?: number;
-  }[] = [];
-  private orbitSuppressLeft = new Map<WeaponId, number>();
+  private frenzyStoredDmg = 0;
+  private maidenQueue: { x: number; y: number }[] = [];
   zones: HazardZone[] = [];
   pylons: Pylon[] = [];
   interceptBeams: InterceptBeam[] = [];
@@ -795,11 +790,10 @@ export class GameState {
     this.summons = [];
     for (const p of this.projectiles) this.releaseProjectile(p);
     this.projectiles.length = 0;
-    this.detonateBeacon = null;
     this.redOutlineLeft = 0;
     this.iaidoCountered = false;
-    this.summonRespawn = [];
-    this.orbitSuppressLeft = new Map();
+    this.frenzyStoredDmg = 0;
+    this.maidenQueue = [];
     this.derelictGoldDropped = false;
     this.nextShieldAt = TERRAIN.shield.firstAt;
     this.nextCoreAt = TERRAIN.core.firstAt;
@@ -1195,6 +1189,7 @@ export class GameState {
     this.updatePickups(dt);
     this.checkFenceCollision();
     this.checkPlayerCollision(dt);
+    this.flushMaidenSpreads();
     return this.status;
   }
 
@@ -1296,10 +1291,11 @@ export class GameState {
       this.iaidoCountered = false;
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
-    } else if (skill.id === 'overloadDetonate') {
-      this.commandOverloadDetonate(skill);
+    } else if (skill.id === 'swarmFrenzy') {
+      this.frenzyStoredDmg = 0;
+      this.beginSwarmFrenzy();
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('overlordFission') ? '핵분열 특이점' : skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     } else if (skill.id === 'bloodStream') {
       this.spendHpFrac(skill.hpCostFrac ?? 0.2);
       const ang = Math.atan2(this.lastAimY, this.lastAimX);
@@ -1349,16 +1345,12 @@ export class GameState {
           if (this.hasAwakening('fortressAegis') && this.aegisAbsorbed > 0) this.aegisNova();
         }
         if (skill.id === 'iaido' && !this.iaidoCountered) this.iaidoSlash(1);
+        if (skill.id === 'swarmFrenzy') this.endSwarmFrenzy();
       }
     }
     if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis();
     this.tickCarpetBombing(dt);
     this.updateSummons(dt);
-    this.tickOrbitSuppress(dt);
-    if (this.detonateBeacon) {
-      this.detonateBeacon.life -= dt;
-      if (this.detonateBeacon.life <= 0) this.detonateBeacon = null;
-    }
     if (this.redOutlineLeft > 0) this.redOutlineLeft = Math.max(0, this.redOutlineLeft - dt);
     const regenLv = this.passiveLevel('regenModule');
     if (regenLv > 0 && this.hp > 0 && this.hp < this.maxHp) {
@@ -1494,75 +1486,84 @@ export class GameState {
     this.events.push({ type: 'iaidoSlash', x: 0, y, w: CANVAS.width, h, hits });
   }
 
-  private commandOverloadDetonate(skill: typeof SHIPS[ShipId]['activeSkill']): void {
-    const dist = skill.dashDist ?? 140;
-    const r = PLAYER.radius;
-    const bx = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
-    const by = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
-    this.detonateBeacon = { x: bx, y: by, life: 1.2 };
-    const explodeR = (skill.explodeRadius ?? 96)
-      * (this.hasAwakening('overlordFission') ? AWAKEN.fissionRadiusMul : 1);
-    const delay = 2;
+  isSwarmFrenzy(): boolean {
+    return SHIPS[this.shipId].activeSkill.id === 'swarmFrenzy' && this.skillActiveLeft > 0;
+  }
 
-    for (const s of this.summons) {
-      s.x = bx + (Math.random() - 0.5) * 28;
-      s.y = by + (Math.random() - 0.5) * 28;
-      this.blastAt(s.x, s.y, explodeR, s.damage * 6, s.color, s.weaponId);
-      this.summonRespawn.push({
-        weaponId: s.weaponId, kind: s.kind, left: delay,
-        damage: s.damage, color: s.color, radius: s.radius,
+  private hasWeapon(id: WeaponId): boolean {
+    return this.weapons.some((w) => w.weaponId === id);
+  }
+
+  private frenzyMul(): number {
+    return this.isSwarmFrenzy() ? AWAKEN.frenzyMul : 1;
+  }
+
+  private beginSwarmFrenzy(): void {
+    if (!this.hasAwakening('overlordLegion')) return;
+    const life = SHIPS[this.shipId].activeSkill.duration ?? 5;
+    const n = AWAKEN.eliteDrones;
+    const orbit = AWAKEN.eliteDroneOrbit;
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n;
+      this.summons.push({
+        x: this.playerX + Math.cos(ang) * orbit,
+        y: this.playerY + Math.sin(ang) * orbit,
+        weaponId: 'interceptorWing',
+        kind: 'battery',
+        life,
+        fireCd: 0,
+        damage: 14 * this.damageMul * AWAKEN.eliteMul,
+        radius: 18,
+        color: '#fbbf24',
+        elite: true,
+        frenzyTemp: true,
+        orbitAng: ang,
       });
     }
-    this.summons = [];
+  }
 
-    for (let i = this.mines.length - 1; i >= 0; i--) {
-      const m = this.mines[i];
-      if (!isSummonFamily(m.weaponId)) continue;
-      m.x = bx + (Math.random() - 0.5) * 28;
-      m.y = by + (Math.random() - 0.5) * 28;
-      this.summonRespawn.push({
-        weaponId: m.weaponId, kind: 'mine', left: delay,
-        damage: m.damage, color: m.color, radius: m.radius,
-        explodeRadius: m.explodeRadius, seekSpeed: m.seekSpeed,
-      });
-      this.detonateMine(m);
-      swapPop(this.mines, i);
+  private endSwarmFrenzy(): void {
+    for (let i = this.summons.length - 1; i >= 0; i--) {
+      if (this.summons[i]!.frenzyTemp) swapPop(this.summons, i);
     }
+    this.maidenQueue.length = 0;
+    if (!this.hasAwakening('overlordNetwork')) {
+      this.frenzyStoredDmg = 0;
+      return;
+    }
+    const dmg = this.frenzyStoredDmg;
+    this.frenzyStoredDmg = 0;
+    if (dmg <= 0) return;
+    const r = Math.hypot(CANVAS.width, CANVAS.height);
+    this.blastAt(this.playerX, this.playerY, r, dmg, '#67e8f9');
+    this.events.push({ type: 'empNova', x: this.playerX, y: this.playerY });
+    this.events.push({ type: 'banner', text: '⚡ 초전도 네트워크' });
+  }
 
-    const explodedOrbit = new Set<WeaponId>();
-    for (let i = this.orbiters.length - 1; i >= 0; i--) {
-      const o = this.orbiters[i];
-      if (!isSummonFamily(o.weaponId)) continue;
-      if (!explodedOrbit.has(o.weaponId)) {
-        this.blastAt(bx, by, explodeR, o.damage * 8, o.color, o.weaponId);
-        explodedOrbit.add(o.weaponId);
-        this.orbitSuppressLeft.set(o.weaponId, delay);
+  private flushMaidenSpreads(): void {
+    if (!this.isSwarmFrenzy() || !this.hasWeapon('ironMaiden')) {
+      this.maidenQueue.length = 0;
+      return;
+    }
+    let n = 0;
+    const r2 = AWAKEN.maidenSpreadR * AWAKEN.maidenSpreadR;
+    const dmg = WEAPONS.ironMaiden.projectile.damage * this.damageMul;
+    while (this.maidenQueue.length > 0 && n < 24) {
+      const src = this.maidenQueue.shift()!;
+      n++;
+      let best: Enemy | null = null;
+      let bestD = r2;
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        const d = (e.x - src.x) ** 2 + (e.y - src.y) ** 2;
+        if (d < bestD && d > 16) {
+          bestD = d;
+          best = e;
+        }
       }
-      swapPop(this.orbiters, i);
-    }
-
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      const p = this.projectiles[i];
-      if (!p.weaponId || !isSummonFamily(p.weaponId)) continue;
-      p.x = bx + (Math.random() - 0.5) * 36;
-      p.y = by + (Math.random() - 0.5) * 36;
-      this.blastAt(p.x, p.y, p.explodeRadius ?? explodeR * 0.7, p.damage * 3, p.color, p.weaponId);
-      this.removeProjectileAt(i);
-    }
-
-    if (this.hasAwakening('overlordFission')) {
-      this.zones.push({
-        kind: 'circle',
-        x: bx, y: by, x2: bx, y2: by,
-        radius: explodeR,
-        life: AWAKEN.fissionPullLife,
-        tickLeft: 99,
-        tickInterval: 99,
-        damage: 0,
-        pull: AWAKEN.fissionPull,
-        color: '#a78bfa',
-        weaponId: 'autoTurret',
-      });
+      if (!best) continue;
+      this.events.push({ type: 'blast', x: best.x, y: best.y, color: '#ef4444', radius: 18 });
+      this.damageEnemy(best, dmg, 'ironMaiden');
     }
   }
 
@@ -1579,19 +1580,18 @@ export class GameState {
     this.events.push({ type: 'blast', x, y, color, radius: radius * 0.5 });
   }
 
-  private tickOrbitSuppress(dt: number): void {
-    for (const [id, left] of [...this.orbitSuppressLeft]) {
-      const next = left - dt;
-      if (next <= 0) this.orbitSuppressLeft.delete(id);
-      else this.orbitSuppressLeft.set(id, next);
-    }
-  }
-
   private updateSummons(dt: number): void {
+    const frenzy = this.frenzyMul();
+    const orbitR = AWAKEN.eliteDroneOrbit;
     for (let i = this.summons.length - 1; i >= 0; i--) {
       const s = this.summons[i];
       s.life -= dt;
       s.fireCd -= dt;
+      if (s.frenzyTemp) {
+        s.orbitAng = (s.orbitAng ?? 0) + dt * 4.2 * frenzy;
+        s.x = this.playerX + Math.cos(s.orbitAng) * orbitR;
+        s.y = this.playerY + Math.sin(s.orbitAng) * orbitR;
+      }
       if (s.life <= 0) {
         swapPop(this.summons, i);
         continue;
@@ -1600,13 +1600,44 @@ export class GameState {
       const target = this.nearestEnemy(s.x, s.y, new Set());
       if (!target) continue;
       const battery = s.kind === 'battery';
-      s.fireCd = battery ? 0.14 : 0.22;
+      const orbital = frenzy > 1 && s.weaponId === 'orbitalBattery';
+      let fireCd = battery ? 0.14 : 0.22;
+      if (orbital) fireCd /= AWAKEN.orbitalFrenzyRate;
+      s.fireCd = fireCd / frenzy;
       const ang = Math.atan2(target.y - s.y, target.x - s.x);
-      const n = battery ? 3 : 1;
+      const n = (battery ? 3 : 1) * frenzy;
       const spread = battery ? 0.22 : 0;
-      const spd = (battery ? 560 : 480) * this.runStats.projSpeedMul * this.passiveProjMul * (1 + this.crimsonBerserk());
+      const spd = (battery ? 560 : 480) * this.runStats.projSpeedMul * this.passiveProjMul
+        * (1 + this.crimsonBerserk()) * frenzy;
+      const boom = battery ? 26 * (orbital ? AWAKEN.orbitalFrenzyRadius : 1) : undefined;
+      const shotAng = (k: number) => ang + (n === 1 ? 0 : -spread + (spread * 2 * k) / Math.max(1, n - 1));
+      if (
+        frenzy > 1
+        && this.hasWeapon('doomsday')
+        && (s.frenzyTemp || s.weaponId === 'interceptorWing' || s.weaponId === 'doomsday')
+      ) {
+        const len = Math.hypot(CANVAS.width, CANVAS.height);
+        for (let k = 0; k < n; k++) {
+          this.beams.push({
+            x: s.x,
+            y: s.y,
+            angle: shotAng(k),
+            width: 12,
+            length: len,
+            damage: s.damage,
+            life: 0.14,
+            tickLeft: 0,
+            tickInterval: 0.05,
+            color: '#ef4444',
+            ignoreShield: true,
+            weaponId: s.weaponId,
+            anchor: 'world',
+          });
+        }
+        continue;
+      }
       for (let k = 0; k < n; k++) {
-        const a = ang + (n === 1 ? 0 : -spread + (spread * 2 * k) / (n - 1));
+        const a = shotAng(k);
         this.acquireProjectile({
           x: s.x, y: s.y,
           vx: Math.cos(a) * spd,
@@ -1618,51 +1649,11 @@ export class GameState {
           homingTurnRate: 0,
           pierceLeft: battery ? 1 : 0,
           life: 1.5,
-          color: s.color,
-          explodeRadius: battery ? 26 : undefined,
+          color: frenzy > 1 ? '#ef4444' : s.color,
+          explodeRadius: boom,
           weaponId: s.weaponId,
         });
       }
-    }
-
-    for (let i = this.summonRespawn.length - 1; i >= 0; i--) {
-      const q = this.summonRespawn[i];
-      q.left -= dt;
-      if (q.left > 0) continue;
-      const spawnX = this.playerX - this.lastAimX * (PLAYER.radius + 18);
-      const spawnY = this.playerY - this.lastAimY * (PLAYER.radius + 18);
-      if (q.kind === 'mine') {
-        this.mines.push({
-          x: spawnX, y: spawnY,
-          radius: q.radius,
-          fuse: 4.2,
-          damage: q.damage,
-          explodeRadius: q.explodeRadius ?? 58,
-          color: q.color,
-          weaponId: q.weaponId,
-          seekSpeed: q.seekSpeed ?? 110,
-          pullRadius: 0, pullForce: 0, split: 0,
-          zoneDuration: 0, zoneTick: 0.15,
-          vx: 0, vy: 0,
-        });
-        this.enforceMineCap();
-      } else {
-        const persist = WEAPONS[q.weaponId].projectile.drop?.persist ?? 8;
-        const elite = this.hasAwakening('overlordLegion') && Math.random() < AWAKEN.eliteChance;
-        this.summons.push({
-          x: spawnX, y: spawnY,
-          weaponId: q.weaponId,
-          kind: q.kind,
-          life: persist,
-          fireCd: 0.2,
-          damage: q.damage * (elite ? AWAKEN.eliteMul : 1),
-          radius: q.radius * (elite ? AWAKEN.eliteMul : 1),
-          color: elite ? '#fbbf24' : q.color,
-          elite,
-        });
-        this.enforceSummonCap();
-      }
-      swapPop(this.summonRespawn, i);
     }
   }
 
@@ -1816,7 +1807,14 @@ export class GameState {
 
   private enforceSummonCap(): void {
     const cap = this.summonCap();
-    while (this.summons.length > cap) this.summons.shift();
+    const temps: Summon[] = [];
+    const rest: Summon[] = [];
+    for (const s of this.summons) {
+      if (s.frenzyTemp) temps.push(s);
+      else rest.push(s);
+    }
+    while (rest.length > cap) rest.shift();
+    this.summons = rest.concat(temps);
   }
 
   private enforceMineCap(): void {
@@ -1962,6 +1960,7 @@ export class GameState {
         const craftCd = Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0);
         let raw = def.cooldownMs * cdScale * (1 - craftCd);
         if (this.shipId === 'overlord' && isSummonFamily(slot.weaponId)) raw *= 0.5;
+        if (this.isSwarmFrenzy() && isSummonFamily(slot.weaponId)) raw /= AWAKEN.frenzyMul;
         slot.cooldownLeft += Math.max(def.cooldownMs * ARSENAL.cooldownFloor, raw);
       }
     }
@@ -1984,6 +1983,7 @@ export class GameState {
     speedMul *= 1 + berserk;
     if (this.shipId === 'overlord' && !isSummonFamily(slot.weaponId)) damage *= 0.1;
     if (this.shipId === 'overlord' && isSummonFamily(slot.weaponId)) speedMul *= 2;
+    if (this.isSwarmFrenzy() && isSummonFamily(slot.weaponId)) speedMul *= AWAKEN.frenzyMul;
     if (this.shipId === 'yaksha' && isMeleeFamily(slot.weaponId)) damage *= 1.5;
     if (this.hasNode('spacetime')) {
       speedMul = Math.max(CONSTELLATION_FX.speedFloor, 1 / Math.max(speedMul, CONSTELLATION_FX.speedFloor));
@@ -2011,7 +2011,8 @@ export class GameState {
     let sizeMul = (1 + (slot.radiusBonus ?? 0)) * this.runStats.radiusMul;
     if (this.shipId === 'yaksha' && isMeleeFamily(slot.weaponId)) sizeMul *= 1.5;
     if (puristLow) sizeMul *= CONSTELLATION_FX.puristRadiusMul;
-    const shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0) + this.runStats.extraShots;
+    let shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0) + this.runStats.extraShots;
+    if (this.isSwarmFrenzy() && isSummonFamily(slot.weaponId)) shotCount *= AWAKEN.frenzyMul;
 
     if (p.melee) {
       const arcDeg = Math.min(360, p.melee.arcDeg * sizeMul);
@@ -2130,6 +2131,43 @@ export class GameState {
 
     const originX = this.playerX;
     const originY = this.playerY - PLAYER.radius;
+    const doomLaser = this.isSwarmFrenzy()
+      && this.hasWeapon('doomsday')
+      && (slot.weaponId === 'doomsday' || slot.weaponId === 'interceptorWing');
+    if (doomLaser) {
+      const len = Math.hypot(CANVAS.width, CANVAS.height);
+      for (let i = 0; i < shotCount; i++) {
+        let angle: number;
+        if (p.randomSpread) {
+          angle = Math.random() * Math.PI * 2;
+        } else if (shotCount === 1 || p.spreadDeg === 0) {
+          angle = baseAngle;
+        } else if (p.spreadDeg >= 360) {
+          angle = (Math.PI * 2 * i) / shotCount + this.time;
+        } else {
+          const arc = (p.spreadDeg * Math.PI) / 180;
+          angle = baseAngle - arc / 2 + (arc * i) / Math.max(1, shotCount - 1);
+        }
+        this.beams.push({
+          x: originX,
+          y: originY,
+          angle,
+          width: 14 * sizeMul,
+          length: len,
+          damage,
+          life: 0.16,
+          tickLeft: 0,
+          tickInterval: 0.05,
+          color: '#ef4444',
+          ignoreShield: true,
+          weaponId: slot.weaponId,
+          anchor: 'world',
+        });
+      }
+      this.emitMuzzleFired(originX, originY, '#ef4444', slot.weaponId);
+      return;
+    }
+
     for (let i = 0; i < shotCount; i++) {
       let angle: number;
       if (p.randomSpread) {
@@ -3088,7 +3126,6 @@ export class GameState {
   private syncOrbiters(slot: WeaponSlot, damage: number, color: string, sizeMul: number): boolean {
     const spec = WEAPONS[slot.weaponId].projectile.orbit;
     if (!spec) return false;
-    if ((this.orbitSuppressLeft.get(slot.weaponId) ?? 0) > 0) return false;
     const extra = this.hasNode('purist') && WEAPONS[slot.weaponId].tier <= 2
       ? CONSTELLATION_FX.puristExtraCount : 0;
     const count = spec.count + extra + this.runStats.extraShots;
@@ -3125,8 +3162,10 @@ export class GameState {
   private updateOrbiters(dt: number): void {
     const owned = new Set(this.weapons.map((w) => w.weaponId));
     this.orbiters = this.orbiters.filter((o) => owned.has(o.weaponId));
+    const frenzy = this.frenzyMul();
     for (const o of this.orbiters) {
-      o.angle += dt * (o.ring ? 1.6 : 5.5);
+      const summonBoost = isSummonFamily(o.weaponId) ? frenzy : 1;
+      o.angle += dt * (o.ring ? 1.6 : 5.5) * summonBoost;
       o.tickLeft -= dt;
       const px = this.playerX + Math.cos(o.angle) * o.radius;
       const py = this.playerY + Math.sin(o.angle) * o.radius;
@@ -3142,7 +3181,7 @@ export class GameState {
         }
       }
       if (o.tickLeft > 0) continue;
-      o.tickLeft = 0.1;
+      o.tickLeft = (o.weaponId === 'ironMaiden' ? AWAKEN.maidenTick : 0.1) / summonBoost;
       for (const e of [...this.enemies]) {
         if (this.isCloaked(e)) continue;
         let hit = false;
@@ -3296,8 +3335,9 @@ export class GameState {
           const dx = t.x - m.x;
           const dy = t.y - m.y;
           const dist = Math.hypot(dx, dy) || 1;
-          m.x += (dx / dist) * m.seekSpeed * dt;
-          m.y += (dy / dist) * m.seekSpeed * dt;
+          const seek = m.seekSpeed * (this.isSwarmFrenzy() && isSummonFamily(m.weaponId) ? AWAKEN.frenzyMul : 1);
+          m.x += (dx / dist) * seek * dt;
+          m.y += (dy / dist) * seek * dt;
           if (dist < t.def.radius + m.radius + 6) m.fuse = 0;
         }
       }
@@ -3737,8 +3777,10 @@ export class GameState {
   private updateBeams(dt: number): void {
     for (let i = this.beams.length - 1; i >= 0; i--) {
       const b = this.beams[i];
-      b.x = this.playerX;
-      b.y = this.playerY - PLAYER.radius;
+      if (b.anchor !== 'world') {
+        b.x = this.playerX;
+        b.y = this.playerY - PLAYER.radius;
+      }
       if (!b.weaponId) b.angle = Math.atan2(this.lastAimY, this.lastAimX);
       b.life -= dt;
       b.tickLeft -= dt;
@@ -4043,6 +4085,9 @@ export class GameState {
     e.hitFlash = 0.08;
     if (weaponId && applied > 0) {
       this.damageDealt[weaponId] = (this.damageDealt[weaponId] ?? 0) + applied;
+      if (this.isSwarmFrenzy() && this.hasAwakening('overlordNetwork') && isSummonFamily(weaponId)) {
+        this.frenzyStoredDmg += applied * AWAKEN.networkStore;
+      }
     }
     this.emitHitFx(e.x, e.y, e.def.color, dmg);
 
@@ -4072,6 +4117,9 @@ export class GameState {
       this.comboCount++;
       this.maxCombo = Math.max(this.maxCombo, this.comboCount);
       this.comboTimer = SCORE.comboWindow;
+      if (this.isSwarmFrenzy() && this.hasWeapon('ironMaiden') && weaponId === 'ironMaiden') {
+        this.maidenQueue.push({ x: e.x, y: e.y });
+      }
 
       const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1));
       const scoreMul = e.elite ? ELITE.scoreMul : 1;
