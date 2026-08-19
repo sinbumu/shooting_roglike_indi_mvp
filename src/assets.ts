@@ -1,8 +1,19 @@
-import { Assets, Texture } from 'pixi.js';
+import { Assets, Rectangle, Texture } from 'pixi.js';
 import type { EnemyId, PickupKind, ShipId } from './types';
 
 /** Vite base('./') 대비 — public/ 하위는 상대 경로로 로드 */
 const base = `${import.meta.env.BASE_URL}assets/sprites`;
+
+export type FxId =
+  | 'slash'
+  | 'beam'
+  | 'rotor'
+  | 'halo'
+  | 'mine'
+  | 'seeker'
+  | 'singularity'
+  | 'predator'
+  | 'swarm';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -40,6 +51,17 @@ export const SPRITE_PATHS = {
   terrain: {
     derelict: `${base}/spr_derelict_ship.png`,
   },
+  fx: {
+    slash: `${base}/fx_slash.png`,
+    beam: `${base}/fx_beam.png`,
+    rotor: `${base}/fx_rotor.png`,
+    halo: `${base}/fx_halo.png`,
+    mine: `${base}/fx_mine.png`,
+    seeker: `${base}/fx_seeker.png`,
+    singularity: `${base}/fx_singularity.png`,
+    predator: `${base}/fx_predator.png`,
+    swarm: `${base}/fx_swarm.png`,
+  } satisfies Record<FxId, string>,
 } as const;
 
 export interface SpriteAtlas {
@@ -47,13 +69,51 @@ export interface SpriteAtlas {
   enemies: Partial<Record<EnemyId, Texture>>;
   pickups: Partial<Record<PickupKind, Texture>>;
   terrain: { derelict?: Texture };
+  fx: Partial<Record<FxId, Texture[]>>;
   ready: boolean;
+}
+
+/** 2×2 시트를 프레임 배열로 자른다 (좌→우, 상→하) */
+export function sliceSheet(tex: Texture, cols = 2, rows = 2): Texture[] {
+  const w = tex.width / cols;
+  const h = tex.height / rows;
+  const frames: Texture[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      frames.push(new Texture({
+        source: tex.source,
+        frame: new Rectangle(Math.round(c * w), Math.round(r * h), Math.round(w), Math.round(h)),
+      }));
+    }
+  }
+  return frames;
+}
+
+export function fxFrame(
+  frames: Texture[] | undefined,
+  t: number,
+  fps = 10,
+  loop = true,
+): Texture | undefined {
+  if (!frames?.length) return undefined;
+  const i = Math.floor(t * fps);
+  const idx = loop
+    ? ((i % frames.length) + frames.length) % frames.length
+    : Math.min(frames.length - 1, Math.max(0, i));
+  return frames[idx];
+}
+
+/** 0~1 진행도로 한 번만 재생 (참격) */
+export function fxFrameOnce(frames: Texture[] | undefined, progress01: number): Texture | undefined {
+  if (!frames?.length) return undefined;
+  const p = Math.min(1, Math.max(0, progress01));
+  return frames[Math.min(frames.length - 1, Math.floor(p * frames.length))];
 }
 
 /** 실패해도 빈 atlas 반환 (Graphics 폴백) */
 export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
-  const atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, ready: false };
-  const entries: { bucket: 'ships' | 'enemies' | 'pickups' | 'terrain'; id: string; url: string }[] = [];
+  const atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, fx: {}, ready: false };
+  const entries: { bucket: 'ships' | 'enemies' | 'pickups' | 'terrain' | 'fx'; id: string; url: string }[] = [];
 
   for (const [id, url] of Object.entries(SPRITE_PATHS.ships)) {
     entries.push({ bucket: 'ships', id, url });
@@ -67,6 +127,9 @@ export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
   for (const [id, url] of Object.entries(SPRITE_PATHS.terrain)) {
     entries.push({ bucket: 'terrain', id, url });
   }
+  for (const [id, url] of Object.entries(SPRITE_PATHS.fx)) {
+    entries.push({ bucket: 'fx', id, url });
+  }
 
   let loaded = 0;
   await Promise.all(
@@ -76,6 +139,7 @@ export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
         if (bucket === 'ships') atlas.ships[id as ShipId] = tex;
         else if (bucket === 'enemies') atlas.enemies[id as EnemyId] = tex;
         else if (bucket === 'pickups') atlas.pickups[id as PickupKind] = tex;
+        else if (bucket === 'fx') atlas.fx[id as FxId] = sliceSheet(tex);
         else if (id === 'derelict') atlas.terrain.derelict = tex;
         loaded++;
       } catch (err) {

@@ -1,8 +1,8 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
 import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN } from './GameConfig';
-import { loadSpriteAtlas, type SpriteAtlas } from './assets';
-import type { EnemyId, ShipId } from './types';
+import { fxFrame, fxFrameOnce, loadSpriteAtlas, type FxId, type SpriteAtlas } from './assets';
+import type { EnemyId, ShipId, WeaponId } from './types';
 
 // ============================================================
 // PixiJS(WebGL) 렌더러 — GameState를 읽기만 하고 변경하지 않는다.
@@ -133,6 +133,8 @@ class EntityPool {
     s.tint = 0xffffff;
     s.alpha = 1;
     s.rotation = 0;
+    s.anchor.set(0.5);
+    s.blendMode = 'normal';
     s.scale.set(1);
     this.used++;
     return s;
@@ -206,8 +208,9 @@ export class Renderer {
   private ringTex!: Texture;
   private glowPool!: FramePool;
   private entityPool!: EntityPool;
+  private fxSpritePool!: EntityPool;
   private playerSprite: Sprite | null = null;
-  private atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, ready: false };
+  private atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, fx: {}, ready: false };
 
   private particles: Particle[] = [];
   private freeSprites: Sprite[] = [];
@@ -244,6 +247,7 @@ export class Renderer {
     this.ringTex = makeRingTexture();
     this.glowPool = new FramePool(this.glowLayer, this.glowTex);
     this.entityPool = new EntityPool(this.spriteLayer);
+    this.fxSpritePool = new EntityPool(this.fxLayer);
     this.atlas = await loadSpriteAtlas();
 
     this.world.addChild(
@@ -286,6 +290,7 @@ export class Renderer {
 
     this.glowPool.begin();
     this.entityPool.begin();
+    this.fxSpritePool.begin();
     this.coreG.clear();
 
     this.drawBackground(state);
@@ -303,6 +308,7 @@ export class Renderer {
     this.drawWarnings(state);
 
     this.entityPool.end();
+    this.fxSpritePool.end();
     this.glowPool.end();
     this.app.render();
   }
@@ -713,6 +719,39 @@ export class Renderer {
       alphaFrom: 0.42,
       ring: true,
     });
+  }
+
+  private mineFxId(id: WeaponId): FxId {
+    if (id === 'seekerMine') return 'seeker';
+    if (id === 'singularity' || id === 'eventHorizon') return 'singularity';
+    if (id === 'predator') return 'predator';
+    return 'mine';
+  }
+
+  private blitFx(
+    tex: Texture,
+    x: number,
+    y: number,
+    opts: {
+      rotation?: number;
+      width: number;
+      height: number;
+      tint?: number;
+      alpha?: number;
+      anchorX?: number;
+      anchorY?: number;
+      add?: boolean;
+    },
+  ): void {
+    const spr = this.fxSpritePool.get(tex);
+    spr.anchor.set(opts.anchorX ?? 0.5, opts.anchorY ?? 0.5);
+    spr.position.set(x, y);
+    spr.rotation = opts.rotation ?? 0;
+    spr.width = opts.width;
+    spr.height = opts.height;
+    spr.tint = opts.tint ?? 0xffffff;
+    spr.alpha = opts.alpha ?? 1;
+    if (opts.add) spr.blendMode = 'add';
   }
 
   private gemBurst(x: number, y: number): void {
@@ -1334,9 +1373,22 @@ export class Renderer {
     for (const p of state.projectiles) {
       const color = hex(p.color);
       const angle = Math.atan2(p.vy, p.vx);
-      const tail = p.radius * (p.boosted ? 6.5 : 4);
 
-      // 잔상 꼬리
+      if (p.weaponId === 'swarm' || p.weaponId === 'predator') {
+        const tex = fxFrame(this.atlas.fx.swarm, this.elapsed + p.x * 0.01, 12);
+        if (tex) {
+          const size = p.radius * (p.weaponId === 'predator' ? 5.8 : 6.4);
+          this.blitFx(tex, p.x, p.y, { rotation: angle, width: size, height: size });
+          const glow = this.glowPool.get();
+          glow.tint = color;
+          glow.position.set(p.x, p.y);
+          glow.width = glow.height = p.radius * 5;
+          glow.alpha = 0.7;
+          continue;
+        }
+      }
+
+      const tail = p.radius * (p.boosted ? 6.5 : 4);
       g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
         .lineTo(p.x, p.y)
         .stroke({ width: p.radius * (p.boosted ? 1.8 : 1.2), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.85 : 0.4 });
@@ -1347,14 +1399,12 @@ export class Renderer {
           .stroke({ width: p.radius * 0.7, color: 0xffffff, alpha: 0.95 });
       }
 
-      // 탄두 글로우 (additive)
       const glow = this.glowPool.get();
       glow.tint = color;
       glow.position.set(p.x, p.y);
       glow.width = glow.height = p.radius * 6;
       glow.alpha = 1;
 
-      // 흰색 코어
       this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
     }
   }
@@ -1363,35 +1413,77 @@ export class Renderer {
     const g = this.projG;
     for (const s of state.slashes) {
       const color = hex(s.color);
-      const alpha = Math.max(0.15, s.life / s.maxLife);
-      const half = (s.arcDeg * Math.PI) / 360;
-      g.moveTo(s.x, s.y);
-      g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
-      g.lineTo(s.x, s.y);
-      g.fill({ color, alpha: 0.22 * alpha });
-      g.moveTo(s.x, s.y);
-      g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
-      g.stroke({ width: 3, color, alpha: 0.8 * alpha });
+      const alpha = Math.max(0.28, s.life / s.maxLife);
+      const progress = 1 - s.life / s.maxLife;
+      const wide = s.arcDeg > 40;
+      const tex = fxFrameOnce(this.atlas.fx[wide ? 'slash' : 'beam'], progress);
+      if (tex) {
+        if (wide) {
+          const size = s.range * 2.4;
+          this.blitFx(tex, s.x, s.y, {
+            rotation: s.angle, width: size, height: size, tint: color, alpha, add: true,
+          });
+        } else {
+          this.blitFx(tex, s.x, s.y, {
+            rotation: s.angle,
+            width: s.range * 1.04,
+            height: Math.max(42, Math.min(96, s.range * 0.09)),
+            tint: color, alpha, add: true,
+            anchorX: 0.14, anchorY: 0.5,
+          });
+        }
+        const glow = this.glowPool.get();
+        glow.tint = color;
+        glow.position.set(s.x + Math.cos(s.angle) * s.range * (wide ? 0.35 : 0.45), s.y + Math.sin(s.angle) * s.range * (wide ? 0.35 : 0.45));
+        glow.width = glow.height = wide ? s.range * 1.6 : 48;
+        glow.alpha = 0.45 * alpha;
+      } else {
+        const half = (s.arcDeg * Math.PI) / 360;
+        g.moveTo(s.x, s.y);
+        g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
+        g.lineTo(s.x, s.y);
+        g.fill({ color, alpha: 0.22 * alpha });
+        g.moveTo(s.x, s.y);
+        g.arc(s.x, s.y, s.range, s.angle - half, s.angle + half);
+        g.stroke({ width: 3, color, alpha: 0.8 * alpha });
+      }
     }
     for (const o of state.orbiters) {
       const color = hex(o.color);
       if (o.ring) {
-        g.circle(state.playerX, state.playerY, o.radius)
-          .stroke({ width: 8, color, alpha: 0.45 + Math.sin(this.elapsed * 8) * 0.1 });
-        g.circle(state.playerX, state.playerY, o.radius)
-          .stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
+        const tex = fxFrame(this.atlas.fx.halo, this.elapsed, 8);
+        if (tex) {
+          const pulse = 1 + Math.sin(this.elapsed * 8) * 0.05;
+          const size = o.radius * 2.2 * pulse;
+          this.blitFx(tex, state.playerX, state.playerY, {
+            rotation: this.elapsed * 0.7, width: size, height: size, tint: color, alpha: 0.92, add: true,
+          });
+        } else {
+          g.circle(state.playerX, state.playerY, o.radius)
+            .stroke({ width: 8, color, alpha: 0.45 + Math.sin(this.elapsed * 8) * 0.1 });
+          g.circle(state.playerX, state.playerY, o.radius)
+            .stroke({ width: 2, color: 0xffffff, alpha: 0.5 });
+        }
       } else {
         const x = state.playerX + Math.cos(o.angle) * o.radius;
         const y = state.playerY + Math.sin(o.angle) * o.radius;
-        const tooth = o.hitRadius * 1.35;
-        const c = Math.cos(o.angle + this.elapsed * 10);
-        const s = Math.sin(o.angle + this.elapsed * 10);
-        g.poly([
-          x + c * tooth, y + s * tooth,
-          x - s * tooth * 0.7, y + c * tooth * 0.7,
-          x - c * tooth, y - s * tooth,
-          x + s * tooth * 0.7, y - c * tooth * 0.7,
-        ], true).fill(color);
+        const tex = fxFrame(this.atlas.fx.rotor, this.elapsed, 18);
+        if (tex) {
+          const size = o.hitRadius * 4.8;
+          this.blitFx(tex, x, y, {
+            rotation: this.elapsed * 16 + o.angle, width: size, height: size,
+          });
+        } else {
+          const tooth = o.hitRadius * 1.35;
+          const c = Math.cos(o.angle + this.elapsed * 10);
+          const s = Math.sin(o.angle + this.elapsed * 10);
+          g.poly([
+            x + c * tooth, y + s * tooth,
+            x - s * tooth * 0.7, y + c * tooth * 0.7,
+            x - c * tooth, y - s * tooth,
+            x + s * tooth * 0.7, y - c * tooth * 0.7,
+          ], true).fill(color);
+        }
         const glow = this.glowPool.get();
         glow.tint = color;
         glow.position.set(x, y);
@@ -1404,17 +1496,30 @@ export class Renderer {
       const idle = 1 + Math.sin(this.elapsed * 5 + m.x * 0.05) * 0.12;
       const r = m.radius * idle;
       const blink = m.fuse < 0.6 && Math.floor(this.elapsed * 12) % 2 === 0;
-      g.circle(m.x, m.y, r).fill({ color: blink ? 0xffffff : color, alpha: blink ? 1 : 0.88 + idle * 0.08 });
-      g.circle(m.x, m.y, r + 3).stroke({ width: 1.5, color, alpha: 0.55 + idle * 0.2 });
+      const fxId = this.mineFxId(m.weaponId);
+      const tex = fxFrame(this.atlas.fx[fxId], this.elapsed + m.x * 0.02, m.seekSpeed > 0 ? 10 : 7);
+      if (tex) {
+        const size = m.radius * 5.2 * idle;
+        let rot = 0;
+        if (m.seekSpeed > 0 && (Math.abs(m.vx) > 4 || Math.abs(m.vy) > 4)) rot = Math.atan2(m.vy, m.vx);
+        else if (fxId === 'singularity') rot = this.elapsed * 1.6;
+        this.blitFx(tex, m.x, m.y, {
+          rotation: rot, width: size, height: size,
+          alpha: blink ? 1 : 0.96,
+        });
+      } else {
+        g.circle(m.x, m.y, r).fill({ color: blink ? 0xffffff : color, alpha: blink ? 1 : 0.88 + idle * 0.08 });
+        g.circle(m.x, m.y, r + 3).stroke({ width: 1.5, color, alpha: 0.55 + idle * 0.2 });
+        if (m.seekSpeed > 0) {
+          g.moveTo(m.x, m.y - r - 4)
+            .lineTo(m.x + 4, m.y - 1)
+            .lineTo(m.x - 4, m.y - 1)
+            .fill(blink ? 0xffffff : color);
+        }
+      }
       if (m.pullRadius > 0) {
         g.circle(m.x, m.y, m.pullRadius)
           .stroke({ width: 1.5, color, alpha: 0.22 + Math.sin(this.elapsed * 6) * 0.08 });
-      }
-      if (m.seekSpeed > 0) {
-        g.moveTo(m.x, m.y - r - 4)
-          .lineTo(m.x + 4, m.y - 1)
-          .lineTo(m.x - 4, m.y - 1)
-          .fill(blink ? 0xffffff : color);
       }
     }
     for (const z of state.zones) {
@@ -1424,10 +1529,31 @@ export class Renderer {
           .stroke({ width: z.radius * 1.6, color, alpha: 0.35 });
         g.moveTo(z.x, z.y).lineTo(z.x2, z.y2)
           .stroke({ width: 3, color: 0xffffff, alpha: 0.5 });
+        const crack = fxFrameOnce(this.atlas.fx.beam, 0.72);
+        if (crack) {
+          const dx = z.x2 - z.x;
+          const dy = z.y2 - z.y;
+          const len = Math.hypot(dx, dy);
+          this.blitFx(crack, (z.x + z.x2) * 0.5, (z.y + z.y2) * 0.5, {
+            rotation: Math.atan2(dy, dx),
+            width: len,
+            height: Math.max(18, z.radius * 2.4),
+            tint: color,
+            alpha: 0.55,
+            add: true,
+          });
+        }
       } else {
         g.circle(z.x, z.y, z.radius).fill({ color: 0x020617, alpha: 0.35 });
         g.circle(z.x, z.y, z.radius)
           .stroke({ width: 3, color, alpha: 0.55 + Math.sin(this.elapsed * 5) * 0.15 });
+        const hole = fxFrame(this.atlas.fx.singularity, this.elapsed, 8);
+        if (hole) {
+          const size = z.radius * 2.15;
+          this.blitFx(hole, z.x, z.y, {
+            rotation: this.elapsed * 1.2, width: size, height: size, alpha: 0.85, add: true,
+          });
+        }
       }
     }
     for (const b of state.interceptBeams) {

@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.8.2',
+    date: '2026-08-19',
+    changes: [
+      '⚔️ 근접·장판·스웜: 원뿔 Graphics 대신 2×2 애니메이션 스프라이트',
+      '참격은 에너지 크레센트 / 빔소드는 광선검 · 톱날·후광·지뢰 계열·스웜 드론 전용 시트',
+    ],
+  },
+  {
     version: 'v1.8.1',
     date: '2026-08-19',
     changes: [
