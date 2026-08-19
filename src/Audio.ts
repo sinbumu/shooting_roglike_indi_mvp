@@ -447,6 +447,15 @@ export class AudioManager {
             this.noise(0.22, { gain: 0.1, freq: 140 + i * 40, delay: i * 0.12 });
             this.tone(110 - i * 8, 0.18, { type: 'sawtooth', slideTo: 36, gain: 0.05, delay: i * 0.12 });
           }
+        } else if (ev.id === 'iaido') {
+          this.tone(720, 0.16, { type: 'sine', slideTo: 220, gain: 0.06 });
+          this.noise(0.08, { gain: 0.05, freq: 1800, highpass: 900 });
+        } else if (ev.id === 'overloadDetonate') {
+          this.tone(180, 0.18, { type: 'square', slideTo: 70, gain: 0.07 });
+          this.noise(0.22, { gain: 0.12, freq: 220 });
+        } else if (ev.id === 'bloodStream') {
+          this.tone(240, 0.35, { type: 'sawtooth', slideTo: 90, gain: 0.06 });
+          this.tone(480, 0.28, { type: 'sine', slideTo: 160, gain: 0.04, delay: 0.04 });
         }
         break;
 

@@ -128,21 +128,28 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   const ownedPassives = new Set(state.passives.map((p) => p.passiveId));
 
   for (const recipe of RECIPES) {
-    const [a, b] = recipe.materials;
+    if (recipe.requirePassive && !ownedPassives.has(recipe.requirePassive)) continue;
+    const mats = recipe.materials;
+    const a = mats[0];
+    const b = mats.length === 2 ? mats[1] : undefined;
     const countA = owned.filter((id) => id === a).length;
-    const countB = a === b ? countA : owned.filter((id) => id === b).length;
-    const ready = a === b ? countA >= 2 : countA >= 1 && countB >= 1;
+    const ready = b == null
+      ? countA >= 1
+      : a === b ? countA >= 2 : countA >= 1 && owned.filter((id) => id === b).length >= 1;
     if (!ready) continue;
     if (state.nodeLv('purist') > 0 && WEAPONS[recipe.result].tier >= 3) continue;
     const result = WEAPONS[recipe.result];
+    const matLabel = b == null
+      ? `${WEAPONS[a].icon}${WEAPONS[a].name}${recipe.requirePassive ? ` + ${PASSIVES[recipe.requirePassive].icon}${PASSIVES[recipe.requirePassive].name}` : ''}`
+      : `${WEAPONS[a].icon}${WEAPONS[a].name} + ${WEAPONS[b].icon}${WEAPONS[b].name}`;
     pool.push({
       kind: 'merge',
       weight: 100,
       title: result.name,
-      desc: `${WEAPONS[a].icon}${WEAPONS[a].name} + ${WEAPONS[b].icon}${WEAPONS[b].name} → ${result.desc}`,
+      desc: `${matLabel} → ${result.desc}`,
       icon: result.icon,
       color: result.color,
-      weaponIds: [a, b],
+      weaponIds: b == null ? [a] : [a, b],
       resultId: recipe.result,
     });
   }
@@ -161,7 +168,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
           color: def.color,
           weaponIds: [def.id],
         });
-      } else if (count < T1_DUPLICATE_CAP && RECIPES.some((r) => r.materials[0] === def.id && r.materials[1] === def.id)) {
+      } else if (count < T1_DUPLICATE_CAP && RECIPES.some((r) => r.materials.length === 2 && r.materials[0] === def.id && r.materials[1] === def.id)) {
         pool.push({
           kind: 'new',
           weight: 18,
@@ -503,7 +510,28 @@ function randomAffix(weaponId?: WeaponId): AffixId | null {
 export function applyChoice(state: GameState, choice: LevelUpChoice): void {
   switch (choice.kind) {
     case 'merge': {
-      const [a, b] = choice.weaponIds as [WeaponId, WeaponId];
+      const ids = choice.weaponIds ?? [];
+      const resultId = choice.resultId as WeaponId;
+      if (state.nodeLv('purist') > 0 && WEAPONS[resultId].tier >= 3) break;
+      if (ids.length === 1) {
+        const slotA = state.weapons.find((w) => w.weaponId === ids[0]);
+        if (!slotA) break;
+        const inheritLevel = slotA.level;
+        state.untrackAcquire(ids[0]);
+        state.weapons = state.weapons.filter((w) => w !== slotA);
+        const result: WeaponSlot = { weaponId: resultId, level: inheritLevel, cooldownLeft: 200 };
+        if (WEAPONS[resultId].tier === 3 && Math.random() < ENDGAME.tier3AffixChance) {
+          const axId = randomAffix(resultId);
+          if (axId) {
+            result.affix = axId;
+            state.events.push({ type: 'banner', text: `${AFFIXES[result.affix].label} ${WEAPONS[resultId].name}!` });
+          }
+        }
+        state.weapons.push(result);
+        state.noteWeapon(resultId);
+        break;
+      }
+      const [a, b] = ids as [WeaponId, WeaponId];
       const slotA = state.weapons.find((w) => w.weaponId === a);
       const slotB = state.weapons.find((w) => w.weaponId === b && w !== slotA);
       if (!slotA || !slotB) break;
@@ -511,8 +539,6 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       state.untrackAcquire(a);
       state.untrackAcquire(b);
       state.weapons = state.weapons.filter((w) => w !== slotA && w !== slotB);
-      const resultId = choice.resultId as WeaponId;
-      if (state.nodeLv('purist') > 0 && WEAPONS[resultId].tier >= 3) break;
       const result: WeaponSlot = {
         weaponId: resultId,
         level: inheritLevel,

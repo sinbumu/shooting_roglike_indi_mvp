@@ -16,6 +16,7 @@ const NAMES = [
   'enemy_trapper', 'enemy_vortex',
   'enemy_warden', 'enemy_herald', 'enemy_architect',
   'pickup_goldCube',
+  'ship_yaksha', 'ship_overlord', 'ship_crimson',
 ];
 
 function isMagenta(r, g, b) {

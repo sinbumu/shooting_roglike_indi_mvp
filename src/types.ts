@@ -28,7 +28,28 @@ export type WeaponId =
   | 'seekerMine'
   | 'singularity'
   | 'predator'
-  | 'eventHorizon';
+  | 'eventHorizon'
+  | 'plasmaWhip'
+  | 'orbitalSaw'
+  | 'magHook'
+  | 'quakeWhip'
+  | 'kingSaw'
+  | 'gravityAnchor'
+  | 'tectonicCutter'
+  | 'spiderMine'
+  | 'interceptorWing'
+  | 'autoTurret'
+  | 'sawDrone'
+  | 'doomsday'
+  | 'orbitalBattery'
+  | 'ironMaiden'
+  | 'bloodSpike'
+  | 'drainAura'
+  | 'bleedBurst'
+  | 'bloodSeeker'
+  | 'bloodGallows'
+  | 'bloodNova'
+  | 'vampireBats';
 
 export type WeaponTier = 1 | 2 | 3;
 
@@ -84,9 +105,11 @@ export interface ProjectileSpec {
     zoneDuration?: number;
     zoneTick?: number;
   };
+  /** 명중 시 적을 플레이어 쪽으로 당김 */
+  pullOnHit?: number;
 }
 
-export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop' | 'beam';
+export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop' | 'beam' | 'summon';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -99,18 +122,24 @@ export interface WeaponDef {
   projectile: ProjectileSpec;
   /** 없으면 projectile. 근접/오라/장판만 명시 */
   tags?: WeaponTag[];
+  /** 발사 시 최대 체력 비율 소모 (최소 HP 1) */
+  hpCostFrac?: number;
+  /** 적 1기 적중 시 최대 체력 비율 흡혈 */
+  leechOnHit?: number;
 }
 
 export interface Recipe {
-  materials: [WeaponId, WeaponId];
+  materials: [WeaponId, WeaponId] | [WeaponId];
   result: WeaponId;
+  /** T3 매트릭스 촉매. 보유해야 조합되며 소모하지 않음 */
+  requirePassive?: PassiveId;
 }
 
 // ------------------------------------------------------------
 // 시작 기체 / 패시브 / 메타
 // ------------------------------------------------------------
 
-export type ShipId = 'scout' | 'fortress' | 'hunter' | 'bomber';
+export type ShipId = 'scout' | 'fortress' | 'hunter' | 'bomber' | 'yaksha' | 'overlord' | 'crimson';
 
 export type DroneId = 'retriever' | 'defender' | 'amplifier';
 
@@ -127,7 +156,7 @@ export interface DroneDef {
   costMul: number;
 }
 
-export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing';
+export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing' | 'iaido' | 'overloadDetonate' | 'bloodStream';
 
 export interface ActiveSkillDef {
   id: ActiveSkillId;
@@ -145,6 +174,8 @@ export interface ActiveSkillDef {
   slowMul?: number;
   bombCount?: number;
   explodeRadius?: number;
+  hpCostFrac?: number;
+  leechPerHit?: number;
 }
 
 export interface ShipDef {
@@ -163,7 +194,10 @@ export interface ShipDef {
   activeSkill: ActiveSkillDef;
 }
 
-export type PassiveId = 'evasion' | 'cripple' | 'aegis' | 'plating' | 'collector' | 'overcharge' | 'overload';
+export type PassiveId =
+  | 'evasion' | 'cripple' | 'aegis' | 'plating' | 'collector' | 'overcharge' | 'overload'
+  | 'titaniumPlate' | 'thrusterMod' | 'highExplosive' | 'quantumCell' | 'extendedMag'
+  | 'nanoPlate' | 'regenModule' | 'critLens' | 'accelMotor';
 
 export interface PassiveDef {
   id: PassiveId;

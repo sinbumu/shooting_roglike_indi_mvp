@@ -656,7 +656,10 @@ export class UI {
         const unlocked = seen.has(def.id);
         const rec = recipeOf(def.id);
         const mats = rec
-          ? rec.materials.map((m) => (seen.has(m) ? `${WEAPONS[m].icon}${WEAPONS[m].name}` : '???')).join(' + ')
+          ? [
+            ...rec.materials.map((m) => (seen.has(m) ? `${WEAPONS[m].icon}${WEAPONS[m].name}` : '???')),
+            ...(rec.requirePassive ? [`${PASSIVES[rec.requirePassive].icon}${PASSIVES[rec.requirePassive].name}`] : []),
+          ].join(' + ')
           : '시작 무기 / 레벨업';
         return `
           <div class="codex-row${unlocked ? ' done' : ''}">

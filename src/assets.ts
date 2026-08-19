@@ -42,7 +42,10 @@ export type FxId =
   | 'warn'
   | 'drone'
   | 'pylon'
-  | 'frontshield';
+  | 'frontshield'
+  | 'whip'
+  | 'spider'
+  | 'blood';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -50,6 +53,9 @@ export const SPRITE_PATHS = {
     fortress: `${base}/ship_fortress.png`,
     hunter: `${base}/ship_hunter.png`,
     bomber: `${base}/ship_bomber.png`,
+    yaksha: `${base}/ship_yaksha.png`,
+    overlord: `${base}/ship_overlord.png`,
+    crimson: `${base}/ship_crimson.png`,
   } satisfies Record<ShipId, string>,
   enemies: {
     drone: `${base}/enemy_drone.png`,
@@ -119,6 +125,9 @@ export const SPRITE_PATHS = {
     drone: `${base}/fx_drone.png`,
     pylon: `${base}/fx_pylon.png`,
     frontshield: `${base}/fx_frontshield.png`,
+    whip: `${base}/fx_whip.png`,
+    spider: `${base}/fx_spider.png`,
+    blood: `${base}/fx_blood.png`,
   } satisfies Record<FxId, string>,
 } as const;
 
@@ -151,6 +160,18 @@ export const PROJ_FX: Partial<Record<WeaponId, ProjFxDraw>> = {
   rupture: { fx: 'rupture', sizeMul: 4.9, elong: 1.4, fps: 10, trail: true },
   helix: { fx: 'helix', sizeMul: 5.4, fps: 10 },
   predator: { fx: 'swarm', sizeMul: 5.8, fps: 12 },
+  magHook: { fx: 'homing', sizeMul: 6.2, elong: 1.7, fps: 12, trail: true, tint: true },
+  gravityAnchor: { fx: 'homing', sizeMul: 7.0, elong: 1.85, fps: 12, trail: true, tint: true },
+  spiderMine: { fx: 'spider', sizeMul: 5.6, fps: 10 },
+  interceptorWing: { fx: 'swarm', sizeMul: 5.6, fps: 12, tint: true },
+  doomsday: { fx: 'swarm', sizeMul: 6.2, fps: 14, tint: true },
+  autoTurret: { fx: 'gatling', sizeMul: 7.4, elong: 2.0, fps: 16, trail: true },
+  orbitalBattery: { fx: 'gatling', sizeMul: 8.0, elong: 2.2, fps: 16, trail: true },
+  bloodSpike: { fx: 'blood', sizeMul: 6.4, elong: 1.8, fps: 14, trail: true, tint: true },
+  bleedBurst: { fx: 'nova', sizeMul: 5.2, fps: 14, add: true, tint: true },
+  bloodSeeker: { fx: 'homing', sizeMul: 6.0, elong: 1.5, fps: 12, trail: true, tint: true },
+  bloodNova: { fx: 'nova', sizeMul: 5.8, fps: 14, add: true, tint: true },
+  vampireBats: { fx: 'homing', sizeMul: 5.4, fps: 14, tint: true },
 };
 
 export interface SpriteAtlas {

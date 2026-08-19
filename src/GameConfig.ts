@@ -114,6 +114,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   swarm: {
     id: 'swarm', name: '스웜 드론', tier: 2, icon: '🐝', color: '#f472b6',
     desc: '[스프레드+호밍] 전방위로 유도탄 6발을 살포',
+    tags: ['summon'],
     cooldownMs: 820,
     projectile: { damage: 10, speed: 430, radius: 5, count: 6, spreadDeg: 360, homingTurnRate: 5.2, pierce: 0, lifetime: 2.8 },
   },
@@ -134,6 +135,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   mothership: {
     id: 'mothership', name: '모선 호출', tier: 2, icon: '🛸', color: '#fb7185',
     desc: '[호밍+호밍] 느린 초대형 유도 폭탄. 명중 시 광역 폭발',
+    tags: ['summon'],
     cooldownMs: 1450,
     projectile: {
       damage: 52, speed: 210, radius: 14, count: 1, spreadDeg: 0,
@@ -289,7 +291,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   predator: {
     id: 'predator', name: '프레데터 스웜', tier: 3, icon: '🦂', color: '#ef4444',
     desc: '[추적지뢰+스웜] 1차 폭발 후 소형 유도탄 4발로 2차 전개',
-    tags: ['drop'],
+    tags: ['drop', 'summon'],
     cooldownMs: 820,
     projectile: {
       damage: 20, speed: 180, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
@@ -308,6 +310,215 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
         persist: 4, zoneDuration: 4, zoneTick: 0.15,
       },
     },
+  },
+  // ---------- 매트릭스 T1 ----------
+  plasmaWhip: {
+    id: 'plasmaWhip', name: '플라즈마 채찍', tier: 1, icon: '🌀', color: '#f0abfc',
+    desc: '전방을 길게 훑는 에너지 채찍',
+    tags: ['melee'],
+    cooldownMs: 480,
+    projectile: {
+      damage: 16, speed: 0, radius: 8, count: 1, spreadDeg: 70, homingTurnRate: 0, pierce: 99, lifetime: 0.14,
+      melee: { arcDeg: 70, range: 118, duration: 0.14, deflect: true },
+    },
+  },
+  spiderMine: {
+    id: 'spiderMine', name: '스파이더 마인', tier: 1, icon: '🕷️', color: '#94a3b8',
+    desc: '기어가는 지뢰를 풀어 최근접 적에게 붙인다',
+    tags: ['drop', 'summon'],
+    cooldownMs: 780,
+    projectile: {
+      damage: 20, speed: 110, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4.2,
+      explodeRadius: 58, drop: { fuse: 4.2, seekSpeed: 110 },
+    },
+  },
+  bloodSpike: {
+    id: 'bloodSpike', name: '핏빛 쐐기', tier: 1, icon: '🩸', color: '#fb7185',
+    desc: '체력 1%를 소모해 전방으로 쐐기를 발사',
+    hpCostFrac: 0.01,
+    cooldownMs: 520,
+    projectile: { damage: 18, speed: 640, radius: 5, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 1, lifetime: 1.5 },
+  },
+  // ---------- 채찍 T2/T3 ----------
+  orbitalSaw: {
+    id: 'orbitalSaw', name: '궤도 전기톱', tier: 2, icon: '⚙️', color: '#cbd5e1',
+    desc: '[채찍+빔소드] 주위를 도는 톱날',
+    tags: ['melee', 'aura'],
+    cooldownMs: 110,
+    projectile: {
+      damage: 9, speed: 0, radius: 11, count: 2, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
+      orbit: { count: 2, radius: 60, persist: true },
+    },
+  },
+  magHook: {
+    id: 'magHook', name: '마그네틱 훅', tier: 2, icon: '🪝', color: '#38bdf8',
+    desc: '[채찍+호밍] 적을 끌어당기는 유도 갈고리',
+    tags: ['melee'],
+    cooldownMs: 700,
+    projectile: {
+      damage: 22, speed: 520, radius: 7, count: 1, spreadDeg: 0, homingTurnRate: 5.5, pierce: 0, lifetime: 1.8,
+      pullOnHit: 42,
+    },
+  },
+  quakeWhip: {
+    id: 'quakeWhip', name: '진동 채찍', tier: 2, icon: '〰️', color: '#fbbf24',
+    desc: '[채찍+지뢰] 벤 자리에 짧은 진동 장판',
+    tags: ['melee'],
+    cooldownMs: 620,
+    projectile: {
+      damage: 18, speed: 0, radius: 9, count: 1, spreadDeg: 80, homingTurnRate: 0, pierce: 99, lifetime: 0.16,
+      melee: { arcDeg: 80, range: 130, duration: 0.16, deflect: true },
+      drop: { fuse: 0, persist: 1.4, zoneDuration: 1.4, zoneTick: 0.14 },
+    },
+  },
+  kingSaw: {
+    id: 'kingSaw', name: '명왕의 톱니', tier: 3, icon: '👑', color: '#e2e8f0',
+    desc: '[궤도톱+티타늄 장갑] 거대한 궤도 톱니',
+    tags: ['melee', 'aura'],
+    cooldownMs: 90,
+    projectile: {
+      damage: 12, speed: 0, radius: 15, count: 3, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
+      orbit: { count: 3, radius: 78, persist: true },
+    },
+  },
+  gravityAnchor: {
+    id: 'gravityAnchor', name: '중력 닻', tier: 3, icon: '⚓', color: '#67e8f9',
+    desc: '[마그네틱 훅+추진기] 강하게 끌어당기는 닻',
+    tags: ['melee'],
+    cooldownMs: 640,
+    projectile: {
+      damage: 36, speed: 580, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 6.2, pierce: 1, lifetime: 2.0,
+      pullOnHit: 90,
+    },
+  },
+  tectonicCutter: {
+    id: 'tectonicCutter', name: '지각 절단기', tier: 3, icon: '🌋', color: '#fb923c',
+    desc: '[진동 채찍+고폭약] 광역 진동 참격',
+    tags: ['melee'],
+    cooldownMs: 720,
+    projectile: {
+      damage: 40, speed: 0, radius: 12, count: 1, spreadDeg: 100, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
+      melee: { arcDeg: 100, range: 160, duration: 0.18, deflect: true },
+      explodeRadius: 88,
+      drop: { fuse: 0, persist: 2.0, zoneDuration: 2.0, zoneTick: 0.12 },
+    },
+  },
+  // ---------- 스파이더 T2/T3 ----------
+  interceptorWing: {
+    id: 'interceptorWing', name: '요격기 편대', tier: 2, icon: '✈️', color: '#7dd3fc',
+    desc: '[스파이더+스웜] 유도 요격기 살포',
+    tags: ['summon'],
+    cooldownMs: 700,
+    projectile: { damage: 11, speed: 460, radius: 5, count: 5, spreadDeg: 360, homingTurnRate: 5.6, pierce: 0, lifetime: 2.6 },
+  },
+  autoTurret: {
+    id: 'autoTurret', name: '자동 포탑', tier: 2, icon: '🗼', color: '#facc15',
+    desc: '[스파이더+가틀링] 제자리 사격 포탑을 설치',
+    tags: ['drop', 'summon'],
+    cooldownMs: 1100,
+    projectile: {
+      damage: 8, speed: 0, radius: 12, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 8,
+      drop: { fuse: 8, persist: 8 },
+    },
+  },
+  sawDrone: {
+    id: 'sawDrone', name: '톱니 드론', tier: 2, icon: '🦷', color: '#94a3b8',
+    desc: '[스파이더+빔소드] 주위를 도는 톱니 드론',
+    tags: ['summon', 'aura'],
+    cooldownMs: 120,
+    projectile: {
+      damage: 8, speed: 0, radius: 10, count: 2, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.12,
+      orbit: { count: 2, radius: 70, persist: true },
+    },
+  },
+  doomsday: {
+    id: 'doomsday', name: '프로토콜: 둠스데이', tier: 3, icon: '☠️', color: '#ef4444',
+    desc: '[요격기+양자 배터리] 대량 요격 편대',
+    tags: ['summon'],
+    cooldownMs: 560,
+    projectile: { damage: 14, speed: 520, radius: 6, count: 10, spreadDeg: 360, homingTurnRate: 6.0, pierce: 1, lifetime: 2.8 },
+  },
+  orbitalBattery: {
+    id: 'orbitalBattery', name: '궤도 폭격 신호소', tier: 3, icon: '📡', color: '#fde68a',
+    desc: '[자동 포탑+확장 탄창] 강화 포탑 설치',
+    tags: ['drop', 'summon'],
+    cooldownMs: 1000,
+    projectile: {
+      damage: 14, speed: 0, radius: 14, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 10,
+      drop: { fuse: 10, persist: 10 },
+    },
+  },
+  ironMaiden: {
+    id: 'ironMaiden', name: '아이언 메이든 군단', tier: 3, icon: '🛡️', color: '#cbd5e1',
+    desc: '[톱니 드론+나노 장갑] 가시 궤도 군단',
+    tags: ['summon', 'aura'],
+    cooldownMs: 100,
+    projectile: {
+      damage: 11, speed: 0, radius: 12, count: 4, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
+      orbit: { count: 4, radius: 86, persist: true },
+    },
+  },
+  // ---------- 핏빛 T2/T3 ----------
+  drainAura: {
+    id: 'drainAura', name: '착취의 오라', tier: 2, icon: '🩸', color: '#e11d48',
+    desc: '[핏빛 쐐기+지뢰] 주변 적을 태우며 흡혈',
+    tags: ['aura'],
+    leechOnHit: 0.004,
+    cooldownMs: 100,
+    projectile: {
+      damage: 7, speed: 0, radius: 14, count: 1, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
+      orbit: { count: 1, radius: 78, persist: true },
+    },
+  },
+  bleedBurst: {
+    id: 'bleedBurst', name: '출혈 폭발', tier: 2, icon: '💥', color: '#fb7185',
+    desc: '[핏빛 쐐기+스프레드] 명중 시 터지는 혈탄',
+    hpCostFrac: 0.008,
+    leechOnHit: 0.006,
+    cooldownMs: 700,
+    projectile: {
+      damage: 9, speed: 500, radius: 5, count: 6, spreadDeg: 70, homingTurnRate: 0, pierce: 0, lifetime: 1.2,
+      explodeRadius: 42,
+    },
+  },
+  bloodSeeker: {
+    id: 'bloodSeeker', name: '피의 추적자', tier: 2, icon: '🦇', color: '#be123c',
+    desc: '[핏빛 쐐기+호밍] 흡혈 유도탄',
+    hpCostFrac: 0.008,
+    leechOnHit: 0.008,
+    cooldownMs: 820,
+    projectile: { damage: 16, speed: 420, radius: 6, count: 2, spreadDeg: 50, homingTurnRate: 5.0, pierce: 0, lifetime: 2.4 },
+  },
+  bloodGallows: {
+    id: 'bloodGallows', name: '선혈의 처형대', tier: 3, icon: '☠️', color: '#9f1239',
+    desc: '[착취 오라+재생 모듈] 강화 흡혈 오라',
+    tags: ['aura'],
+    leechOnHit: 0.008,
+    cooldownMs: 90,
+    projectile: {
+      damage: 11, speed: 0, radius: 16, count: 1, spreadDeg: 360, homingTurnRate: 0, pierce: 99, lifetime: 0.1,
+      orbit: { count: 1, radius: 102, persist: true, pull: 28 },
+    },
+  },
+  bloodNova: {
+    id: 'bloodNova', name: '블러드 노바', tier: 3, icon: '🌹', color: '#fb7185',
+    desc: '[출혈 폭발+치명타 렌즈] 전방위 혈폭',
+    hpCostFrac: 0.012,
+    leechOnHit: 0.01,
+    cooldownMs: 640,
+    projectile: {
+      damage: 12, speed: 480, radius: 6, count: 14, spreadDeg: 170, homingTurnRate: 0, pierce: 0, lifetime: 0.9,
+      explodeRadius: 52,
+    },
+  },
+  vampireBats: {
+    id: 'vampireBats', name: '흡혈 박쥐 떼', tier: 3, icon: '🦇', color: '#881337',
+    desc: '[피의 추적자+가속 모터] 흡혈 유도 편대',
+    hpCostFrac: 0.01,
+    leechOnHit: 0.01,
+    tags: ['summon'],
+    cooldownMs: 620,
+    projectile: { damage: 13, speed: 500, radius: 5, count: 8, spreadDeg: 360, homingTurnRate: 5.8, pierce: 0, lifetime: 2.5 },
   },
 };
 
@@ -333,6 +544,24 @@ export const RECIPES: Recipe[] = [
   { materials: ['mine', 'spread'], result: 'singularity' },
   { materials: ['seekerMine', 'swarm'], result: 'predator' },
   { materials: ['singularity', 'mothership'], result: 'eventHorizon' },
+  { materials: ['plasmaWhip', 'beamSword'], result: 'orbitalSaw' },
+  { materials: ['plasmaWhip', 'homing'], result: 'magHook' },
+  { materials: ['plasmaWhip', 'mine'], result: 'quakeWhip' },
+  { materials: ['orbitalSaw'], result: 'kingSaw', requirePassive: 'titaniumPlate' },
+  { materials: ['magHook'], result: 'gravityAnchor', requirePassive: 'thrusterMod' },
+  { materials: ['quakeWhip'], result: 'tectonicCutter', requirePassive: 'highExplosive' },
+  { materials: ['spiderMine', 'swarm'], result: 'interceptorWing' },
+  { materials: ['spiderMine', 'gatling'], result: 'autoTurret' },
+  { materials: ['spiderMine', 'beamSword'], result: 'sawDrone' },
+  { materials: ['interceptorWing'], result: 'doomsday', requirePassive: 'quantumCell' },
+  { materials: ['autoTurret'], result: 'orbitalBattery', requirePassive: 'extendedMag' },
+  { materials: ['sawDrone'], result: 'ironMaiden', requirePassive: 'nanoPlate' },
+  { materials: ['bloodSpike', 'mine'], result: 'drainAura' },
+  { materials: ['bloodSpike', 'spread'], result: 'bleedBurst' },
+  { materials: ['bloodSpike', 'homing'], result: 'bloodSeeker' },
+  { materials: ['drainAura'], result: 'bloodGallows', requirePassive: 'regenModule' },
+  { materials: ['bleedBurst'], result: 'bloodNova', requirePassive: 'critLens' },
+  { materials: ['bloodSeeker'], result: 'vampireBats', requirePassive: 'accelMotor' },
 ];
 
 /** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
@@ -470,6 +699,33 @@ export const SHIPS: Record<ShipId, ShipDef> = {
       cooldown: 20, duration: 1.5, bombCount: 12, explodeRadius: 100,
     },
   },
+  yaksha: {
+    id: 'yaksha', name: '야차', icon: '⚔️', color: '#ef4444',
+    desc: '근접만 발사. 채찍으로 시작하며 발도술로 카운터합니다.',
+    hpMul: 1.15, speedMul: 1.05, startingWeapon: 'plasmaWhip', unlockCost: 2500,
+    activeSkill: {
+      id: 'iaido', name: '거합도 - 발도술', icon: '🗡️',
+      cooldown: 8, duration: 0.5, pulseDamage: 85,
+    },
+  },
+  overlord: {
+    id: 'overlord', name: '오버로드', icon: '🛸', color: '#38bdf8',
+    desc: '본체 화력은 약하지만 소환 편대를 지휘합니다. 스파이더 마인으로 시작.',
+    hpMul: 1.2, speedMul: 0.9, startingWeapon: 'spiderMine', unlockCost: 2500,
+    activeSkill: {
+      id: 'overloadDetonate', name: '명령: 과부하 자폭', icon: '📡',
+      cooldown: 14, duration: 0.45, dashDist: 140, explodeRadius: 96,
+    },
+  },
+  crimson: {
+    id: 'crimson', name: '크림슨 팩트', icon: '🩸', color: '#be123c',
+    desc: '쉴드 없음. 잃은 체력만큼 광분합니다. 핏빛 쐐기로 시작.',
+    hpMul: 1.3, speedMul: 1.0, startingWeapon: 'bloodSpike', unlockCost: 2800,
+    activeSkill: {
+      id: 'bloodStream', name: '혈사포', icon: '💉',
+      cooldown: 12, duration: 2.5, hpCostFrac: 0.2, leechPerHit: 0.01,
+    },
+  },
 };
 
 export const DEFAULT_SHIP: ShipId = 'scout';
@@ -507,6 +763,42 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
     id: 'overload', name: '과부하 코어', icon: '☢️', color: '#f97316',
     desc: '쿨타임 30% 감소, 최대 체력 40% 감소',
     perLevel: 0, maxLevel: 1, hpMul: 0.6, cooldownMul: 0.7,
+  },
+  titaniumPlate: {
+    id: 'titaniumPlate', name: '티타늄 장갑', icon: '🛡️', color: '#cbd5e1',
+    desc: '최대 체력 +12%', perLevel: 0.12, maxLevel: 5,
+  },
+  thrusterMod: {
+    id: 'thrusterMod', name: '추진기', icon: '🚀', color: '#7dd3fc',
+    desc: '이동 속도 +6%', perLevel: 0.06, maxLevel: 5,
+  },
+  highExplosive: {
+    id: 'highExplosive', name: '고폭약', icon: '💣', color: '#fb923c',
+    desc: '폭발/타격 반경 +10%', perLevel: 0.1, maxLevel: 5,
+  },
+  quantumCell: {
+    id: 'quantumCell', name: '양자 배터리', icon: '🔋', color: '#a78bfa',
+    desc: '무기 쿨타임 8% 감소', perLevel: 0.08, maxLevel: 5,
+  },
+  extendedMag: {
+    id: 'extendedMag', name: '확장 탄창', icon: '📦', color: '#facc15',
+    desc: '투사체 발사 수 증가', perLevel: 0.4, maxLevel: 5,
+  },
+  nanoPlate: {
+    id: 'nanoPlate', name: '나노 장갑', icon: '🧱', color: '#86efac',
+    desc: '받는 피해 -6% 감소', perLevel: 0.06, maxLevel: 5,
+  },
+  regenModule: {
+    id: 'regenModule', name: '재생 모듈', icon: '💚', color: '#4ade80',
+    desc: '초당 최대 체력 0.4% 회복', perLevel: 0.004, maxLevel: 5,
+  },
+  critLens: {
+    id: 'critLens', name: '치명타 렌즈', icon: '🎯', color: '#fbbf24',
+    desc: '치명타 확률 +4%p', perLevel: 0.04, maxLevel: 5,
+  },
+  accelMotor: {
+    id: 'accelMotor', name: '가속 모터', icon: '⚡', color: '#38bdf8',
+    desc: '투사체 속도 +8%', perLevel: 0.08, maxLevel: 5,
   },
 };
 
@@ -1100,12 +1392,38 @@ export const AFFIX_FX = {
 } as const;
 
 export function weaponTags(def: WeaponDef): WeaponTag[] {
-  if (def.tags && def.tags.length > 0) return def.tags;
-  if (def.projectile.beam) return ['beam'];
-  if (def.projectile.melee) return ['melee'];
-  if (def.projectile.orbit) return ['aura'];
-  if (def.projectile.drop) return ['drop'];
-  return ['projectile'];
+  let tags: WeaponTag[];
+  if (def.tags && def.tags.length > 0) tags = [...def.tags];
+  else if (def.projectile.beam) tags = ['beam'];
+  else if (def.projectile.melee) tags = ['melee'];
+  else if (def.projectile.orbit) tags = ['aura'];
+  else if (def.projectile.drop) tags = ['drop'];
+  else tags = ['projectile'];
+  if (
+    tags.includes('summon')
+    && !tags.includes('melee')
+    && !tags.includes('aura')
+    && !tags.includes('drop')
+    && !tags.includes('beam')
+    && !tags.includes('projectile')
+  ) {
+    tags.push('projectile');
+  }
+  return tags;
+}
+
+export function isMeleeFamily(id: WeaponId): boolean {
+  return weaponTags(WEAPONS[id]).includes('melee');
+}
+
+export function isSummonFamily(id: WeaponId): boolean {
+  return weaponTags(WEAPONS[id]).includes('summon');
+}
+
+/** 야차가 발사할 수 없는 원거리 (근접/소환 제외) */
+export function isRangedFamily(id: WeaponId): boolean {
+  const tags = weaponTags(WEAPONS[id]);
+  return !tags.includes('melee') && !tags.includes('summon');
 }
 
 /** 기본 관통이 이 값 이상이면 pierce 어픽스는 무의미하므로 풀에서 제외 */

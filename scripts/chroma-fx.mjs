@@ -52,6 +52,9 @@ const SHEETS = [
   { name: 'fx_drone', tintable: true },
   { name: 'fx_pylon', tintable: false },
   { name: 'fx_frontshield', tintable: true },
+  { name: 'fx_whip', tintable: true },
+  { name: 'fx_spider', tintable: false },
+  { name: 'fx_blood', tintable: true },
 ];
 
 function magentaAlpha(r, g, b) {

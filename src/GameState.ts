@@ -13,6 +13,7 @@ import {
   VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX, TERRAIN,
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
+  isMeleeFamily, isSummonFamily, isRangedFamily,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -67,6 +68,7 @@ export interface Projectile {
   originY?: number;
   /** 단방향 쉴드 통과 강화 */
   boosted?: boolean;
+  pullOnHit?: number;
 }
 
 export interface Beam {
@@ -167,6 +169,18 @@ export interface Mine {
   zoneTick: number;
   vx: number;
   vy: number;
+}
+
+export interface Summon {
+  x: number;
+  y: number;
+  weaponId: WeaponId;
+  kind: 'turret' | 'battery';
+  life: number;
+  fireCd: number;
+  damage: number;
+  radius: number;
+  color: string;
 }
 
 export interface HazardZone {
@@ -380,12 +394,16 @@ export type FxEvent =
   | { type: 'coreBurst'; x: number; y: number; radius: number }
   | { type: 'derelictBreak'; x: number; y: number; w: number; h: number }
   | { type: 'creditPickup'; x: number; y: number }
-  | { type: 'bloodBurst'; x: number; y: number; radius: number };
+  | { type: 'bloodBurst'; x: number; y: number; radius: number }
+  | { type: 'iaidoSlash'; x: number; y: number; w: number; h: number };
 
 export interface RunStats {
   projSpeedMul: number;
   critMul: number;
   moveSpeedMul: number;
+  critChance: number;
+  extraShots: number;
+  radiusMul: number;
 }
 
 const GRID_CELL = 64;
@@ -531,6 +549,9 @@ export class GameState {
     projSpeedMul: 1,
     critMul: COMBAT.baseCritMul,
     moveSpeedMul: 1,
+    critChance: COMBAT.baseCritChance,
+    extraShots: 0,
+    radiusMul: 1,
   };
 
   // 성장
@@ -557,6 +578,21 @@ export class GameState {
   slashes: Slash[] = [];
   orbiters: Orbiter[] = [];
   mines: Mine[] = [];
+  summons: Summon[] = [];
+  detonateBeacon: { x: number; y: number; life: number } | null = null;
+  redOutlineLeft = 0;
+  private iaidoCountered = false;
+  private summonRespawn: {
+    weaponId: WeaponId;
+    kind: Summon['kind'] | 'mine';
+    left: number;
+    damage: number;
+    color: string;
+    radius: number;
+    explodeRadius?: number;
+    seekSpeed?: number;
+  }[] = [];
+  private orbitSuppressLeft = new Map<WeaponId, number>();
   zones: HazardZone[] = [];
   pylons: Pylon[] = [];
   interceptBeams: InterceptBeam[] = [];
@@ -662,6 +698,7 @@ export class GameState {
     this.bgBottom = stage.bgBottom;
 
     this.maxWeaponSlots = challenge.weaponSlotCap ?? PLAYER.maxWeaponSlots;
+    if (this.shipId === 'overlord') this.maxWeaponSlots += 3;
     this.maxPassiveSlots = challenge.passiveSlotCap ?? PLAYER.maxPassiveSlots;
     this.enemyHpMul = challenge.enemyHpMul ?? 1;
     const abyss = this.nodeLv('endlessAbyss');
@@ -682,6 +719,9 @@ export class GameState {
       projSpeedMul: 1,
       critMul: COMBAT.baseCritMul,
       moveSpeedMul: 1,
+      critChance: COMBAT.baseCritChance,
+      extraShots: 0,
+      radiusMul: 1,
     };
     const orbit = this.nodeLv('infiniteOrbit');
     if (orbit > 0) {
@@ -730,6 +770,12 @@ export class GameState {
     this.wheelPending = false;
     this.bloodBursting = false;
     this.carpetQueue = [];
+    this.summons = [];
+    this.detonateBeacon = null;
+    this.redOutlineLeft = 0;
+    this.iaidoCountered = false;
+    this.summonRespawn = [];
+    this.orbitSuppressLeft = new Map();
     this.derelictGoldDropped = false;
     this.nextShieldAt = TERRAIN.shield.firstAt;
     this.nextCoreAt = TERRAIN.core.firstAt;
@@ -769,6 +815,8 @@ export class GameState {
   private baseMagnet: number = PLAYER.magnetRadius;
   private baseDamageMul = 1;
   private baseMaxHp: number = PLAYER.maxHp;
+  private passiveMoveMul = 1;
+  private passiveProjMul = 1;
 
   /** 패시브 + 한계돌파 + 버프 타이머 → 런타임 스탯 재계산 */
     applyPassiveEffects(): void {
@@ -777,14 +825,28 @@ export class GameState {
     let dmgAdd = 0;
     let hpMul = 1;
     let cdMul = 1;
+    this.passiveMoveMul = 1;
+    this.passiveProjMul = 1;
+    this.runStats.extraShots = 0;
+    this.runStats.radiusMul = 1;
+    this.runStats.critChance = COMBAT.baseCritChance;
     if (this.empLeft <= 0) {
       for (const p of this.passives) {
         const def = PASSIVES[p.passiveId];
         const v = def.perLevel * p.level;
         switch (p.passiveId) {
           case 'plating': armor += v; break;
+          case 'nanoPlate': armor += v; break;
           case 'collector': expAdd += v; break;
           case 'overcharge': dmgAdd += v; break;
+          case 'titaniumPlate': hpMul *= 1 + v; break;
+          case 'thrusterMod': this.passiveMoveMul *= 1 + v; break;
+          case 'highExplosive': this.runStats.radiusMul *= 1 + v; break;
+          case 'quantumCell': cdMul *= Math.max(0.4, 1 - v); break;
+          case 'extendedMag': this.runStats.extraShots += Math.round(v); break;
+          case 'regenModule': break;
+          case 'critLens': this.runStats.critChance += v; break;
+          case 'accelMotor': this.passiveProjMul *= 1 + v; break;
           case 'overload':
             hpMul *= def.hpMul ?? 1;
             cdMul *= def.cooldownMul ?? 1;
@@ -800,7 +862,7 @@ export class GameState {
     const stormExp = (storm ? (TACTICAL.magnetStorm.expMul ?? 1) : 1)
       * (hunter ? CONSTELLATION_FX.hunterExpMul : 1);
     this.magnetRadius = this.baseMagnet * magnetMul;
-    this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul;
+    this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul * this.passiveMoveMul;
     this.armorReduce = Math.min(0.7, armor);
     this.expMul = this.baseExpMul * stormExp;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
@@ -817,6 +879,10 @@ export class GameState {
     if (this.hasNode('berserker')) {
       const spd = Math.hypot(this.velX, this.velY);
       this.damageMul *= Math.max(0.15, spd / CONSTELLATION_FX.berserkerSpdRef);
+    }
+    if (this.shipId === 'crimson') {
+      this.shieldLeft = 0;
+      this.levelAegisLeft = 0;
     }
     const newMax = this.hasNode('glassCannon')
       ? 1
@@ -1018,6 +1084,10 @@ export class GameState {
         break;
       }
       case 'shield':
+        if (this.shipId === 'crimson') {
+          this.events.push({ type: 'banner', text: '🛡️ 쉴드 거부' });
+          break;
+        }
         this.shieldLeft = TACTICAL.shield.duration ?? 10;
         this.events.push({ type: 'banner', text: '🛡️ 과충전 쉴드' });
         break;
@@ -1194,6 +1264,32 @@ export class GameState {
       this.armCarpetBombing(skill);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '포화 융단' : skill.name}` });
+    } else if (skill.id === 'iaido') {
+      this.iaidoCountered = false;
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+    } else if (skill.id === 'overloadDetonate') {
+      this.commandOverloadDetonate(skill);
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+    } else if (skill.id === 'bloodStream') {
+      this.spendHpFrac(skill.hpCostFrac ?? 0.2);
+      const ang = Math.atan2(this.lastAimY, this.lastAimX);
+      this.beams.push({
+        x: this.playerX,
+        y: this.playerY - PLAYER.radius,
+        angle: ang,
+        width: 28,
+        length: 920,
+        damage: 22 * this.damageMul * (1 + this.crimsonBerserk()),
+        life: skill.duration ?? 2.5,
+        tickLeft: 0,
+        tickInterval: 0.1,
+        color: '#fb7185',
+        ignoreShield: true,
+      });
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
     }
     return true;
   }
@@ -1219,10 +1315,22 @@ export class GameState {
           this.aegisShockwave(skill);
           if (this.coreAwakened && this.aegisAbsorbed > 0) this.aegisNova();
         }
+        if (skill.id === 'iaido' && !this.iaidoCountered) this.iaidoSlash(1);
       }
     }
     if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis();
     this.tickCarpetBombing(dt);
+    this.updateSummons(dt);
+    this.tickOrbitSuppress(dt);
+    if (this.detonateBeacon) {
+      this.detonateBeacon.life -= dt;
+      if (this.detonateBeacon.life <= 0) this.detonateBeacon = null;
+    }
+    if (this.redOutlineLeft > 0) this.redOutlineLeft = Math.max(0, this.redOutlineLeft - dt);
+    const regenLv = this.passiveLevel('regenModule');
+    if (regenLv > 0 && this.hp > 0 && this.hp < this.maxHp) {
+      this.hp = Math.min(this.maxHp, this.hp + this.maxHp * PASSIVES.regenModule.perLevel * regenLv * dt);
+    }
   }
 
   private armCarpetBombing(skill: typeof SHIPS[ShipId]['activeSkill']): void {
@@ -1278,6 +1386,213 @@ export class GameState {
       this.damageEnemy(e, damage);
     }
     this.events.push({ type: 'blast', x, y, color: '#f97316', radius: radius * 0.55 });
+  }
+
+  private spendHpFrac(frac: number): void {
+    if (frac <= 0) return;
+    this.hp = Math.max(1, this.hp - this.maxHp * frac);
+  }
+
+  private leechHp(frac: number): void {
+    if (frac <= 0 || this.hp <= 0) return;
+    this.hp = Math.min(this.maxHp, this.hp + this.maxHp * frac);
+  }
+
+  private crimsonBerserk(): number {
+    if (this.shipId !== 'crimson' || this.maxHp <= 0) return 0;
+    const lostPct = Math.max(0, 1 - this.hp / this.maxHp) * 100;
+    return Math.min(3, lostPct * 0.03);
+  }
+
+  private onWeaponHit(weaponId: WeaponId | undefined, _e: Enemy): void {
+    if (!weaponId) return;
+    const frac = WEAPONS[weaponId].leechOnHit;
+    if (frac) this.leechHp(frac);
+  }
+
+  private pullEnemyTowardPlayer(e: Enemy, amount: number): void {
+    const dx = this.playerX - e.x;
+    const dy = this.playerY - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const step = Math.min(amount, dist - 4);
+    if (step <= 0) return;
+    e.x += (dx / dist) * step;
+    e.y += (dy / dist) * step;
+  }
+
+  private meleeWeaponLevelSum(): number {
+    let sum = 0;
+    for (const slot of this.weapons) {
+      if (isMeleeFamily(slot.weaponId)) sum += slot.level;
+    }
+    return Math.max(1, sum);
+  }
+
+  private iaidoSlash(mul: number): void {
+    const h = CANVAS.height * 0.25;
+    const y = this.playerY - h * 0.85;
+    const skill = SHIPS[this.shipId].activeSkill;
+    const damage = (skill.pulseDamage ?? 85) * mul * this.meleeWeaponLevelSum() * this.damageMul;
+    for (const e of [...this.enemies]) {
+      if (e.y < y || e.y > y + h) continue;
+      if (this.isCloaked(e)) continue;
+      if (this.tryAbsorbShield(e, true)) continue;
+      this.damageEnemy(e, damage);
+    }
+    this.events.push({ type: 'iaidoSlash', x: 0, y, w: CANVAS.width, h });
+  }
+
+  private commandOverloadDetonate(skill: typeof SHIPS[ShipId]['activeSkill']): void {
+    const dist = skill.dashDist ?? 140;
+    const r = PLAYER.radius;
+    const bx = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
+    const by = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
+    this.detonateBeacon = { x: bx, y: by, life: 1.2 };
+    const explodeR = skill.explodeRadius ?? 96;
+    const delay = 2;
+
+    for (const s of this.summons) {
+      s.x = bx + (Math.random() - 0.5) * 28;
+      s.y = by + (Math.random() - 0.5) * 28;
+      this.blastAt(s.x, s.y, explodeR, s.damage * 6, s.color, s.weaponId);
+      this.summonRespawn.push({
+        weaponId: s.weaponId, kind: s.kind, left: delay,
+        damage: s.damage, color: s.color, radius: s.radius,
+      });
+    }
+    this.summons = [];
+
+    for (let i = this.mines.length - 1; i >= 0; i--) {
+      const m = this.mines[i];
+      if (!isSummonFamily(m.weaponId)) continue;
+      m.x = bx + (Math.random() - 0.5) * 28;
+      m.y = by + (Math.random() - 0.5) * 28;
+      this.summonRespawn.push({
+        weaponId: m.weaponId, kind: 'mine', left: delay,
+        damage: m.damage, color: m.color, radius: m.radius,
+        explodeRadius: m.explodeRadius, seekSpeed: m.seekSpeed,
+      });
+      this.detonateMine(m);
+      this.mines.splice(i, 1);
+    }
+
+    const explodedOrbit = new Set<WeaponId>();
+    for (let i = this.orbiters.length - 1; i >= 0; i--) {
+      const o = this.orbiters[i];
+      if (!isSummonFamily(o.weaponId)) continue;
+      if (!explodedOrbit.has(o.weaponId)) {
+        this.blastAt(bx, by, explodeR, o.damage * 8, o.color, o.weaponId);
+        explodedOrbit.add(o.weaponId);
+        this.orbitSuppressLeft.set(o.weaponId, delay);
+      }
+      this.orbiters.splice(i, 1);
+    }
+
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      if (!p.weaponId || !isSummonFamily(p.weaponId)) continue;
+      p.x = bx + (Math.random() - 0.5) * 36;
+      p.y = by + (Math.random() - 0.5) * 36;
+      this.blastAt(p.x, p.y, p.explodeRadius ?? explodeR * 0.7, p.damage * 3, p.color, p.weaponId);
+      this.projectiles.splice(i, 1);
+    }
+  }
+
+  private blastAt(x: number, y: number, radius: number, damage: number, color: string, weaponId?: WeaponId): void {
+    const r2 = radius * radius;
+    for (const e of [...this.enemies]) {
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 > r2) continue;
+      if (this.isCloaked(e)) continue;
+      if (this.tryAbsorbShield(e, true)) continue;
+      this.damageEnemy(e, damage, weaponId);
+      if (weaponId) this.onWeaponHit(weaponId, e);
+    }
+    this.hitCoresCircle(x, y, radius, damage);
+    this.events.push({ type: 'blast', x, y, color, radius: radius * 0.5 });
+  }
+
+  private tickOrbitSuppress(dt: number): void {
+    for (const [id, left] of [...this.orbitSuppressLeft]) {
+      const next = left - dt;
+      if (next <= 0) this.orbitSuppressLeft.delete(id);
+      else this.orbitSuppressLeft.set(id, next);
+    }
+  }
+
+  private updateSummons(dt: number): void {
+    for (let i = this.summons.length - 1; i >= 0; i--) {
+      const s = this.summons[i];
+      s.life -= dt;
+      s.fireCd -= dt;
+      if (s.life <= 0) {
+        this.summons.splice(i, 1);
+        continue;
+      }
+      if (s.fireCd > 0) continue;
+      const target = this.nearestEnemy(s.x, s.y, new Set());
+      if (!target) continue;
+      const battery = s.kind === 'battery';
+      s.fireCd = battery ? 0.14 : 0.22;
+      const ang = Math.atan2(target.y - s.y, target.x - s.x);
+      const n = battery ? 3 : 1;
+      const spread = battery ? 0.22 : 0;
+      const spd = (battery ? 560 : 480) * this.runStats.projSpeedMul * this.passiveProjMul * (1 + this.crimsonBerserk());
+      for (let k = 0; k < n; k++) {
+        const a = ang + (n === 1 ? 0 : -spread + (spread * 2 * k) / (n - 1));
+        this.projectiles.push({
+          x: s.x, y: s.y,
+          vx: Math.cos(a) * spd,
+          vy: Math.sin(a) * spd,
+          speed: spd,
+          baseSpeed: spd,
+          damage: s.damage,
+          radius: battery ? 5 : 4,
+          homingTurnRate: 0,
+          pierceLeft: battery ? 1 : 0,
+          life: 1.5,
+          color: s.color,
+          hitIds: new Set(),
+          explodeRadius: battery ? 26 : undefined,
+          weaponId: s.weaponId,
+        });
+      }
+    }
+
+    for (let i = this.summonRespawn.length - 1; i >= 0; i--) {
+      const q = this.summonRespawn[i];
+      q.left -= dt;
+      if (q.left > 0) continue;
+      const spawnX = this.playerX - this.lastAimX * (PLAYER.radius + 18);
+      const spawnY = this.playerY - this.lastAimY * (PLAYER.radius + 18);
+      if (q.kind === 'mine') {
+        this.mines.push({
+          x: spawnX, y: spawnY,
+          radius: q.radius,
+          fuse: 4.2,
+          damage: q.damage,
+          explodeRadius: q.explodeRadius ?? 58,
+          color: q.color,
+          weaponId: q.weaponId,
+          seekSpeed: q.seekSpeed ?? 110,
+          pullRadius: 0, pullForce: 0, split: 0,
+          zoneDuration: 0, zoneTick: 0.15,
+          vx: 0, vy: 0,
+        });
+      } else {
+        const persist = WEAPONS[q.weaponId].projectile.drop?.persist ?? 8;
+        this.summons.push({
+          x: spawnX, y: spawnY,
+          weaponId: q.weaponId,
+          kind: q.kind,
+          life: persist,
+          fireCd: 0.2,
+          damage: q.damage,
+          radius: q.radius,
+          color: q.color,
+        });
+      }
+      this.summonRespawn.splice(i, 1);
+    }
   }
 
   /** 지속 중에는 탄막만 소거. 데미지는 전개/종료 충격파만. */
@@ -1418,7 +1733,8 @@ export class GameState {
           * (this.inAmplifierAura() ? ampCooldownMul(this.droneLevel) : 1)
           * stasis;
         const craftCd = Math.min(ARSENAL.cooldownBonusCap, slot.cooldownBonus ?? 0);
-        const raw = def.cooldownMs * cdScale * (1 - craftCd);
+        let raw = def.cooldownMs * cdScale * (1 - craftCd);
+        if (this.shipId === 'overlord' && isSummonFamily(slot.weaponId)) raw *= 0.5;
         slot.cooldownLeft += Math.max(def.cooldownMs * ARSENAL.cooldownFloor, raw);
       }
     }
@@ -1426,14 +1742,22 @@ export class GameState {
 
   private fireWeapon(slot: WeaponSlot): void {
     const def = WEAPONS[slot.weaponId];
+    if (this.shipId === 'yaksha' && isRangedFamily(slot.weaponId)) return;
     const p = def.projectile;
+    if (def.hpCostFrac) this.spendHpFrac(def.hpCostFrac);
     const puristLow = this.hasNode('purist') && def.tier <= 2;
     let damage = p.damage
       * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
       * this.damageMul
       * (1 + (slot.damageBonus ?? 0))
       * (this.turretDarkActive ? PILOT_FX.turretDmgMul : 1);
-    let speedMul = this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
+    let speedMul = this.runStats.projSpeedMul * this.passiveProjMul * (1 + (slot.speedBonus ?? 0));
+    const berserk = this.crimsonBerserk();
+    damage *= 1 + berserk;
+    speedMul *= 1 + berserk;
+    if (this.shipId === 'overlord' && !isSummonFamily(slot.weaponId)) damage *= 0.1;
+    if (this.shipId === 'overlord' && isSummonFamily(slot.weaponId)) speedMul *= 2;
+    if (this.shipId === 'yaksha' && isMeleeFamily(slot.weaponId)) damage *= 1.5;
     if (this.hasNode('spacetime')) {
       speedMul = Math.max(CONSTELLATION_FX.speedFloor, 1 / Math.max(speedMul, CONSTELLATION_FX.speedFloor));
       damage *= 1 / speedMul;
@@ -1457,9 +1781,10 @@ export class GameState {
       const target = this.pickTargetedEnemy(p.targeted);
       if (target) baseAngle = Math.atan2(target.y - this.playerY, target.x - this.playerX);
     }
-    let sizeMul = 1 + (slot.radiusBonus ?? 0);
+    let sizeMul = (1 + (slot.radiusBonus ?? 0)) * this.runStats.radiusMul;
+    if (this.shipId === 'yaksha' && isMeleeFamily(slot.weaponId)) sizeMul *= 1.5;
     if (puristLow) sizeMul *= CONSTELLATION_FX.puristRadiusMul;
-    const shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0);
+    const shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0) + this.runStats.extraShots;
 
     if (p.melee) {
       const arcDeg = Math.min(360, p.melee.arcDeg * sizeMul);
@@ -1503,6 +1828,23 @@ export class GameState {
     }
 
     if (p.drop) {
+      if (slot.weaponId === 'autoTurret' || slot.weaponId === 'orbitalBattery') {
+        const spawnX = this.playerX - this.lastAimX * (PLAYER.radius + 18);
+        const spawnY = this.playerY - this.lastAimY * (PLAYER.radius + 18);
+        this.summons.push({
+          x: spawnX,
+          y: spawnY,
+          weaponId: slot.weaponId,
+          kind: slot.weaponId === 'orbitalBattery' ? 'battery' : 'turret',
+          life: p.drop.persist ?? 8,
+          fireCd: 0.2,
+          damage,
+          radius: p.radius * sizeMul,
+          color,
+        });
+        this.events.push({ type: 'fired', x: spawnX, y: spawnY, color, weaponId: slot.weaponId });
+        return;
+      }
       const thrown = slot.weaponId === 'singularity' && p.speed > 0;
       const spawnX = thrown
         ? this.playerX + this.lastAimX * (PLAYER.radius + 10)
@@ -1594,6 +1936,7 @@ export class GameState {
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
         ignoreShield: p.ignoreShield,
         weaponId: slot.weaponId,
+        pullOnHit: p.pullOnHit,
       };
       if (p.spiral) {
         proj.orbitAngle = angle;
@@ -2525,9 +2868,10 @@ export class GameState {
   private syncOrbiters(slot: WeaponSlot, damage: number, color: string, sizeMul: number): boolean {
     const spec = WEAPONS[slot.weaponId].projectile.orbit;
     if (!spec) return false;
+    if ((this.orbitSuppressLeft.get(slot.weaponId) ?? 0) > 0) return false;
     const extra = this.hasNode('purist') && WEAPONS[slot.weaponId].tier <= 2
       ? CONSTELLATION_FX.puristExtraCount : 0;
-    const count = spec.count + extra;
+    const count = spec.count + extra + this.runStats.extraShots;
     const existing = this.orbiters.filter((o) => o.weaponId === slot.weaponId);
     const radius = spec.radius * sizeMul;
     const hitR = WEAPONS[slot.weaponId].projectile.radius * sizeMul;
@@ -2590,6 +2934,7 @@ export class GameState {
         if (!hit) continue;
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, o.damage, o.weaponId);
+        this.onWeaponHit(o.weaponId, e);
       }
       this.hitCoresCircle(px, py, o.hitRadius, o.damage);
     }
@@ -2617,6 +2962,7 @@ export class GameState {
         s.hitIds.add(e.id);
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, s.damage, s.weaponId);
+        this.onWeaponHit(s.weaponId, e);
         this.procMeleeAffix(s, e);
       }
       this.hitCoresCircle(s.x, s.y, s.range * 0.55, s.damage, s.hitIds);
@@ -2828,6 +3174,7 @@ export class GameState {
           if (!hit) continue;
           if (this.tryAbsorbShield(e, true)) continue;
           this.damageEnemy(e, z.damage, z.weaponId);
+          this.onWeaponHit(z.weaponId, e);
         }
       }
       if (z.life <= 0) this.zones.splice(i, 1);
@@ -3036,7 +3383,8 @@ export class GameState {
           continue;
         }
       }
-      if ((this.hasNode('glassCannon') || (this.invincibleLeft <= 0 && this.shieldLeft <= 0)) && !aegis) {
+      const iaidoReady = this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'iaido';
+      if ((iaidoReady || this.hasNode('glassCannon') || (this.invincibleLeft <= 0 && this.shieldLeft <= 0)) && !aegis) {
         const rr = this.playerHitRadius() + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
           this.enemyProjectiles.splice(i, 1);
@@ -3116,6 +3464,8 @@ export class GameState {
           }
           if (this.rollCrit()) dmg *= this.runStats.critMul;
           this.damageEnemy(e, dmg, p.weaponId);
+          this.onWeaponHit(p.weaponId, e);
+          if (p.pullOnHit) this.pullEnemyTowardPlayer(e, p.pullOnHit);
           if (p.explodeRadius) this.explodeProjectile(p, e);
 
           if (p.affix === 'chain') {
@@ -3164,6 +3514,7 @@ export class GameState {
       const b = this.beams[i];
       b.x = this.playerX;
       b.y = this.playerY - PLAYER.radius;
+      if (!b.weaponId) b.angle = Math.atan2(this.lastAimY, this.lastAimX);
       b.life -= dt;
       b.tickLeft -= dt;
       if (b.tickLeft <= 0) {
@@ -3187,6 +3538,10 @@ export class GameState {
       let dmg = b.damage;
       if (this.rollCrit()) dmg *= this.runStats.critMul;
       this.damageEnemy(e, dmg, b.weaponId);
+      if (b.weaponId) this.onWeaponHit(b.weaponId, e);
+      if (SHIPS[this.shipId].activeSkill.id === 'bloodStream' && b.weaponId == null) {
+        this.leechHp(SHIPS[this.shipId].activeSkill.leechPerHit ?? 0.01);
+      }
     }
     this.hitCoresCircle(b.x, b.y, b.width, b.damage);
   }
@@ -3695,7 +4050,11 @@ export class GameState {
     this.events.push({ type: 'pickup', kind: p.kind, x: p.x, y: p.y });
     switch (p.kind) {
       case 'heal':
-        this.hp = Math.min(this.maxHp, this.hp + PICKUPS.healAmount * (1 + this.time * PICKUPS.healScalePerSec));
+        this.hp = Math.min(
+          this.maxHp,
+          this.hp + PICKUPS.healAmount * (1 + this.time * PICKUPS.healScalePerSec)
+            * (this.shipId === 'crimson' ? 0.1 : 1),
+        );
         break;
       case 'magnet':
         this.vacuumDrops();
@@ -3798,7 +4157,7 @@ export class GameState {
       if (prevLv < AWAKEN.level && this.level >= AWAKEN.level) this.awakeningDue = true;
     }
     if (leveled > 0) {
-      const aegisLv = this.passiveLevel('aegis');
+      const aegisLv = this.shipId === 'crimson' ? 0 : this.passiveLevel('aegis');
       if (aegisLv > 0) {
         this.levelAegisLeft = LEVEL_AEGIS.durationBase + LEVEL_AEGIS.durationPerLv * (aegisLv - 1);
         this.levelAegisReduce = LEVEL_AEGIS.reduceBase + LEVEL_AEGIS.reducePerLv * (aegisLv - 1);
@@ -3813,7 +4172,8 @@ export class GameState {
   // ---------- 플레이어 피격 ----------
 
   private checkPlayerCollision(_dt: number): void {
-    if (!this.hasNode('glassCannon') && (this.invincibleLeft > 0 || this.shieldLeft > 0)) return;
+    const iaidoReady = this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'iaido';
+    if (!this.hasNode('glassCannon') && !iaidoReady && (this.invincibleLeft > 0 || this.shieldLeft > 0)) return;
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     for (const e of this.enemies) {
       const rr = this.playerHitRadius() + e.def.radius * (e.elite ? 1.15 : 1) * (e.enraged ? 1.5 : 1) - 4;
@@ -3832,6 +4192,15 @@ export class GameState {
   }
 
   private hurtPlayer(damage: number): void {
+    const iaido = this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'iaido';
+    if (iaido) {
+      this.iaidoCountered = true;
+      this.skillActiveLeft = 0;
+      this.redOutlineLeft = 0.45;
+      this.iaidoSlash(1.5);
+      this.invincibleLeft = Math.max(this.invincibleLeft, 0.2);
+      return;
+    }
     if (!this.glassIgnoresGuard()) {
       if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
     }
@@ -3870,7 +4239,7 @@ export class GameState {
     if (this.hasNode('deathArena') && this.playerInsideFence()) return true;
     const chance = this.pilotTrait === 'lastStand' && this.hp / this.maxHp <= PILOT_FX.lastStandHp
       ? 1
-      : COMBAT.baseCritChance;
+      : this.runStats.critChance;
     return Math.random() < chance;
   }
 
