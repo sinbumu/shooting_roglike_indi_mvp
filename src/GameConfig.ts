@@ -1070,6 +1070,19 @@ export const COMBAT = {
   baseCritMul: 1.5,
 } as const;
 
+/** 후반 탄막·몹팩 프레임 가드 */
+export const PERF = {
+  maxDpr: 1.5,
+  hitFxPerFrame: 8,
+  muzzleFxPerFrame: 6,
+  particleCap: 180,
+  glowProjCap: 70,
+  glowEnemyBulletCap: 40,
+  glowGruntCap: 48,
+  hudInterval: 0.1,
+  homingSeekR: 280,
+} as const;
+
 /** 한계 돌파 — 슬롯/강화 소진 후 레벨업 풀 */
 export const ENDGAME = {
   stats: {

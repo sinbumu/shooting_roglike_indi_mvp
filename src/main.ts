@@ -1,4 +1,4 @@
-import { CANVAS, JOYSTICK, WEAPONS } from './GameConfig';
+import { CANVAS, JOYSTICK, WEAPONS, PERF } from './GameConfig';
 import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
 import { UI, craftLockedPreviewHtml, craftArsenalPreviewHtml } from './UI';
@@ -273,6 +273,7 @@ function processEvents(): void {
 }
 
 let lastTime = performance.now();
+let hudAcc = 0;
 
 function loop(now: number): void {
   const dt = Math.min((now - lastTime) / 1000, 1 / 20);
@@ -298,7 +299,11 @@ function loop(now: number): void {
   audio.setCombatIntensity(state.bossId != null ? 1 : 0);
   audio.setStageMood(state.stageId);
   renderer.render(state, dt);
-  ui.updateHUD(state);
+  hudAcc += dt;
+  if (state.status !== 'playing' || hudAcc >= PERF.hudInterval) {
+    hudAcc = 0;
+    ui.updateHUD(state);
+  }
   requestAnimationFrame(loop);
 }
 

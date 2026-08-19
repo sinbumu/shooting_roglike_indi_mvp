@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.4',
+    date: '2026-08-20',
+    changes: [
+      '⚡ 후반 탄막·몹팩 프레임: 고성능 GPU 요청, 해상도/AA 하향, 히트 FX 상한',
+      '유도탄은 근처 적만 추적하고, HUD는 초당 10회로 줄여 메인 스레드 부하를 낮췄습니다',
+    ],
+  },
+  {
     version: 'v1.9.3',
     date: '2026-08-20',
     changes: [

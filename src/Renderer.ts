@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, isWhipWeapon, slashSweepAngle } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
@@ -235,6 +235,7 @@ export class Renderer {
   private iaidoSlashSpr2: Sprite | null = null;
   private empSprites: Sprite[] = [];
   private hitFxLeft = 0;
+  private muzzleFxLeft = 0;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     this.app = new Application();
@@ -243,8 +244,10 @@ export class Renderer {
       width: CANVAS.width,
       height: CANVAS.height,
       backgroundColor: 0x070812,
-      antialias: true,
-      resolution: Math.min(window.devicePixelRatio || 1, 2),
+      antialias: false,
+      preference: 'webgl',
+      powerPreference: 'high-performance',
+      resolution: Math.min(window.devicePixelRatio || 1, PERF.maxDpr),
       autoDensity: false,
     });
     this.app.ticker.stop(); // 게임 루프에서 수동 렌더링
@@ -340,7 +343,8 @@ export class Renderer {
   // ---------- 이펙트 이벤트 소비 ----------
 
   private consumeEvents(state: GameState): void {
-    this.hitFxLeft = 12;
+    this.hitFxLeft = PERF.hitFxPerFrame;
+    this.muzzleFxLeft = PERF.muzzleFxPerFrame;
     for (const ev of state.events) {
       switch (ev.type) {
         case 'enemyDied':
@@ -372,7 +376,8 @@ export class Renderer {
               x: ev.x, y: ev.y, life: 0.22, sizeFrom: 10, sizeTo: 36,
               tint: hex(ev.color), alphaFrom: 0.8, ring: true,
             });
-          } else {
+          } else if (this.muzzleFxLeft > 0) {
+            this.muzzleFxLeft--;
             this.muzzleFlash(ev.x, ev.y, hex(ev.color));
           }
           break;
@@ -590,7 +595,7 @@ export class Renderer {
   // ---------- 파티클 시스템 ----------
 
   private spawnParticle(o: ParticleOpts): void {
-    if (this.particles.length >= 250) return;
+    if (this.particles.length >= PERF.particleCap) return;
     let sprite = this.freeSprites.pop();
     if (!sprite) {
       sprite = new Sprite();
@@ -732,7 +737,8 @@ export class Renderer {
   }
 
   private hitSpark(x: number, y: number, tint: number): void {
-    for (let i = 0; i < 3; i++) {
+    const n = this.particles.length > PERF.particleCap * 0.7 ? 1 : 2;
+    for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const speed = 40 + Math.random() * 160;
       this.spawnParticle({
@@ -1288,7 +1294,7 @@ export class Renderer {
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.2;
           glow.alpha = 0.55;
-        } else {
+        } else if (isBoss || state.enemies.length <= PERF.glowGruntCap) {
           const glow = this.glowPool.get();
           glow.tint = hex(e.def.color);
           glow.position.set(e.x, e.y);
@@ -1544,6 +1550,7 @@ export class Renderer {
   /** 보스·적 탄환 — 흰 코어 + 보라 테두리 (치명 탄 시인성) */
   private drawEnemyProjectiles(state: GameState): void {
     const outline = hex(DANGER.fatal);
+    const glowOk = state.enemyProjectiles.length <= PERF.glowEnemyBulletCap;
     for (const p of state.enemyProjectiles) {
       const tex = fxFrame(this.atlas.fx.ebullet, this.elapsed + p.x * 0.02, 12);
       if (tex) {
@@ -1553,6 +1560,7 @@ export class Renderer {
         this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: outline });
         this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
       }
+      if (!glowOk) continue;
       const glow = this.glowPool.get();
       glow.tint = outline;
       glow.position.set(p.x, p.y);
@@ -1621,6 +1629,9 @@ export class Renderer {
   private drawProjectiles(state: GameState): void {
     const g = this.projG;
     g.clear();
+    const n = state.projectiles.length;
+    const glowOk = n <= PERF.glowProjCap;
+    const trailOk = n <= PERF.glowProjCap;
     for (const p of state.projectiles) {
       const color = hex(p.color);
       const angle = Math.atan2(p.vy, p.vx);
@@ -1638,12 +1649,14 @@ export class Renderer {
           add: spec.add,
           anchorX: spec.anchorX,
         });
-        const glow = this.glowPool.get();
-        glow.tint = color;
-        glow.position.set(p.x, p.y);
-        glow.width = glow.height = p.radius * (spec.elong ? 5 : 6);
-        glow.alpha = spec.add ? 0.55 : 0.7;
-        if (spec.trail) {
+        if (glowOk) {
+          const glow = this.glowPool.get();
+          glow.tint = color;
+          glow.position.set(p.x, p.y);
+          glow.width = glow.height = p.radius * (spec.elong ? 5 : 6);
+          glow.alpha = spec.add ? 0.55 : 0.7;
+        }
+        if (trailOk && spec.trail) {
           const tail = p.radius * (p.boosted ? 5 : 3.2);
           g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
             .lineTo(p.x, p.y)
@@ -1652,22 +1665,26 @@ export class Renderer {
         continue;
       }
 
-      const tail = p.radius * (p.boosted ? 6.5 : 4);
-      g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
-        .lineTo(p.x, p.y)
-        .stroke({ width: p.radius * (p.boosted ? 1.8 : 1.2), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.85 : 0.4 });
-
-      if (p.boosted) {
-        g.moveTo(p.x - Math.cos(angle) * tail * 1.15, p.y - Math.sin(angle) * tail * 1.15)
+      if (trailOk) {
+        const tail = p.radius * (p.boosted ? 6.5 : 4);
+        g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
           .lineTo(p.x, p.y)
-          .stroke({ width: p.radius * 0.7, color: 0xffffff, alpha: 0.95 });
+          .stroke({ width: p.radius * (p.boosted ? 1.8 : 1.2), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.85 : 0.4 });
+
+        if (p.boosted) {
+          g.moveTo(p.x - Math.cos(angle) * tail * 1.15, p.y - Math.sin(angle) * tail * 1.15)
+            .lineTo(p.x, p.y)
+            .stroke({ width: p.radius * 0.7, color: 0xffffff, alpha: 0.95 });
+        }
       }
 
-      const glow = this.glowPool.get();
-      glow.tint = color;
-      glow.position.set(p.x, p.y);
-      glow.width = glow.height = p.radius * 6;
-      glow.alpha = 1;
+      if (glowOk) {
+        const glow = this.glowPool.get();
+        glow.tint = color;
+        glow.position.set(p.x, p.y);
+        glow.width = glow.height = p.radius * 6;
+        glow.alpha = 1;
+      }
 
       this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
     }
@@ -1704,23 +1721,25 @@ export class Renderer {
         glow.position.set(tipX, tipY);
         glow.width = glow.height = 28 + progress * 10;
         glow.alpha = 0.85 * alpha;
-        this.spawnParticle({
-          x: tipX + (Math.random() - 0.5) * 6,
-          y: tipY + (Math.random() - 0.5) * 6,
-          vx: Math.cos(sweepAng) * 40 + (Math.random() - 0.5) * 30,
-          vy: Math.sin(sweepAng) * 40 + (Math.random() - 0.5) * 30,
-          life: 0.16 + Math.random() * 0.08,
-          sizeFrom: 14 + Math.random() * 8,
-          sizeTo: 3,
-          tint: 0xf5d0fe,
-          alphaFrom: 0.9,
-          drag: 2.4,
-        });
-        this.spawnParticle({
-          x: tipX, y: tipY,
-          life: 0.12, sizeFrom: 10, sizeTo: 4,
-          tint: 0xffffff, alphaFrom: 0.8,
-        });
+        if (this.particles.length < PERF.particleCap * 0.65) {
+          this.spawnParticle({
+            x: tipX + (Math.random() - 0.5) * 6,
+            y: tipY + (Math.random() - 0.5) * 6,
+            vx: Math.cos(sweepAng) * 40 + (Math.random() - 0.5) * 30,
+            vy: Math.sin(sweepAng) * 40 + (Math.random() - 0.5) * 30,
+            life: 0.16 + Math.random() * 0.08,
+            sizeFrom: 14 + Math.random() * 8,
+            sizeTo: 3,
+            tint: 0xf5d0fe,
+            alphaFrom: 0.9,
+            drag: 2.4,
+          });
+          this.spawnParticle({
+            x: tipX, y: tipY,
+            life: 0.12, sizeFrom: 10, sizeTo: 4,
+            tint: 0xffffff, alphaFrom: 0.8,
+          });
+        }
         continue;
       }
       if (tex) {

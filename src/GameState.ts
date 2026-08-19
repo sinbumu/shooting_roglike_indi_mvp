@@ -14,7 +14,7 @@ import {
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
   isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
-  CORE_AWAKENINGS,
+  CORE_AWAKENINGS, PERF,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -413,6 +413,12 @@ export interface RunStats {
 
 const GRID_CELL = 64;
 const GRID_ORIGIN = 512;
+
+function swapPop<T>(arr: T[], i: number): void {
+  const last = arr.length - 1;
+  if (i !== last) arr[i] = arr[last]!;
+  arr.pop();
+}
 
 /** 투사체–적 충돌용 유니폼 그리드. 매 프레임 재구축. */
 class EnemyGrid {
@@ -1153,6 +1159,7 @@ export class GameState {
     }
 
     this.updatePlayer(dt);
+    this.enemyGrid.rebuild(this.enemies);
     this.updateBuffs(dt);
     this.updateSkills(dt);
     this.updateWeapons(dt);
@@ -1173,6 +1180,7 @@ export class GameState {
     this.updateWarnings(dt);
     const edt = dt * this.worldSlow;
     this.updateEnemies(edt);
+    this.enemyGrid.rebuild(this.enemies);
     this.updateProjectiles(dt);
     this.updateBeams(dt);
     this.updateEnemyProjectiles(edt);
@@ -1388,7 +1396,7 @@ export class GameState {
       b.left -= dt;
       if (b.left > 0) continue;
       this.detonateCarpet(b.x, b.y, b.radius, b.damage);
-      this.carpetQueue.splice(i, 1);
+      swapPop(this.carpetQueue, i);
     }
   }
 
@@ -1396,7 +1404,7 @@ export class GameState {
     const r2 = radius * radius;
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
-      if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) this.enemyProjectiles.splice(i, 1);
+      if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) swapPop(this.enemyProjectiles, i);
     }
     for (const e of [...this.enemies]) {
       const hitR = e.def.radius * (e.elite ? 1.15 : 1) + radius;
@@ -1511,7 +1519,7 @@ export class GameState {
         explodeRadius: m.explodeRadius, seekSpeed: m.seekSpeed,
       });
       this.detonateMine(m);
-      this.mines.splice(i, 1);
+      swapPop(this.mines, i);
     }
 
     const explodedOrbit = new Set<WeaponId>();
@@ -1523,7 +1531,7 @@ export class GameState {
         explodedOrbit.add(o.weaponId);
         this.orbitSuppressLeft.set(o.weaponId, delay);
       }
-      this.orbiters.splice(i, 1);
+      swapPop(this.orbiters, i);
     }
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
@@ -1532,7 +1540,7 @@ export class GameState {
       p.x = bx + (Math.random() - 0.5) * 36;
       p.y = by + (Math.random() - 0.5) * 36;
       this.blastAt(p.x, p.y, p.explodeRadius ?? explodeR * 0.7, p.damage * 3, p.color, p.weaponId);
-      this.projectiles.splice(i, 1);
+      swapPop(this.projectiles, i);
     }
 
     if (this.hasAwakening('overlordFission')) {
@@ -1578,7 +1586,7 @@ export class GameState {
       s.life -= dt;
       s.fireCd -= dt;
       if (s.life <= 0) {
-        this.summons.splice(i, 1);
+        swapPop(this.summons, i);
         continue;
       }
       if (s.fireCd > 0) continue;
@@ -1648,7 +1656,7 @@ export class GameState {
         });
         this.enforceSummonCap();
       }
-      this.summonRespawn.splice(i, 1);
+      swapPop(this.summonRespawn, i);
     }
   }
 
@@ -1659,7 +1667,7 @@ export class GameState {
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
       if ((p.x - this.playerX) ** 2 + (p.y - this.playerY) ** 2 <= r2) {
-        this.enemyProjectiles.splice(i, 1);
+        swapPop(this.enemyProjectiles, i);
         if (this.hasAwakening('fortressAegis')) this.aegisAbsorbed++;
       }
     }
@@ -1785,6 +1793,7 @@ export class GameState {
   }
 
   private zoneMoveMulAt(x: number, y: number): number {
+    if (this.zones.length === 0) return 1;
     let mul = 1;
     for (const z of this.zones) {
       if (z.slow == null) continue;
@@ -2640,7 +2649,7 @@ export class GameState {
       if (z.y < 80 + pad || z.y > CANVAS.height - 100 - pad) z.vy *= -1;
       z.x = Math.max(pad, Math.min(CANVAS.width - pad, z.x));
       z.y = Math.max(80 + pad, Math.min(CANVAS.height - 100 - pad, z.y));
-      if (z.life <= 0) this.nebulaZones.splice(i, 1);
+      if (z.life <= 0) swapPop(this.nebulaZones, i);
     }
     if (this.nebulaZones.length > 0 || this.time < this.nextNebulaAt) return;
     const cfg = TERRAIN.nebula;
@@ -2674,7 +2683,7 @@ export class GameState {
       const o = this.creditOrbs[i];
       o.life -= dt;
       if (o.life <= 0) {
-        this.creditOrbs.splice(i, 1);
+        swapPop(this.creditOrbs, i);
         continue;
       }
       o.vy += 40 * dt;
@@ -2694,7 +2703,7 @@ export class GameState {
       if (dist < PLAYER.radius + 10) {
         this.runCreditBonus += o.value;
         this.events.push({ type: 'creditPickup', x: o.x, y: o.y });
-        this.creditOrbs.splice(i, 1);
+        swapPop(this.creditOrbs, i);
       }
     }
   }
@@ -2747,7 +2756,7 @@ export class GameState {
       w.timer -= dt;
       if (w.timer <= 0) {
         this.addEnemy(w.enemyId, w.spawnX, w.spawnY, w.dir, true, false, w.mutation);
-        this.warnings.splice(i, 1);
+        swapPop(this.warnings, i);
       }
     }
   }
@@ -2861,7 +2870,7 @@ export class GameState {
         e.x < -margin - 200 || e.x > W + margin + 200;
       if (out && e.age > 1.5 && !isBoss && !e.anchored) {
         if (e.def.id === 'trapper') this.clearPylons(e.id);
-        this.enemies.splice(i, 1);
+        swapPop(this.enemies, i);
       }
     }
   }
@@ -3128,7 +3137,7 @@ export class GameState {
           while (ang > Math.PI) ang -= Math.PI * 2;
           while (ang < -Math.PI) ang += Math.PI * 2;
           if (Math.abs(ang) > sweepHalf) continue;
-          this.enemyProjectiles.splice(k, 1);
+          swapPop(this.enemyProjectiles, k);
         }
       }
       if (s.life <= 0) {
@@ -3148,7 +3157,7 @@ export class GameState {
             weaponId: s.weaponId,
           });
         }
-        this.slashes.splice(i, 1);
+        swapPop(this.slashes, i);
       }
     }
     for (let i = this.pendingAfterimages.length - 1; i >= 0; i--) {
@@ -3165,7 +3174,7 @@ export class GameState {
         arcDeg: p.slash.arcDeg,
         range: p.slash.range,
       });
-      this.pendingAfterimages.splice(i, 1);
+      swapPop(this.pendingAfterimages, i);
     }
   }
 
@@ -3241,7 +3250,7 @@ export class GameState {
       m.fuse -= dt;
       if (m.fuse > 0) continue;
       this.detonateMine(m);
-      this.mines.splice(i, 1);
+      swapPop(this.mines, i);
     }
   }
 
@@ -3329,7 +3338,7 @@ export class GameState {
           this.onWeaponHit(z.weaponId, e);
         }
       }
-      if (z.life <= 0) this.zones.splice(i, 1);
+      if (z.life <= 0) swapPop(this.zones, i);
     }
   }
 
@@ -3341,7 +3350,7 @@ export class GameState {
   private updateDrones(dt: number): void {
     for (let i = this.interceptBeams.length - 1; i >= 0; i--) {
       this.interceptBeams[i].life -= dt;
-      if (this.interceptBeams[i].life <= 0) this.interceptBeams.splice(i, 1);
+      if (this.interceptBeams[i].life <= 0) swapPop(this.interceptBeams, i);
     }
     if (this.ampAura) {
       this.ampAura.life -= dt;
@@ -3363,14 +3372,14 @@ export class GameState {
             const mul = this.hasNode('greed') && (g.corruptIn == null || g.corruptIn > 0)
               ? CONSTELLATION_FX.greedRewardMul : 1;
             this.gainExp(g.exp * mul);
-            this.gems.splice(i, 1);
+            swapPop(this.gems, i);
           }
         }
         for (let i = this.pickups.length - 1; i >= 0; i--) {
           const p = this.pickups[i];
           if (p.homing) continue;
           if (Math.hypot(p.x - this.playerX, p.y - this.playerY) <= r) {
-            this.pickups.splice(i, 1);
+            swapPop(this.pickups, i);
             this.applyPickup(p);
           }
         }
@@ -3389,7 +3398,7 @@ export class GameState {
             x1: this.playerX + 18, y1: this.playerY - 12,
             x2: p.x, y2: p.y, life: 0.12,
           });
-          this.enemyProjectiles.splice(i, 1);
+          swapPop(this.enemyProjectiles, i);
           n++;
         }
         if (n > 0) {
@@ -3517,21 +3526,22 @@ export class GameState {
     const H = CANVAS.height;
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
-      p.x += p.vx * dt * this.nebulaMulAt(p.x, p.y);
-      p.y += p.vy * dt * this.nebulaMulAt(p.x, p.y);
+      const neb = this.nebulaMulAt(p.x, p.y);
+      p.x += p.vx * dt * neb;
+      p.y += p.vy * dt * neb;
       if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) {
-        this.enemyProjectiles.splice(i, 1);
+        swapPop(this.enemyProjectiles, i);
         continue;
       }
       if (this.tryBlockEnemyBullet(p)) {
-        this.enemyProjectiles.splice(i, 1);
+        swapPop(this.enemyProjectiles, i);
         continue;
       }
       const aegis = this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis';
       if (aegis) {
         const ar = SHIPS[this.shipId].activeSkill.radius ?? 72;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= ar * ar) {
-          this.enemyProjectiles.splice(i, 1);
+          swapPop(this.enemyProjectiles, i);
           continue;
         }
       }
@@ -3539,7 +3549,7 @@ export class GameState {
       if ((iaidoReady || this.hasNode('glassCannon') || (this.invincibleLeft <= 0 && this.shieldLeft <= 0)) && !aegis) {
         const rr = this.playerHitRadius() + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
-          this.enemyProjectiles.splice(i, 1);
+          swapPop(this.enemyProjectiles, i);
           this.hurtPlayer(p.damage);
         }
       }
@@ -3549,13 +3559,12 @@ export class GameState {
   // ---------- 투사체 ----------
 
   private updateProjectiles(dt: number): void {
-    this.enemyGrid.rebuild(this.enemies);
     const hitPad = this.enemyGrid.maxHitR;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       p.life -= dt;
       if (p.life <= 0) {
-        this.projectiles.splice(i, 1);
+        swapPop(this.projectiles, i);
         continue;
       }
 
@@ -3604,7 +3613,7 @@ export class GameState {
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           if (this.isCloaked(e)) continue;
           if (!p.ignoreShield && this.tryAbsorbShield(e, this.isShielderFrontHit(p))) {
-            this.projectiles.splice(i, 1);
+            swapPop(this.projectiles, i);
             removed = true;
             break;
           }
@@ -3628,7 +3637,7 @@ export class GameState {
             if (p.affix === 'split' && !p.noSplit) {
               this.spawnSplitShards(p);
             }
-            this.projectiles.splice(i, 1);
+            swapPop(this.projectiles, i);
             removed = true;
             break;
           }
@@ -3646,7 +3655,7 @@ export class GameState {
         this.damageCore(c, p.damage);
         if (p.explodeRadius) this.explodeProjectile(p, { id: c.id } as Enemy);
         if (p.pierceLeft <= 0) {
-          this.projectiles.splice(i, 1);
+          swapPop(this.projectiles, i);
           coreRemoved = true;
           break;
         }
@@ -3656,7 +3665,7 @@ export class GameState {
 
       // 화면 밖
       if (p.x < -60 || p.x > CANVAS.width + 60 || p.y < -60 || p.y > CANVAS.height + 60) {
-        this.projectiles.splice(i, 1);
+        swapPop(this.projectiles, i);
       }
     }
   }
@@ -3673,7 +3682,7 @@ export class GameState {
         this.tickBeam(b);
         b.tickLeft += b.tickInterval;
       }
-      if (b.life <= 0) this.beams.splice(i, 1);
+      if (b.life <= 0) swapPop(this.beams, i);
     }
   }
 
@@ -3849,11 +3858,23 @@ export class GameState {
   }
 
   private nearestEnemy(x: number, y: number, exclude: Set<number>): Enemy | null {
+    const r = PERF.homingSeekR;
+    const cands = this.enemyGrid.query(x, y, r, this.gridQueryBuf);
     let best: Enemy | null = null;
-    let bestD = Infinity;
+    let bestD = r * r;
+    for (const e of cands) {
+      if (e.hp <= 0 || exclude.has(e.id) || this.isCloaked(e)) continue;
+      const d = (e.x - x) ** 2 + (e.y - y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    if (best) return best;
+    if (cands.length > 0 || this.enemies.length > 40) return null;
+    bestD = Infinity;
     for (const e of this.enemies) {
-      if (exclude.has(e.id)) continue;
-      if (this.isCloaked(e)) continue;
+      if (exclude.has(e.id) || this.isCloaked(e)) continue;
       const d = (e.x - x) ** 2 + (e.y - y) ** 2;
       if (d < bestD) {
         bestD = d;
@@ -4063,7 +4084,7 @@ export class GameState {
       }
 
       const idx = this.enemies.indexOf(e);
-      if (idx >= 0) this.enemies.splice(idx, 1);
+      if (idx >= 0) swapPop(this.enemies, idx);
     }
   }
 
@@ -4157,14 +4178,14 @@ export class GameState {
       }
       p.life -= dt;
       if (p.life <= 0 && !p.homing) {
-        this.pickups.splice(i, 1);
+        swapPop(this.pickups, i);
         if (p.kind === 'goldCube') this.tryDespawnFinishedAltar();
         continue;
       }
       if (p.homing) {
         const t = this.nearestEnemy(p.x, p.y, new Set());
         if (!t) {
-          this.pickups.splice(i, 1);
+          swapPop(this.pickups, i);
           continue;
         }
         const dx = t.x - p.x;
@@ -4176,7 +4197,7 @@ export class GameState {
         if (dist <= t.def.radius + PICKUPS.radius + 8) {
           this.enrageEnemy(t);
           this.events.push({ type: 'banner', text: '💰 탐욕의 오염' });
-          this.pickups.splice(i, 1);
+          swapPop(this.pickups, i);
         }
         continue;
       }
@@ -4192,7 +4213,7 @@ export class GameState {
       }
       const rr = PLAYER.radius + PICKUPS.radius + 6;
       if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
-        this.pickups.splice(i, 1);
+        swapPop(this.pickups, i);
         this.applyPickup(p);
       }
     }
@@ -4250,13 +4271,13 @@ export class GameState {
       }
       g.life -= dt;
       if (g.life <= 0 && !g.homing) {
-        this.gems.splice(i, 1);
+        swapPop(this.gems, i);
         continue;
       }
       if (g.homing) {
         const t = this.nearestEnemy(g.x, g.y, new Set());
         if (!t) {
-          this.gems.splice(i, 1);
+          swapPop(this.gems, i);
           continue;
         }
         const dx = t.x - g.x;
@@ -4267,7 +4288,7 @@ export class GameState {
         g.y += (dy / dist) * step;
         if (dist <= t.def.radius + GEM.radius + 6) {
           this.enrageEnemy(t);
-          this.gems.splice(i, 1);
+          swapPop(this.gems, i);
         }
         continue;
       }
@@ -4284,7 +4305,7 @@ export class GameState {
       }
 
       if (dist < PLAYER.radius + GEM.radius + 4) {
-        this.gems.splice(i, 1);
+        swapPop(this.gems, i);
         this.events.push({ type: 'gemPickup', x: g.x, y: g.y });
         const mul = this.hasNode('greed') && (g.corruptIn == null || g.corruptIn > 0)
           ? CONSTELLATION_FX.greedRewardMul : 1;
