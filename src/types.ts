@@ -158,6 +158,28 @@ export interface DroneDef {
 
 export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing' | 'iaido' | 'overloadDetonate' | 'bloodStream';
 
+export type AwakeningId =
+  | 'scoutDash'
+  | 'fortressAegis'
+  | 'hunterStasis'
+  | 'bomberNapalm'
+  | 'bomberMinelayer'
+  | 'yakshaAsura'
+  | 'yakshaSwordAura'
+  | 'overlordLegion'
+  | 'overlordFission'
+  | 'crimsonImmortal'
+  | 'crimsonOverdrive';
+
+export interface CoreAwakeningDef {
+  id: AwakeningId;
+  shipId: ShipId;
+  name: string;
+  icon: string;
+  color: string;
+  desc: string;
+}
+
 export interface ActiveSkillDef {
   id: ActiveSkillId;
   name: string;
@@ -419,6 +441,7 @@ export interface LevelUpChoice {
   affixId?: AffixId;
   craftOp?: CraftOp;
   altarOp?: 'slot' | 'credits';
+  awakeningId?: AwakeningId;
   /** 기체 특화 태그와 일치 */
   isSynergy?: boolean;
   /** 이 카드를 고르면 즉시 T2/T3 조합이 가능해짐 */

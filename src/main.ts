@@ -149,12 +149,15 @@ function togglePause(): void {
 
 function openLevelUpUI(): void {
   const choices = generateChoices(state);
+  const awakening = choices.length > 0 && choices.every((c) => c.kind === 'awakening');
   ui.showLevelUp(choices, (choice) => {
     applyChoice(state, choice);
     ui.hideLevelUp();
     state.pendingLevelUps--;
     continueAfterChoice();
-  });
+  }, awakening
+    ? { title: 'CORE AWAKENING', sub: '각성 루트를 선택하세요' }
+    : undefined);
 }
 
 function openCraftUI(): void {

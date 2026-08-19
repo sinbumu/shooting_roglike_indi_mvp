@@ -6,6 +6,7 @@ import type {
   AffixId, StatBoostId, TacticalId, WeaponTag,
   ShipSkinId, ProjSkinId, DroneDef, DroneId, PilotTraitId,
   ConstellationDef, ConstellationId,
+  CoreAwakeningDef,
 } from './types';
 
 // ============================================================
@@ -1554,7 +1555,80 @@ export const AWAKEN = {
   carpetBombMul: 2,
   carpetRadiusMul: 1.4,
   carpetDmgMul: 1.5,
+  napalmDuration: 5,
+  napalmSlow: 0.5,
+  napalmTick: 0.2,
+  minelayerInterval: 1.5,
+  mineCap: 20,
+  summonCap: 8,
+  legionBonus: 5,
+  eliteChance: 0.2,
+  eliteMul: 3,
+  fissionRadiusMul: 3,
+  fissionPullLife: 3,
+  fissionPull: 220,
+  immortalHpFrac: 0.01,
+  immortalDuration: 5,
+  immortalCd: 60,
+  overdriveCap: 9,
+  overdriveLeechMul: 0.5,
+  swordAuraSpeed: 860,
 } as const;
+
+export const CORE_AWAKENINGS: Record<ShipId, CoreAwakeningDef[]> = {
+  scout: [{
+    id: 'scoutDash', shipId: 'scout', name: '초공간 붕괴', icon: '🌀', color: '#7dd3fc',
+    desc: '위상 대시가 3회 충전식이 되고, 궤적의 일반 적을 즉사시키며 보스에게 최대 체력 10% 피해를 줍니다.',
+  }],
+  fortress: [{
+    id: 'fortressAegis', shipId: 'fortress', name: '반사 역장', icon: '🛡️', color: '#86efac',
+    desc: '방벽이 적 탄막을 흡수하고, 종료 시 흡수 수에 비례한 화면 전체 폭발을 방출합니다.',
+  }],
+  hunter: [{
+    id: 'hunterStasis', shipId: 'hunter', name: '정지장', icon: '⏱️', color: '#fdba74',
+    desc: '시간 왜곡이 4초간 적과 탄막을 완전 정지시키고, 그 동안 무기 쿨타임이 절반이 됩니다.',
+  }],
+  bomber: [
+    {
+      id: 'bomberNapalm', shipId: 'bomber', name: '네이팜 스톰', icon: '🔥', color: '#fb923c',
+      desc: '융단 폭격이 24회로 늘고, 폭발 자리에 5초간 둔화·지속 피해 화염 장판이 남습니다.',
+    },
+    {
+      id: 'bomberMinelayer', shipId: 'bomber', name: '궤도 지뢰 부설기', icon: '💣', color: '#f97316',
+      desc: '이동 경로에 1.5초마다 중력 지뢰가 자동 매설됩니다. 지뢰 수 상한이 사라집니다.',
+    },
+  ],
+  yaksha: [
+    {
+      id: 'yakshaAsura', shipId: 'yaksha', name: '수라의 길', icon: '🗡️', color: '#ef4444',
+      desc: '거합도 카운터에 성공하면 스킬 쿨타임이 즉시 초기화됩니다.',
+    },
+    {
+      id: 'yakshaSwordAura', shipId: 'yaksha', name: '검강', icon: '⚔️', color: '#fca5a5',
+      desc: '근접 무기가 타격할 때마다 전방으로 화면 끝까지 관통하는 검기를 추가로 발사합니다.',
+    },
+  ],
+  overlord: [
+    {
+      id: 'overlordLegion', shipId: 'overlord', name: '무한의 군단장', icon: '👑', color: '#38bdf8',
+      desc: '소환수 상한 +5. 자폭 후 재조립 시 20% 확률로 크기·피해 3배 엘리트 드론이 나옵니다.',
+    },
+    {
+      id: 'overlordFission', shipId: 'overlord', name: '핵분열 특이점', icon: '☢️', color: '#a78bfa',
+      desc: '과부하 자폭 반경이 3배가 되고, 중심에 3초간 적을 빨아들이는 중력장이 생깁니다.',
+    },
+  ],
+  crimson: [
+    {
+      id: 'crimsonImmortal', shipId: 'crimson', name: '불사귀', icon: '💀', color: '#fb7185',
+      desc: '체력이 1% 미만이 되는 피해를 받으면 5초 무적, 그동안 혈사포 쿨타임 0. (재사용 60초)',
+    },
+    {
+      id: 'crimsonOverdrive', shipId: 'crimson', name: '피의 역류', icon: '🩸', color: '#9f1239',
+      desc: '광분 상한이 +300%에서 +900%로 풀립니다. 혈사포 흡혈량은 절반이 됩니다.',
+    },
+  ],
+};
 
 export const PILOT_TRAITS: Record<PilotTraitId, {
   id: PilotTraitId;

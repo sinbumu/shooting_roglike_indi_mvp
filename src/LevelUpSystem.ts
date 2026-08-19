@@ -4,7 +4,7 @@ import type {
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
   ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP, SHIPS, VOID_ALTAR, PLAYER,
-  compatibleAffixes, isTickWeapon, weaponTags, shipSpecialtyTags,
+  compatibleAffixes, isTickWeapon, weaponTags, shipSpecialtyTags, CORE_AWAKENINGS,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -364,14 +364,13 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     });
   }
 
+  if (state.awakeningDue && !state.coreAwakened) {
+    return awakeningChoices(state.shipId);
+  }
+
   const choices: LevelUpChoice[] = [];
   const useEndgame = pool.length === 0;
   const drawPool = useEndgame ? buildEndgamePool(state) : pool;
-
-  if (state.awakeningDue && !state.coreAwakened) {
-    choices.push(awakeningChoice(state.shipId));
-    state.awakeningDue = false;
-  }
 
   /** 1·3·5번째 레벨업(Lv.2/4/6): 슬롯 여유 있으면 미보유 T1을 확정 등장 */
   const guaranteeNew =
@@ -426,27 +425,16 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   return annotateChoiceHints(state, choices.slice(0, 3));
 }
 
-function awakeningChoice(shipId: ShipId): LevelUpChoice {
-  const ship = SHIPS[shipId];
-  const desc = ship.id === 'scout'
-    ? '위상 대시가 3회 충전식이 되고, 궤적의 일반 적을 즉사시키며 보스에게 최대 체력 10% 피해를 줍니다.'
-    : ship.id === 'fortress'
-      ? '방벽이 적 탄막을 흡수하고, 종료 시 흡수 수에 비례한 화면 전체 폭발을 방출합니다.'
-      : ship.id === 'bomber'
-        ? '융단 폭격 탄수가 2배가 되고 반경·피해가 증가합니다. 적탄을 더 넓게 소멸시킵니다.'
-        : '시간 왜곡이 4초간 적과 탄막을 완전 정지시키고, 그 동안 무기 쿨타임이 절반이 됩니다.';
-  const title = ship.id === 'scout' ? '초공간 붕괴'
-    : ship.id === 'fortress' ? '반사 역장'
-    : ship.id === 'bomber' ? '포화 융단'
-    : '정지장';
-  return {
-    kind: 'awakening',
+function awakeningChoices(shipId: ShipId): LevelUpChoice[] {
+  return CORE_AWAKENINGS[shipId].map((def) => ({
+    kind: 'awakening' as const,
     weight: 0,
-    title: `[코어 각성] ${title}`,
-    desc,
-    icon: '✨',
-    color: '#fde68a',
-  };
+    title: `[코어 각성] ${def.name}`,
+    desc: def.desc,
+    icon: def.icon,
+    color: def.color,
+    awakeningId: def.id,
+  }));
 }
 
 export function generateAltarRewards(): LevelUpChoice[] {
@@ -776,7 +764,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       break;
     }
     case 'awakening':
-      state.activateAwakening();
+      state.activateAwakening(choice.awakeningId);
       break;
     case 'altarReward':
       if (choice.altarOp === 'slot') {

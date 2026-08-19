@@ -1181,6 +1181,15 @@ export class Renderer {
       glow.width = glow.height = PLAYER.radius * 5.4 + Math.sin(this.elapsed * 18) * 8;
       glow.alpha = 0.55;
     }
+    if (state.immortalLeft > 0) {
+      const glow = this.glowPool.get();
+      glow.tint = 0xfb7185;
+      glow.position.set(x, y);
+      glow.width = glow.height = PLAYER.radius * 7.2 + Math.sin(this.elapsed * 14) * 10;
+      glow.alpha = 0.55 + Math.sin(this.elapsed * 18) * 0.15;
+      this.coreG.circle(x, y, PLAYER.radius + 16 + Math.sin(this.elapsed * 10) * 3)
+        .stroke({ width: 3, color: 0xfb7185, alpha: 0.85 });
+    }
     if (state.levelAegisLeft > 0) {
       const glow = this.glowPool.get();
       glow.tint = 0x86efac;
@@ -1815,12 +1824,13 @@ export class Renderer {
       }
     }
     for (const s of state.summons) {
-      const color = hex(s.color);
+      const color = hex(s.elite ? '#fbbf24' : s.color);
       const idle = 1 + Math.sin(this.elapsed * 6 + s.x * 0.04) * 0.1;
+      const scale = s.elite ? 1.35 : 1;
       const tex = fxFrame(this.atlas.fx.gatling, this.elapsed + s.x * 0.02, 10);
       if (tex) {
         this.blitFx(tex, s.x, s.y, {
-          width: s.radius * 4.6 * idle, height: s.radius * 4.6 * idle, tint: color,
+          width: s.radius * 4.6 * idle * scale, height: s.radius * 4.6 * idle * scale, tint: color,
         });
       } else {
         g.circle(s.x, s.y, s.radius * idle).fill(color);
@@ -1829,8 +1839,12 @@ export class Renderer {
       const glow = this.glowPool.get();
       glow.tint = color;
       glow.position.set(s.x, s.y);
-      glow.width = glow.height = s.radius * 5;
-      glow.alpha = 0.55;
+      glow.width = glow.height = s.radius * (s.elite ? 7.5 : 5);
+      glow.alpha = s.elite ? 0.8 : 0.55;
+      if (s.elite) {
+        g.circle(s.x, s.y, s.radius * 1.8 + Math.sin(this.elapsed * 8) * 2)
+          .stroke({ width: 2, color: 0xfde68a, alpha: 0.7 });
+      }
     }
     if (state.detonateBeacon) {
       const b = state.detonateBeacon;

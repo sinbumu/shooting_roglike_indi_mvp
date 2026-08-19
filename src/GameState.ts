@@ -1,7 +1,7 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
   AffixId, StatBoostId, TacticalId, MutationId, ActiveSkillId, DroneId, PilotTraitId,
-  ProjectileSpec, ConstellationId,
+  ProjectileSpec, ConstellationId, AwakeningId,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
@@ -14,6 +14,7 @@ import {
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
   isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
+  CORE_AWAKENINGS,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -183,6 +184,7 @@ export interface Summon {
   damage: number;
   radius: number;
   color: string;
+  elite?: boolean;
 }
 
 export interface HazardZone {
@@ -201,6 +203,7 @@ export interface HazardZone {
   weaponId: WeaponId;
   pulsePeak?: number;
   pulseMaxLife?: number;
+  slow?: number;
 }
 
 export interface Pylon {
@@ -526,6 +529,10 @@ export class GameState {
   worldSlow = 1;
   coreAwakened = false;
   awakeningDue = false;
+  awakeningId: AwakeningId | null = null;
+  immortalLeft = 0;
+  private immortalProcCd = 0;
+  private minelayerAcc = 0;
   skillCharges = 0;
   skillChargeMax = 0;
   skillRechargeLeft = 0;
@@ -750,6 +757,10 @@ export class GameState {
     this.worldSlow = 1;
     this.coreAwakened = false;
     this.awakeningDue = false;
+    this.awakeningId = null;
+    this.immortalLeft = 0;
+    this.immortalProcCd = 0;
+    this.minelayerAcc = 0;
     this.skillCharges = 0;
     this.skillChargeMax = 0;
     this.skillRechargeLeft = 0;
@@ -1227,7 +1238,7 @@ export class GameState {
   tryUseSkill(): boolean {
     if (this.status !== 'playing') return false;
     const skill = SHIPS[this.shipId].activeSkill;
-    const dashAwake = this.coreAwakened && skill.id === 'phaseDash';
+    const dashAwake = this.hasAwakening('scoutDash');
     if (dashAwake) {
       if (this.skillCharges <= 0) return false;
     } else if (this.skillCdLeft > 0) {
@@ -1250,22 +1261,22 @@ export class GameState {
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
       this.invincibleLeft = Math.max(this.invincibleLeft, skill.iframeMs ?? 250);
-      if (this.coreAwakened) this.dashTrailKill(ox, oy, this.playerX, this.playerY);
+      if (this.hasAwakening('scoutDash')) this.dashTrailKill(ox, oy, this.playerX, this.playerY);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '초공간 붕괴' : skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('scoutDash') ? '초공간 붕괴' : skill.name}` });
     } else if (skill.id === 'aegis') {
       this.aegisAbsorbed = 0;
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '반사 역장' : skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('fortressAegis') ? '반사 역장' : skill.name}` });
       this.aegisShockwave(skill);
     } else if (skill.id === 'timeDilation') {
-      this.worldSlow = this.coreAwakened ? 0 : (skill.slowMul ?? 0.4);
+      this.worldSlow = this.hasAwakening('hunterStasis') ? 0 : (skill.slowMul ?? 0.4);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '정지장' : skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('hunterStasis') ? '정지장' : skill.name}` });
     } else if (skill.id === 'carpetBombing') {
       this.armCarpetBombing(skill);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '포화 융단' : skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('bomberNapalm') ? '네이팜 스톰' : skill.name}` });
     } else if (skill.id === 'iaido') {
       this.iaidoCountered = false;
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
@@ -1273,7 +1284,7 @@ export class GameState {
     } else if (skill.id === 'overloadDetonate') {
       this.commandOverloadDetonate(skill);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
-      this.events.push({ type: 'banner', text: `${skill.icon} ${skill.name}` });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.hasAwakening('overlordFission') ? '핵분열 특이점' : skill.name}` });
     } else if (skill.id === 'bloodStream') {
       this.spendHpFrac(skill.hpCostFrac ?? 0.2);
       const ang = Math.atan2(this.lastAimY, this.lastAimX);
@@ -1299,7 +1310,12 @@ export class GameState {
   private updateSkills(dt: number): void {
     if (this.skillCdLeft > 0) this.skillCdLeft = Math.max(0, this.skillCdLeft - dt);
     const skill = SHIPS[this.shipId].activeSkill;
-    if (this.coreAwakened && skill.id === 'phaseDash') {
+    if (this.immortalProcCd > 0) this.immortalProcCd = Math.max(0, this.immortalProcCd - dt);
+    if (this.immortalLeft > 0) {
+      this.immortalLeft = Math.max(0, this.immortalLeft - dt);
+      if (this.hasAwakening('crimsonImmortal')) this.skillCdLeft = 0;
+    }
+    if (this.hasAwakening('scoutDash')) {
       if (this.skillCharges < this.skillChargeMax && this.skillRechargeLeft > 0) {
         this.skillRechargeLeft = Math.max(0, this.skillRechargeLeft - dt);
         if (this.skillRechargeLeft <= 0) {
@@ -1315,7 +1331,7 @@ export class GameState {
         this.worldSlow = 1;
         if (skill.id === 'aegis') {
           this.aegisShockwave(skill);
-          if (this.coreAwakened && this.aegisAbsorbed > 0) this.aegisNova();
+          if (this.hasAwakening('fortressAegis') && this.aegisAbsorbed > 0) this.aegisNova();
         }
         if (skill.id === 'iaido' && !this.iaidoCountered) this.iaidoSlash(1);
       }
@@ -1336,9 +1352,10 @@ export class GameState {
   }
 
   private armCarpetBombing(skill: typeof SHIPS[ShipId]['activeSkill']): void {
-    const n = Math.max(1, Math.round((skill.bombCount ?? 12) * (this.coreAwakened ? AWAKEN.carpetBombMul : 1)));
-    const radius = (skill.explodeRadius ?? 100) * (this.coreAwakened ? AWAKEN.carpetRadiusMul : 1);
-    const damage = PICKUPS.bombDamage * (this.coreAwakened ? AWAKEN.carpetDmgMul : 1);
+    const napalm = this.hasAwakening('bomberNapalm');
+    const n = Math.max(1, Math.round((skill.bombCount ?? 12) * (napalm ? AWAKEN.carpetBombMul : 1)));
+    const radius = (skill.explodeRadius ?? 100) * (napalm ? AWAKEN.carpetRadiusMul : 1);
+    const damage = PICKUPS.bombDamage * (napalm ? AWAKEN.carpetDmgMul : 1);
     const dur = skill.duration ?? 1.5;
     this.carpetQueue = [];
     for (let i = 0; i < n; i++) {
@@ -1388,6 +1405,21 @@ export class GameState {
       this.damageEnemy(e, damage);
     }
     this.events.push({ type: 'blast', x, y, color: '#f97316', radius: radius * 0.55 });
+    if (this.hasAwakening('bomberNapalm')) {
+      this.zones.push({
+        kind: 'circle',
+        x, y, x2: x, y2: y,
+        radius: radius * 0.85,
+        life: AWAKEN.napalmDuration,
+        tickLeft: 0,
+        tickInterval: AWAKEN.napalmTick,
+        damage: damage * 0.22,
+        pull: 0,
+        slow: AWAKEN.napalmSlow,
+        color: '#fb923c',
+        weaponId: 'mine',
+      });
+    }
   }
 
   private spendHpFrac(frac: number): void {
@@ -1403,7 +1435,8 @@ export class GameState {
   private crimsonBerserk(): number {
     if (this.shipId !== 'crimson' || this.maxHp <= 0) return 0;
     const lostPct = Math.max(0, 1 - this.hp / this.maxHp) * 100;
-    return Math.min(3, lostPct * 0.03);
+    const cap = this.hasAwakening('crimsonOverdrive') ? AWAKEN.overdriveCap : 3;
+    return Math.min(cap, lostPct * 0.03);
   }
 
   private onWeaponHit(weaponId: WeaponId | undefined, _e: Enemy): void {
@@ -1452,7 +1485,8 @@ export class GameState {
     const bx = Math.max(r, Math.min(CANVAS.width - r, this.playerX + this.lastAimX * dist));
     const by = Math.max(r, Math.min(CANVAS.height - r, this.playerY + this.lastAimY * dist));
     this.detonateBeacon = { x: bx, y: by, life: 1.2 };
-    const explodeR = skill.explodeRadius ?? 96;
+    const explodeR = (skill.explodeRadius ?? 96)
+      * (this.hasAwakening('overlordFission') ? AWAKEN.fissionRadiusMul : 1);
     const delay = 2;
 
     for (const s of this.summons) {
@@ -1499,6 +1533,21 @@ export class GameState {
       p.y = by + (Math.random() - 0.5) * 36;
       this.blastAt(p.x, p.y, p.explodeRadius ?? explodeR * 0.7, p.damage * 3, p.color, p.weaponId);
       this.projectiles.splice(i, 1);
+    }
+
+    if (this.hasAwakening('overlordFission')) {
+      this.zones.push({
+        kind: 'circle',
+        x: bx, y: by, x2: bx, y2: by,
+        radius: explodeR,
+        life: AWAKEN.fissionPullLife,
+        tickLeft: 99,
+        tickInterval: 99,
+        damage: 0,
+        pull: AWAKEN.fissionPull,
+        color: '#a78bfa',
+        weaponId: 'autoTurret',
+      });
     }
   }
 
@@ -1582,18 +1631,22 @@ export class GameState {
           zoneDuration: 0, zoneTick: 0.15,
           vx: 0, vy: 0,
         });
+        this.enforceMineCap();
       } else {
         const persist = WEAPONS[q.weaponId].projectile.drop?.persist ?? 8;
+        const elite = this.hasAwakening('overlordLegion') && Math.random() < AWAKEN.eliteChance;
         this.summons.push({
           x: spawnX, y: spawnY,
           weaponId: q.weaponId,
           kind: q.kind,
           life: persist,
           fireCd: 0.2,
-          damage: q.damage,
-          radius: q.radius,
-          color: q.color,
+          damage: q.damage * (elite ? AWAKEN.eliteMul : 1),
+          radius: q.radius * (elite ? AWAKEN.eliteMul : 1),
+          color: elite ? '#fbbf24' : q.color,
+          elite,
         });
+        this.enforceSummonCap();
       }
       this.summonRespawn.splice(i, 1);
     }
@@ -1607,7 +1660,7 @@ export class GameState {
       const p = this.enemyProjectiles[i];
       if ((p.x - this.playerX) ** 2 + (p.y - this.playerY) ** 2 <= r2) {
         this.enemyProjectiles.splice(i, 1);
-        if (this.coreAwakened) this.aegisAbsorbed++;
+        if (this.hasAwakening('fortressAegis')) this.aegisAbsorbed++;
       }
     }
   }
@@ -1654,17 +1707,93 @@ export class GameState {
     this.events.push({ type: 'banner', text: '💥 반사 역장 방출' });
   }
 
-  activateAwakening(): void {
+  activateAwakening(id?: AwakeningId): void {
     this.coreAwakened = true;
     this.awakeningDue = false;
+    this.awakeningId = id ?? CORE_AWAKENINGS[this.shipId][0]?.id ?? null;
     const skill = SHIPS[this.shipId].activeSkill;
-    if (skill.id === 'phaseDash') {
+    if (this.awakeningId === 'scoutDash' && skill.id === 'phaseDash') {
       this.skillChargeMax = AWAKEN.dashCharges;
       this.skillCharges = AWAKEN.dashCharges;
       this.skillRechargeLeft = 0;
       this.skillCdLeft = 0;
     }
-    this.events.push({ type: 'banner', text: '✨ 코어 각성' });
+    const def = CORE_AWAKENINGS[this.shipId].find((a) => a.id === this.awakeningId);
+    this.events.push({ type: 'banner', text: `✨ 코어 각성 — ${def?.name ?? '각성'}` });
+  }
+
+  hasAwakening(id: AwakeningId): boolean {
+    return this.coreAwakened && this.awakeningId === id;
+  }
+
+  private summonCap(): number {
+    return AWAKEN.summonCap + (this.hasAwakening('overlordLegion') ? AWAKEN.legionBonus : 0);
+  }
+
+  private enforceSummonCap(): void {
+    const cap = this.summonCap();
+    while (this.summons.length > cap) this.summons.shift();
+  }
+
+  private enforceMineCap(): void {
+    if (this.hasAwakening('bomberMinelayer')) return;
+    while (this.mines.length > AWAKEN.mineCap) this.mines.shift();
+  }
+
+  private dropFreeGravityMine(): void {
+    const def = WEAPONS.mine;
+    const p = def.projectile;
+    const sizeMul = this.runStats.radiusMul;
+    const spawnX = this.playerX - this.lastAimX * (PLAYER.radius + 18);
+    const spawnY = this.playerY - this.lastAimY * (PLAYER.radius + 18);
+    this.mines.push({
+      x: spawnX, y: spawnY,
+      radius: p.radius * sizeMul,
+      fuse: p.drop?.fuse ?? 3,
+      damage: p.damage * this.damageMul,
+      explodeRadius: (p.explodeRadius ?? 68) * sizeMul,
+      color: def.color,
+      weaponId: 'mine',
+      seekSpeed: 0, pullRadius: 0, pullForce: 0, split: 0,
+      zoneDuration: 0, zoneTick: 0.15,
+      vx: 0, vy: 0,
+    });
+    this.enforceMineCap();
+  }
+
+  private fireSwordAura(damage: number, color: string): void {
+    if (!this.hasAwakening('yakshaSwordAura')) return;
+    const ang = Math.atan2(this.lastAimY, this.lastAimX);
+    const spd = AWAKEN.swordAuraSpeed;
+    const life = Math.hypot(CANVAS.width, CANVAS.height) / Math.max(1, spd);
+    this.projectiles.push({
+      x: this.playerX,
+      y: this.playerY,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      speed: spd,
+      baseSpeed: spd,
+      damage,
+      radius: 7,
+      homingTurnRate: 0,
+      pierceLeft: 99,
+      life,
+      color,
+      hitIds: new Set(),
+      shieldPierce: true,
+    });
+  }
+
+  private zoneMoveMulAt(x: number, y: number): number {
+    let mul = 1;
+    for (const z of this.zones) {
+      if (z.slow == null) continue;
+      const hit = z.kind === 'segment'
+        ? distToSegment(x, y, z.x, z.y, z.x2, z.y2) <= z.radius
+        : (x - z.x) ** 2 + (y - z.y) ** 2 <= z.radius * z.radius;
+      if (hit) mul = Math.min(mul, z.slow);
+    }
+    return mul;
   }
 
   // ---------- 플레이어 이동 (방향 벡터 × 속도) ----------
@@ -1719,6 +1848,17 @@ export class GameState {
     }
 
     if (this.invincibleLeft > 0) this.invincibleLeft -= dt * 1000;
+
+    if (this.hasAwakening('bomberMinelayer')) {
+      const moving = analog > 0.08 || Math.hypot(this.velX, this.velY) > 24;
+      if (moving) {
+        this.minelayerAcc += dt;
+        while (this.minelayerAcc >= AWAKEN.minelayerInterval) {
+          this.minelayerAcc -= AWAKEN.minelayerInterval;
+          this.dropFreeGravityMine();
+        }
+      }
+    }
   }
 
   // ---------- 오토 슈팅 ----------
@@ -1729,8 +1869,7 @@ export class GameState {
       if (slot.cooldownLeft <= 0) {
         this.fireWeapon(slot);
         const def = WEAPONS[slot.weaponId];
-        const stasis = this.coreAwakened
-          && SHIPS[this.shipId].activeSkill.id === 'timeDilation'
+        const stasis = this.hasAwakening('hunterStasis')
           && this.skillActiveLeft > 0
           ? AWAKEN.stasisCooldownMul : 1;
         const cdScale = (1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel)) * this.cooldownMul
@@ -1847,6 +1986,7 @@ export class GameState {
           radius: p.radius * sizeMul,
           color,
         });
+        this.enforceSummonCap();
         this.events.push({ type: 'fired', x: spawnX, y: spawnY, color, weaponId: slot.weaponId });
         return;
       }
@@ -1875,6 +2015,7 @@ export class GameState {
         vx: thrown ? this.lastAimX * p.speed : 0,
         vy: thrown ? this.lastAimY * p.speed : 0,
       });
+      this.enforceMineCap();
       this.events.push({
         type: 'fired',
         x: spawnX, y: spawnY,
@@ -2668,7 +2809,7 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
-      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y)
+      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y) * this.zoneMoveMulAt(e.x, e.y)
         * (this.hasNode('hunterToy') && (e.def.id === 'teleporter' || e.def.id === 'mirage')
           ? CONSTELLATION_FX.hunterSpeedMul : 1);
       const eliteMul = (e.elite ? ELITE.speedMul : 1) * (e.enraged ? 1.5 : 1);
@@ -2940,6 +3081,7 @@ export class GameState {
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, o.damage, o.weaponId);
         this.onWeaponHit(o.weaponId, e);
+        if (isMeleeFamily(o.weaponId)) this.fireSwordAura(o.damage, o.color);
       }
       this.hitCoresCircle(px, py, o.hitRadius, o.damage);
     }
@@ -2972,6 +3114,7 @@ export class GameState {
         this.damageEnemy(e, s.damage, s.weaponId);
         this.onWeaponHit(s.weaponId, e);
         this.procMeleeAffix(s, e);
+        if (isMeleeFamily(s.weaponId)) this.fireSwordAura(s.damage, s.color);
       }
       if (!s.sweep) this.hitCoresCircle(s.x, s.y, s.range * 0.55, s.damage, s.hitIds);
       if (s.deflect) {
@@ -3549,7 +3692,9 @@ export class GameState {
       this.damageEnemy(e, dmg, b.weaponId);
       if (b.weaponId) this.onWeaponHit(b.weaponId, e);
       if (SHIPS[this.shipId].activeSkill.id === 'bloodStream' && b.weaponId == null) {
-        this.leechHp(SHIPS[this.shipId].activeSkill.leechPerHit ?? 0.01);
+        const frac = (SHIPS[this.shipId].activeSkill.leechPerHit ?? 0.01)
+          * (this.hasAwakening('crimsonOverdrive') ? AWAKEN.overdriveLeechMul : 1);
+        this.leechHp(frac);
       }
     }
     this.hitCoresCircle(b.x, b.y, b.width, b.damage);
@@ -4208,14 +4353,30 @@ export class GameState {
       this.redOutlineLeft = 0.45;
       this.iaidoSlash(1.5);
       this.invincibleLeft = Math.max(this.invincibleLeft, 0.2);
+      if (this.hasAwakening('yakshaAsura')) this.skillCdLeft = 0;
       return;
     }
+    if (this.immortalLeft > 0) return;
     if (!this.glassIgnoresGuard()) {
       if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
     }
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     let taken = damage * (1 - this.armorReduce);
     if (this.levelAegisLeft > 0) taken *= 1 - this.levelAegisReduce;
+    if (
+      this.hasAwakening('crimsonImmortal')
+      && this.immortalProcCd <= 0
+      && this.immortalLeft <= 0
+      && this.hp - taken < this.maxHp * AWAKEN.immortalHpFrac
+    ) {
+      this.hp = Math.max(1, this.maxHp * AWAKEN.immortalHpFrac);
+      this.immortalLeft = AWAKEN.immortalDuration;
+      this.immortalProcCd = AWAKEN.immortalCd;
+      this.invincibleLeft = Math.max(this.invincibleLeft, AWAKEN.immortalDuration * 1000);
+      this.skillCdLeft = 0;
+      this.events.push({ type: 'banner', text: '💀 불사귀' });
+      return;
+    }
     this.hp -= taken;
     this.invincibleLeft = this.glassIgnoresGuard() ? 0 : PLAYER.invincibleMs;
     this.events.push({ type: 'playerHit' });

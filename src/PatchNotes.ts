@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.3',
+    date: '2026-08-20',
+    changes: [
+      '✨ 신규 기체 코어 각성: 폭격기·야차·오버로드·크림슨 팩트에 A/B 전용 루트 추가',
+      'Lv.50 각성 창이 기체 ID를 엄격히 매핑해, 구형 기체 각성이 잘못 뜨던 문제를 고쳤습니다',
+    ],
+  },
+  {
     version: 'v1.9.2',
     date: '2026-08-20',
     changes: [
