@@ -79,8 +79,8 @@
       <div id="start-overlay" class="overlay">
         <button id="patch-notes-btn" class="patch-notes-btn" type="button" title="패치 노트">v1.3.0</button>
         <h1 class="overlay-title">STELLAR<br/>SURVIVOR</h1>
-        <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>드론은 하단 [드론 베이]에서 장착합니다.</p>
-        <div id="meta-bar">💰 <span id="meta-credits">0</span> · <span id="meta-stats"></span></div>
+        <p class="overlay-sub">스테이지·도전·기체를 고르고 출격하세요.<br/>드론·특성은 하단 메뉴에서 장착합니다.</p>
+        <div id="meta-bar">💰 <span id="meta-credits">0</span> · 🔮 <span id="meta-cores">0</span> · <span id="meta-stats"></span></div>
         <div class="hangar-label">스테이지</div>
         <div id="stage-select" class="chip-row"></div>
         <div class="hangar-label">도전 모드</div>
@@ -88,11 +88,13 @@
         <div class="hangar-label">기체</div>
         <div id="ship-select"></div>
         <button id="drone-summary" class="drone-summary" type="button">장착된 드론 없음</button>
+        <button id="trait-summary" class="drone-summary" type="button">장착된 특성 없음</button>
         <div class="hangar-actions">
           <button id="start-btn">출격</button>
           <button id="meta-btn" class="secondary">영구 강화</button>
           <button id="gacha-btn" class="secondary">블랙마켓</button>
           <button id="drone-bay-btn" class="secondary">드론 베이</button>
+          <button id="trait-btn" class="secondary">특성</button>
           <button id="achv-btn" class="secondary">업적</button>
           <button id="codex-btn" class="secondary">도감</button>
         </div>
@@ -104,6 +106,14 @@
         <p class="overlay-sub">출격 전 보조 드론 1기를 장착합니다 · 💰 <span id="drone-shop-credits">0</span></p>
         <div id="drone-select"></div>
         <button id="drone-close-btn" class="secondary">닫기</button>
+      </div>
+
+      <!-- ===== 파일럿 특성 ===== -->
+      <div id="trait-overlay" class="overlay hidden">
+        <h2 class="overlay-title">PILOT TRAITS</h2>
+        <p class="overlay-sub">보스 코어로 해금 · 출격 전 1개만 장착 · 🔮 <span id="trait-shop-cores">0</span></p>
+        <div id="trait-select"></div>
+        <button id="trait-close-btn" class="secondary">닫기</button>
       </div>
 
       <!-- ===== 패치 노트 ===== -->

@@ -3,13 +3,14 @@ import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
 import { UI, craftLockedPreviewHtml, craftArsenalPreviewHtml } from './UI';
 import { AudioManager } from './Audio';
-import { generateChoices, generateCraftChoices, applyChoice } from './LevelUpSystem';
+import { generateChoices, generateCraftChoices, generateAltarRewards, applyChoice } from './LevelUpSystem';
 import {
   loadMeta, saveMeta, settleRun, tryBuyUpgrade, tryUnlockShip, selectShip,
   selectStage, selectChallenge, tryOpenGacha,
   tryUnlockDrone, selectDrone, tryUpgradeDrone,
+  tryUnlockTrait, selectTrait,
 } from './Meta';
-import type { ShipId, MetaUpgradeId, DroneId } from './types';
+import type { ShipId, MetaUpgradeId, DroneId, PilotTraitId } from './types';
 import './style.css';
 
 const wrap = document.getElementById('game-wrap') as HTMLDivElement;
@@ -165,9 +166,20 @@ function openCraftUI(): void {
 }
 
 function continueAfterChoice(): void {
-  if (state.pendingCrafts > 0) openCraftUI();
+  if (state.pendingAltarRewards > 0) openAltarRewardUI();
+  else if (state.pendingCrafts > 0) openCraftUI();
   else if (state.pendingLevelUps > 0) openLevelUpUI();
   else state.status = 'playing';
+}
+
+function openAltarRewardUI(): void {
+  const choices = generateAltarRewards();
+  ui.showLevelUp(choices, (choice) => {
+    applyChoice(state, choice);
+    ui.hideLevelUp();
+    state.pendingAltarRewards--;
+    continueAfterChoice();
+  }, { title: 'VOID CACHE', sub: '시련의 대가를 고르세요' });
 }
 
 function endRun(cleared: boolean): void {
@@ -186,7 +198,7 @@ function processEvents(): void {
     audio.handleEvent(ev);
     switch (ev.type) {
       case 'banner':
-        ui.showBanner(ev.text);
+        ui.showBanner(ev.text, ev.text.startsWith('[안내]') ? 5000 : 2200);
         break;
       case 'story':
         ui.showStory(ev.text);
@@ -208,6 +220,13 @@ function processEvents(): void {
       case 'jackpot':
         hitstop = Math.max(hitstop, 0.5);
         vibrate(220);
+        break;
+      case 'altarHint':
+        meta.seenAltarHint = true;
+        saveMeta(meta);
+        break;
+      case 'altarActivate':
+        vibrate(180);
         break;
       case 'riftWarn':
         vibrate(200);
@@ -245,7 +264,8 @@ function loop(now: number): void {
     } else {
       const status: GameStatus = state.update(dt);
       if (status === 'levelup') {
-        if (state.pendingCrafts > 0) openCraftUI();
+        if (state.pendingAltarRewards > 0) openAltarRewardUI();
+        else if (state.pendingCrafts > 0) openCraftUI();
         else openLevelUpUI();
       }
       else if (status === 'gameover') endRun(false);
@@ -325,6 +345,16 @@ ui.onSelectDrone((id: DroneId) => {
 ui.onUpgradeDrone((id: DroneId) => {
   if (!tryUpgradeDrone(meta, id)) ui.showBanner('강화 불가');
   else ui.refreshHangar();
+});
+
+ui.onUnlockTraitRequest((id: PilotTraitId) => {
+  if (tryUnlockTrait(meta, id)) ui.refreshHangar();
+  else ui.showBanner('보스 코어가 부족합니다');
+});
+
+ui.onSelectTrait((id: PilotTraitId) => {
+  selectTrait(meta, id);
+  ui.refreshHangar();
 });
 
 ui.onBuyUpgrade((id: MetaUpgradeId) => {

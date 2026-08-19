@@ -1,11 +1,11 @@
 import type {
   AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
-  ShipSkinId, ProjSkinId, WeaponId, DroneId,
+  ShipSkinId, ProjSkinId, WeaponId, DroneId, PilotTraitId,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
   STAGES, DEFAULT_STAGE, DEFAULT_CHALLENGE,
-  GACHA, SHIP_SKINS, PROJ_SKINS, DRONES,
+  GACHA, SHIP_SKINS, PROJ_SKINS, DRONES, PILOT_TRAITS,
 } from './GameConfig';
 import type { GameState } from './GameState';
 import { WEAPONS } from './GameConfig';
@@ -37,6 +37,10 @@ export interface MetaSave {
   unlockedDrones: DroneId[];
   selectedDrone: DroneId | null;
   droneLevels: Record<DroneId, number>;
+  bossCores: number;
+  unlockedTraits: PilotTraitId[];
+  selectedTrait: PilotTraitId | null;
+  seenAltarHint: boolean;
 }
 
 function defaultSave(): MetaSave {
@@ -60,6 +64,10 @@ function defaultSave(): MetaSave {
     unlockedDrones: [],
     selectedDrone: null,
     droneLevels: { retriever: 1, defender: 1, amplifier: 1 },
+    bossCores: 0,
+    unlockedTraits: [],
+    selectedTrait: null,
+    seenAltarHint: false,
   };
 }
 
@@ -124,6 +132,14 @@ export function loadMeta(): MetaSave {
         retriever: 1, defender: 1, amplifier: 1,
         ...parsed.droneLevels,
       },
+      bossCores: Math.max(0, parsed.bossCores ?? 0),
+      unlockedTraits: (parsed.unlockedTraits ?? []).filter(
+        (id): id is PilotTraitId => typeof id === 'string' && id in PILOT_TRAITS,
+      ),
+      selectedTrait: parsed.selectedTrait && parsed.selectedTrait in PILOT_TRAITS
+        ? parsed.selectedTrait
+        : null,
+      seenAltarHint: parsed.seenAltarHint === true,
     };
   } catch {
     return defaultSave();
@@ -222,6 +238,28 @@ export function tryUpgradeDrone(meta: MetaSave, id: DroneId): boolean {
   return true;
 }
 
+export function tryUnlockTrait(meta: MetaSave, id: PilotTraitId): boolean {
+  if (meta.unlockedTraits.includes(id)) return false;
+  const cost = PILOT_TRAITS[id].cost;
+  if (meta.bossCores < cost) return false;
+  meta.bossCores -= cost;
+  meta.unlockedTraits.push(id);
+  saveMeta(meta);
+  return true;
+}
+
+export function selectTrait(meta: MetaSave, id: PilotTraitId | null): boolean {
+  if (id === null) {
+    meta.selectedTrait = null;
+    saveMeta(meta);
+    return true;
+  }
+  if (!meta.unlockedTraits.includes(id)) return false;
+  meta.selectedTrait = meta.selectedTrait === id ? null : id;
+  saveMeta(meta);
+  return true;
+}
+
 function unlockNextStages(meta: MetaSave, cleared: StageId): void {
   for (const stage of Object.values(STAGES)) {
     if (stage.unlockAfter === cleared && !meta.unlockedStages.includes(stage.id)) {
@@ -265,6 +303,8 @@ export function settleRun(
     meta.achievements.push(id);
     achvReward += ACHIEVEMENTS[id].reward;
   }
+
+  meta.bossCores += state.bossKills;
 
   const creditsGained = baseGain + achvReward;
   meta.credits += creditsGained;

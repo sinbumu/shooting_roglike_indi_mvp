@@ -43,6 +43,7 @@ export class AudioManager {
   private lastGemAt = 0;
   private lastHitAt = 0;
   private lastShieldAt = 0;
+  private lastAltarTick = 0;
 
   // BGM 스케줄러
   private bgmStep = 0;
@@ -318,12 +319,49 @@ export class AudioManager {
         } else if (ev.kind === 'magnet') {
           this.tone(280, 0.32, { type: 'sine', slideTo: 1500, gain: 0.055 });
           this.tone(420, 0.2, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.06 });
-        } else if (ev.kind === 'cube') {
-          [784, 988, 1175, 1568].forEach((f, i) =>
+        } else if (ev.kind === 'cube' || ev.kind === 'goldCube') {
+          const seq = ev.kind === 'goldCube'
+            ? [523, 784, 1047, 1319]
+            : [784, 988, 1175, 1568];
+          seq.forEach((f, i) =>
             this.tone(f, 0.1, { type: 'sine', gain: 0.05, delay: i * 0.045 }),
           );
           this.tone(2093, 0.22, { type: 'triangle', gain: 0.04, delay: 0.2 });
         }
+        break;
+
+      case 'altarTick': {
+        if (now - this.lastAltarTick < 120) break;
+        this.lastAltarTick = now;
+        const f = 400 + ev.pitch * 800;
+        this.tone(f, 0.04, { type: 'square', gain: 0.035 + ev.pitch * 0.03 });
+        break;
+      }
+      case 'altarActivate':
+        this.noise(0.28, { gain: 0.14, freq: 90 });
+        this.tone(80, 0.4, { type: 'sawtooth', slideTo: 40, gain: 0.08 });
+        this.tone(160, 0.2, { type: 'square', slideTo: 90, gain: 0.05, delay: 0.05 });
+        break;
+      case 'hazardWarn':
+        for (let i = 0; i < 3; i++) {
+          this.tone(220 + i * 80, 0.12, { type: 'sawtooth', slideTo: 110, gain: 0.06, delay: i * 0.12 });
+        }
+        break;
+      case 'solarFlare':
+        this.noise(0.35, { gain: 0.16, freq: 1800, highpass: 400 });
+        this.tone(90, 0.3, { type: 'sawtooth', slideTo: 40, gain: 0.07 });
+        break;
+      case 'asteroid':
+        this.noise(0.4, { gain: 0.18, freq: 120 });
+        this.tone(55, 0.45, { type: 'sawtooth', slideTo: 28, gain: 0.1 });
+        break;
+      case 'empStart':
+        this.noise(0.5, { gain: 0.12, freq: 2400, highpass: 800 });
+        this.tone(1400, 0.2, { type: 'square', slideTo: 200, gain: 0.04 });
+        break;
+      case 'execProc':
+        this.tone(180, 0.08, { type: 'square', gain: 0.05 });
+        this.tone(90, 0.12, { type: 'sawtooth', slideTo: 40, gain: 0.04, delay: 0.02 });
         break;
 
       case 'vacuum':

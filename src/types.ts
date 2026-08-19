@@ -302,7 +302,9 @@ export type MovePattern =
 /** 후반 돌연변이 */
 export type MutationId = 'explode' | 'split' | 'burst';
 
-export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube';
+export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube';
+
+export type PilotTraitId = 'lastStand' | 'turretDark' | 'executioner';
 
 /** Tier3 / 엔드게임 무기 접사 */
 export type AffixId = 'split' | 'pierce' | 'chain';
@@ -356,7 +358,9 @@ export type ChoiceKind =
   | 'tactical'
   | 'affix'
   | 'craft'
-  | 'evolve';
+  | 'evolve'
+  | 'awakening'
+  | 'altarReward';
 
 export interface LevelUpChoice {
   kind: ChoiceKind;
@@ -372,4 +376,5 @@ export interface LevelUpChoice {
   tacticalId?: TacticalId;
   affixId?: AffixId;
   craftOp?: CraftOp;
+  altarOp?: 'slot' | 'credits';
 }

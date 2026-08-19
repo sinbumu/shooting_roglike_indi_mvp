@@ -34,6 +34,7 @@ export const SPRITE_PATHS = {
     magnet: `${base}/pickup_magnet.png`,
     bomb: `${base}/pickup_bomb.png`,
     cube: `${base}/pickup_cube.png`,
+    goldCube: `${base}/pickup_cube.png`,
   } satisfies Record<PickupKind, string>,
 } as const;
 

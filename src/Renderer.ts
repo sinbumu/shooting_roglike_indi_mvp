@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -245,7 +245,7 @@ export class Renderer {
     this.updateParticles(dt);
     this.updateDamageTexts(dt);
     this.updateShake(dt);
-    this.updateFlash(dt);
+    this.updateFlash(dt, state);
 
     this.glowPool.begin();
     this.entityPool.begin();
@@ -253,6 +253,7 @@ export class Renderer {
 
     this.drawBackground(state);
     this.drawStars(dt, state.status !== 'gameover');
+    this.drawAltarAndHazards(state);
     this.drawGems(state);
     this.drawPickups(state);
     this.drawEnemies(state);
@@ -351,6 +352,7 @@ export class Renderer {
           const tint = ev.kind === 'heal' ? 0x4ade80
             : ev.kind === 'magnet' ? 0x38bdf8
             : ev.kind === 'cube' ? 0x67e8f9
+            : ev.kind === 'goldCube' ? 0xfbbf24
             : 0xfb923c;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
           break;
@@ -386,6 +388,36 @@ export class Renderer {
           this.flashAlpha = 0.5;
           this.flashColor = 0xffffff;
           this.shake(8, 0.4);
+          break;
+        case 'altarActivate':
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.55, sizeFrom: 40, sizeTo: 220, tint: 0xef4444, alphaFrom: 0.95, ring: true });
+          this.flashAlpha = 0.45;
+          this.flashColor = 0xef4444;
+          this.shake(10, 0.45);
+          break;
+        case 'hazardWarn':
+          this.flashAlpha = 0.28;
+          this.flashColor = ev.kind === 'emp' ? 0x67e8f9 : 0xef4444;
+          this.shake(6, 0.3);
+          break;
+        case 'solarFlare':
+          this.flashAlpha = 0.85;
+          this.flashColor = 0xffffff;
+          this.shake(12, 0.4);
+          break;
+        case 'asteroid':
+          this.flashAlpha = 0.4;
+          this.flashColor = 0xfb923c;
+          this.shake(14, 0.5);
+          break;
+        case 'empStart':
+          this.flashAlpha = 0.35;
+          this.flashColor = 0x38bdf8;
+          this.shake(8, 0.4);
+          break;
+        case 'execProc':
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 16, sizeTo: 70, tint: 0xf8fafc, alphaFrom: 0.95, ring: true });
+          this.hitSpark(ev.x, ev.y, 0xf87171);
           break;
         default:
           break;
@@ -648,11 +680,29 @@ export class Renderer {
     }
   }
 
-  private updateFlash(dt: number): void {
+  private updateFlash(dt: number, state: GameState): void {
     this.flashG.clear();
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 1.8);
       this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: this.flashColor, alpha: this.flashAlpha });
+    }
+    const hz = state.envHazard;
+    if (hz?.kind === 'solar') {
+      const pulse = 0.35 + Math.sin(this.elapsed * 10) * 0.2;
+      const t = 10;
+      this.flashG.rect(0, 0, CANVAS.width, t).fill({ color: 0xef4444, alpha: pulse });
+      this.flashG.rect(0, CANVAS.height - t, CANVAS.width, t).fill({ color: 0xef4444, alpha: pulse });
+      this.flashG.rect(0, 0, t, CANVAS.height).fill({ color: 0xef4444, alpha: pulse });
+      this.flashG.rect(CANVAS.width - t, 0, t, CANVAS.height).fill({ color: 0xef4444, alpha: pulse });
+    }
+    if (state.empLeft > 0) {
+      for (let i = 0; i < 36; i++) {
+        const x = Math.random() * CANVAS.width;
+        const y = Math.random() * CANVAS.height;
+        const w = 6 + Math.random() * 48;
+        const h = 1 + Math.random() * 3;
+        this.flashG.rect(x, y, w, h).fill({ color: 0xe2e8f0, alpha: 0.06 + Math.random() * 0.12 });
+      }
     }
   }
 
@@ -1065,6 +1115,7 @@ export class Renderer {
       const tint = p.kind === 'heal' ? 0x4ade80
         : p.kind === 'magnet' ? 0x38bdf8
         : p.kind === 'cube' ? 0x67e8f9
+        : p.kind === 'goldCube' ? 0xfbbf24
         : 0xfb923c;
       const tex = this.atlas.pickups[p.kind];
 
@@ -1089,7 +1140,7 @@ export class Renderer {
           g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
           g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
           g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
-        } else if (p.kind === 'cube') {
+        } else if (p.kind === 'cube' || p.kind === 'goldCube') {
           const r = PICKUPS.radius + 2;
           g.poly([p.x, y - r, p.x + r * 0.75, y, p.x, y + r, p.x - r * 0.75, y], true).fill(tint);
         } else {
@@ -1208,7 +1259,8 @@ export class Renderer {
     if (state.droneId) {
       const dx = state.playerX + 22;
       const dy = state.playerY - 16 + Math.sin(this.elapsed * 3) * 4;
-      const col = state.droneId === 'retriever' ? 0x38bdf8
+      const col = state.empLeft > 0 ? 0x94a3b8
+        : state.droneId === 'retriever' ? 0x38bdf8
         : state.droneId === 'defender' ? 0x86efac
         : 0x818cf8;
       g.circle(dx, dy, 6).fill(col);
@@ -1219,6 +1271,65 @@ export class Renderer {
       glow.position.set(dx, dy);
       glow.width = glow.height = 22;
       glow.alpha = 0.7;
+    }
+    if (state.turretDarkActive) {
+      const pulse = 0.18 + Math.sin(this.elapsed * 6) * 0.06;
+      g.circle(state.playerX, state.playerY, 42).fill({ color: 0xef4444, alpha: pulse });
+      g.circle(state.playerX, state.playerY, 42).stroke({ width: 2, color: 0xf97316, alpha: 0.7 });
+    }
+    if (state.empLeft > 0 && Math.random() < 0.12) {
+      this.spawnParticle({
+        x: state.playerX + (Math.random() - 0.5) * 28,
+        y: state.playerY + (Math.random() - 0.5) * 28,
+        vx: (Math.random() - 0.5) * 40,
+        vy: (Math.random() - 0.5) * 40,
+        life: 0.18, sizeFrom: 6, sizeTo: 2, tint: 0xfacc15, alphaFrom: 0.9,
+      });
+    }
+  }
+
+  private drawAltarAndHazards(state: GameState): void {
+    const g = this.coreG;
+    const altar = state.altar;
+    if (altar && !altar.done) {
+      const glow = this.glowPool.get();
+      glow.tint = 0xef4444;
+      glow.position.set(altar.x, altar.y);
+      glow.width = glow.height = 70 + Math.sin(this.elapsed * 4) * 10;
+      glow.alpha = 0.55 + altar.charge * 0.35;
+      g.roundRect(altar.x - 10, altar.y - 28, 20, 48, 3).fill(0x0f172a);
+      g.roundRect(altar.x - 14, altar.y + 16, 28, 8, 2).fill(0x111827);
+      g.rect(altar.x - 4, altar.y - 32, 8, 10).fill(0x7f1d1d);
+      if (altar.charge > 0 && altar.trialLeft === 0) {
+        const r = VOID_ALTAR.radius + 6;
+        const start = -Math.PI / 2;
+        const end = start + altar.charge * Math.PI * 2;
+        const t = altar.charge;
+        const col = (Math.round(0xfb + (0xef - 0xfb) * t) << 16)
+          | (Math.round(0xbf + (0x44 - 0xbf) * t) << 8)
+          | Math.round(0x24 + (0x44 - 0x24) * t);
+        g.circle(altar.x, altar.y, r).stroke({ width: 3, color: 0x334155, alpha: 0.5 });
+        g.moveTo(altar.x + Math.cos(start) * r, altar.y + Math.sin(start) * r);
+        g.arc(altar.x, altar.y, r, start, end);
+        g.stroke({ width: 5, color: col, alpha: 0.95 });
+      }
+    }
+    const hz = state.envHazard;
+    if (!hz) return;
+    if (hz.kind === 'solar') {
+      for (const s of hz.shades) {
+        g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x38bdf8, alpha: 0.22 + Math.sin(this.elapsed * 5) * 0.05 });
+        g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x7dd3fc, alpha: 0.7 });
+      }
+    } else if (hz.kind === 'asteroid') {
+      const t = hz.phase === 'warn' ? 1 - hz.left / HAZARDS.asteroid.warnSec : 1;
+      const alpha = 0.25 + t * 0.45;
+      const col = t > 0.7 ? 0xdc2626 : 0xf87171;
+      for (const x of hz.beams) {
+        g.rect(x - HAZARDS.asteroid.beamW / 2, 0, HAZARDS.asteroid.beamW, CANVAS.height)
+          .fill({ color: col, alpha });
+        g.rect(x - 2, 0, 4, CANVAS.height).fill({ color: 0xfef2f2, alpha: 0.35 + t * 0.4 });
+      }
     }
   }
 

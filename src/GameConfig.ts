@@ -4,7 +4,7 @@ import type {
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
   AffixId, StatBoostId, TacticalId,
-  ShipSkinId, ProjSkinId, DroneDef, DroneId,
+  ShipSkinId, ProjSkinId, DroneDef, DroneId, PilotTraitId,
 } from './types';
 
 // ============================================================
@@ -822,6 +822,88 @@ export const AFFIXES: Record<AffixId, {
     icon: '🔗', color: '#fbbf24', weight: 30,
   },
 };
+
+/** 공허의 제단 */
+export const VOID_ALTAR = {
+  firstAt: 100,
+  radius: 50,
+  chargeSec: 3,
+  eliteCount: 12,
+  ringRadius: 130,
+  creditMul: 3,
+  elitePool: ['dasher', 'rusher', 'tank', 'zigzag'] as const satisfies readonly EnemyId[],
+} as const;
+
+/** 스테이지 환경 재해 */
+export const HAZARDS = {
+  firstAt: 90,
+  cooldown: 75,
+  bossAvoidWindow: 8,
+  solar: {
+    warnSec: 3,
+    burnSec: 4,
+    hpPctPerSec: 0.1,
+    shadeMin: 2,
+    shadeMax: 3,
+    shadeW: 110,
+    shadeH: 110,
+  },
+  asteroid: {
+    warnSec: 2,
+    beamW: 80,
+    beamMin: 3,
+    beamMax: 4,
+    bossHpPct: 0.25,
+  },
+  emp: {
+    duration: 10,
+  },
+} as const;
+
+/** Lv.50 코어 각성 */
+export const AWAKEN = {
+  level: 50,
+  dashCharges: 3,
+  dashBossHpPct: 0.1,
+  aegisPerShot: 45,
+  stasisCooldownMul: 0.5,
+} as const;
+
+export const PILOT_TRAITS: Record<PilotTraitId, {
+  id: PilotTraitId;
+  name: string;
+  icon: string;
+  color: string;
+  tag: string;
+  desc: string;
+  cost: number;
+}> = {
+  lastStand: {
+    id: 'lastStand', name: '배수진', icon: '🩸', color: '#ef4444',
+    tag: '[치명]',
+    desc: '체력이 30% 이하일 때 모든 공격이 치명타가 됩니다.',
+    cost: 1,
+  },
+  turretDark: {
+    id: 'turretDark', name: '포대 암전', icon: '🛑', color: '#f97316',
+    tag: '[고정 포격]',
+    desc: '입력 없이 2초간 정지하면 붉은 오라가 켜지고 데미지 +40%. 이동 시 즉시 해제.',
+    cost: 1,
+  },
+  executioner: {
+    id: 'executioner', name: '처형인', icon: '☠️', color: '#e2e8f0',
+    tag: '[즉사]',
+    desc: '체력 15% 이하인 일반 적을 타격하면 즉사합니다.',
+    cost: 1,
+  },
+};
+
+export const PILOT_FX = {
+  lastStandHp: 0.3,
+  turretStillSec: 2,
+  turretDmgMul: 1.4,
+  execHp: 0.15,
+} as const;
 
 /** 돌발 균열 이벤트 웨이브 */
 export const RIFT_EVENT = {

@@ -1,8 +1,8 @@
-import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId, DroneId } from './types';
+import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId, DroneId, PilotTraitId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
   STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
-  COMBAT, RECIPES, DRONES, DRONE_FX,
+  COMBAT, RECIPES, DRONES, DRONE_FX, PILOT_TRAITS,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -64,6 +64,7 @@ export class UI {
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
   private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
   private droneOverlay = document.getElementById('drone-overlay') as HTMLDivElement;
+  private traitOverlay = document.getElementById('trait-overlay') as HTMLDivElement;
   private patchOverlay = document.getElementById('patch-overlay') as HTMLDivElement;
   private codexOverlay = document.getElementById('codex-overlay') as HTMLDivElement;
   private patchList = document.getElementById('patch-list') as HTMLDivElement;
@@ -74,11 +75,15 @@ export class UI {
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private droneSelect = document.getElementById('drone-select') as HTMLDivElement;
   private droneSummary = document.getElementById('drone-summary') as HTMLButtonElement;
+  private traitSummary = document.getElementById('trait-summary') as HTMLButtonElement;
   private droneShopCredits = document.getElementById('drone-shop-credits') as HTMLSpanElement;
+  private traitSelect = document.getElementById('trait-select') as HTMLDivElement;
+  private traitShopCores = document.getElementById('trait-shop-cores') as HTMLSpanElement;
   private hudDrone = document.getElementById('hud-drone') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
   private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
   private metaCredits = document.getElementById('meta-credits') as HTMLSpanElement;
+  private metaCores = document.getElementById('meta-cores') as HTMLSpanElement;
   private metaStats = document.getElementById('meta-stats') as HTMLSpanElement;
   private metaShopCredits = document.getElementById('meta-shop-credits') as HTMLSpanElement;
   private metaShop = document.getElementById('meta-shop') as HTMLDivElement;
@@ -177,6 +182,16 @@ export class UI {
       this.droneOverlay.classList.add('hidden');
       this.refreshHangar();
     };
+    const openTraits = () => {
+      this.renderTraitModal();
+      this.traitOverlay.classList.remove('hidden');
+    };
+    this.traitSummary.onclick = openTraits;
+    (document.getElementById('trait-btn') as HTMLButtonElement).onclick = openTraits;
+    (document.getElementById('trait-close-btn') as HTMLButtonElement).onclick = () => {
+      this.traitOverlay.classList.add('hidden');
+      this.refreshHangar();
+    };
     const costEl = document.getElementById('gacha-cost');
     if (costEl) costEl.textContent = fmtCredits(GACHA.cost);
 
@@ -209,6 +224,7 @@ export class UI {
       this.metaCredits.textContent = fmtCredits(to);
       this.lastShownCredits = to;
     }
+    if (this.metaCores) this.metaCores.textContent = String(this.meta.bossCores);
     const st = this.meta.stats;
     this.metaStats.textContent = `런 ${st.runs} · 클리어 ${st.clears} · 처치 ${st.kills}`;
 
@@ -277,12 +293,15 @@ export class UI {
     }
 
     this.updateDroneSummary();
+    this.updateTraitSummary();
     if (!this.droneOverlay.classList.contains('hidden')) this.renderDroneModal();
+    if (!this.traitOverlay.classList.contains('hidden')) this.renderTraitModal();
 
     const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
     const metaBtn = document.getElementById('meta-btn') as HTMLButtonElement;
     const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
     const droneBayBtn = document.getElementById('drone-bay-btn') as HTMLButtonElement;
+    const traitBtn = document.getElementById('trait-btn') as HTMLButtonElement;
     const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
     const codexBtn = document.getElementById('codex-btn') as HTMLButtonElement;
     this.hangarGroups = [
@@ -290,7 +309,8 @@ export class UI {
       [...this.challengeSelect.querySelectorAll('button')],
       [...this.shipSelect.querySelectorAll('button')],
       [this.droneSummary],
-      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, droneBayBtn, achvBtn, codexBtn],
+      [this.traitSummary],
+      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, droneBayBtn, traitBtn, achvBtn, codexBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
       && this.metaOverlay.classList.contains('hidden')
@@ -298,9 +318,10 @@ export class UI {
       && this.gachaOverlay.classList.contains('hidden')
       && this.patchOverlay.classList.contains('hidden')
       && this.codexOverlay.classList.contains('hidden')
-      && this.droneOverlay.classList.contains('hidden')) {
-      this.hangarGroupIdx = 4;
-      this.setFocusGroup(this.hangarGroups[4]);
+      && this.droneOverlay.classList.contains('hidden')
+      && this.traitOverlay.classList.contains('hidden')) {
+      this.hangarGroupIdx = 5;
+      this.setFocusGroup(this.hangarGroups[5]);
     }
   }
 
@@ -314,6 +335,17 @@ export class UI {
     const d = DRONES[id];
     const lv = this.meta.droneLevels[id] ?? 1;
     this.droneSummary.textContent = `현재 드론: ${d.icon} ${d.name} Lv.${lv}`;
+  }
+
+  private updateTraitSummary(): void {
+    if (!this.meta) return;
+    const id = this.meta.selectedTrait;
+    if (!id) {
+      this.traitSummary.textContent = '장착된 특성 없음';
+      return;
+    }
+    const t = PILOT_TRAITS[id];
+    this.traitSummary.textContent = `현재 특성: ${t.icon} ${t.name}`;
   }
 
   private renderDroneModal(): void {
@@ -368,6 +400,43 @@ export class UI {
     ]);
   }
 
+  private renderTraitModal(): void {
+    if (!this.meta) return;
+    this.traitShopCores.textContent = String(this.meta.bossCores);
+    this.traitSelect.innerHTML = '';
+    for (const trait of Object.values(PILOT_TRAITS)) {
+      const unlocked = this.meta.unlockedTraits.includes(trait.id);
+      const selected = this.meta.selectedTrait === trait.id;
+      const row = document.createElement('div');
+      row.className = 'drone-row';
+      const card = document.createElement('button');
+      card.className = 'ship-card drone-card' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
+      card.style.setProperty('--ship-color', trait.color);
+      card.innerHTML = `
+        <div class="ship-name">${trait.icon} ${trait.name} <span class="drone-tag">${trait.tag}</span></div>
+        <div class="ship-desc">${trait.desc}</div>
+        ${unlocked
+          ? `<div class="ship-status">${selected ? '장착됨 · 다시 누르면 해제' : '선택'}</div>`
+          : `<div class="ship-status">🔒 보스 코어 ${trait.cost}개</div>`}
+      `;
+      card.addEventListener('click', () => {
+        if (!this.meta) return;
+        if (!unlocked) {
+          card.dispatchEvent(new CustomEvent('unlock-trait', { bubbles: true, detail: trait.id }));
+          return;
+        }
+        card.dispatchEvent(new CustomEvent('select-trait', { bubbles: true, detail: trait.id }));
+      });
+      row.appendChild(card);
+      this.traitSelect.appendChild(row);
+    }
+    const closeBtn = document.getElementById('trait-close-btn') as HTMLButtonElement;
+    this.setFocusGroup([
+      ...this.traitSelect.querySelectorAll('button'),
+      closeBtn,
+    ]);
+  }
+
   onSelectStage(fn: (id: StageId) => void): void {
     this.stageSelect.addEventListener('select-stage', ((e: CustomEvent<StageId>) => fn(e.detail)) as EventListener);
   }
@@ -392,6 +461,14 @@ export class UI {
 
   onUpgradeDrone(fn: (id: DroneId) => void): void {
     this.droneSelect.addEventListener('upgrade-drone', ((e: CustomEvent<DroneId>) => fn(e.detail)) as EventListener);
+  }
+
+  onUnlockTraitRequest(fn: (id: PilotTraitId) => void): void {
+    this.traitSelect.addEventListener('unlock-trait', ((e: CustomEvent<PilotTraitId>) => fn(e.detail)) as EventListener);
+  }
+
+  onSelectTrait(fn: (id: PilotTraitId) => void): void {
+    this.traitSelect.addEventListener('select-trait', ((e: CustomEvent<PilotTraitId>) => fn(e.detail)) as EventListener);
   }
 
   private refreshMetaShop(): void {
@@ -567,9 +644,11 @@ export class UI {
       const d = DRONES[state.droneId];
       this.hudDrone.textContent = `${d.icon} ${d.name} Lv.${state.droneLevel}`;
       this.hudDrone.classList.remove('hidden');
+      this.hudDrone.classList.toggle('emp-off', state.empLeft > 0);
     } else {
       this.hudDrone.textContent = '';
       this.hudDrone.classList.add('hidden');
+      this.hudDrone.classList.remove('emp-off');
     }
 
     const m = Math.floor(state.time / 60).toString().padStart(2, '0');
@@ -624,6 +703,20 @@ export class UI {
       this.skillCd.classList.add('hidden');
       return;
     }
+    if (state.coreAwakened && state.skillChargeMax > 0) {
+      if (state.skillCharges > 0) {
+        this.skillBtn.classList.add('ready');
+        this.skillBtn.classList.remove('cooling');
+        this.skillCd.textContent = String(state.skillCharges);
+        this.skillCd.classList.remove('hidden');
+      } else {
+        this.skillBtn.classList.add('cooling');
+        this.skillBtn.classList.remove('ready');
+        this.skillCd.textContent = String(Math.ceil(state.skillRechargeLeft));
+        this.skillCd.classList.remove('hidden');
+      }
+      return;
+    }
     if (state.skillCdLeft > 0) {
       this.skillBtn.classList.add('cooling');
       this.skillBtn.classList.remove('ready');
@@ -661,7 +754,7 @@ export class UI {
   }
 
   private renderPassives(state: GameState): void {
-    const key = state.passives.map((p) => `${p.passiveId}:${p.level}`).join(',');
+    const key = `${state.empLeft > 0 ? 1 : 0}:${state.passives.map((p) => `${p.passiveId}:${p.level}`).join(',')}`;
     if (key === this.lastPassiveKey) return;
     this.lastPassiveKey = key;
 
@@ -669,7 +762,7 @@ export class UI {
     for (let i = 0; i < state.maxPassiveSlots; i++) {
       const slot = state.passives[i];
       const el = document.createElement('div');
-      el.className = 'weapon-slot passive-slot' + (slot ? ' filled' : '');
+      el.className = 'weapon-slot passive-slot' + (slot ? ' filled' : '') + (state.empLeft > 0 ? ' emp-off' : '');
       if (slot) {
         const def = PASSIVES[slot.passiveId];
         el.style.borderColor = def.color;
@@ -734,13 +827,13 @@ export class UI {
     this.tooltipTimeout = window.setTimeout(() => this.tooltipEl.classList.add('hidden'), 3000);
   }
 
-  showBanner(text: string): void {
+  showBanner(text: string, duration = 2200): void {
     this.bannerEl.textContent = text;
     this.bannerEl.classList.remove('hidden', 'banner-anim');
     void this.bannerEl.offsetWidth;
     this.bannerEl.classList.add('banner-anim');
     if (this.bannerTimeout) clearTimeout(this.bannerTimeout);
-    this.bannerTimeout = window.setTimeout(() => this.bannerEl.classList.add('hidden'), 2200);
+    this.bannerTimeout = window.setTimeout(() => this.bannerEl.classList.add('hidden'), duration);
   }
 
   showStory(text: string): void {
@@ -771,7 +864,7 @@ export class UI {
       const card = document.createElement('button');
       card.className = 'choice-card'
         + (choice.kind === 'jackpot' ? ' jackpot' : '')
-        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' || choice.kind === 'evolve' ? ' endgame' : '');
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' || choice.kind === 'evolve' || choice.kind === 'awakening' || choice.kind === 'altarReward' ? ' endgame' : '');
       card.style.setProperty('--card-color', choice.color);
       card.innerHTML = `
         <span class="card-icon">${choice.icon}</span>
@@ -872,6 +965,7 @@ export class UI {
   hideStart(): void {
     this.startOverlay.classList.add('hidden');
     this.droneOverlay.classList.add('hidden');
+    this.traitOverlay.classList.add('hidden');
     this.clearFocus();
   }
 
@@ -928,7 +1022,8 @@ export class UI {
       return false;
     }
 
-    if (!this.droneOverlay.classList.contains('hidden')) {
+    if (!this.droneOverlay.classList.contains('hidden')
+      || !this.traitOverlay.classList.contains('hidden')) {
       if (e.code === 'Escape') return false;
       if (left || up) { this.moveFocus(-1); return true; }
       if (right || down) { this.moveFocus(1); return true; }

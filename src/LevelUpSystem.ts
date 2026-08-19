@@ -1,9 +1,9 @@
 import type {
-  LevelUpChoice, WeaponId, PassiveId, AffixId, StatBoostId, TacticalId, CraftOp,
+  LevelUpChoice, WeaponId, PassiveId, AffixId, StatBoostId, TacticalId, CraftOp, ShipId,
 } from './types';
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
-  ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP,
+  ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP, SHIPS, VOID_ALTAR, PLAYER,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -20,6 +20,8 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   affix: 'AFFIX — T0 접사',
   craft: 'CRAFT — 크래프팅',
   evolve: 'EVOLVE — 진화',
+  awakening: 'AWAKEN — 코어 각성',
+  altarReward: 'VOID — 공허의 보상',
 };
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
@@ -225,6 +227,11 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   const useEndgame = pool.length === 0;
   const drawPool = useEndgame ? buildEndgamePool(state) : pool;
 
+  if (state.awakeningDue && !state.coreAwakened) {
+    choices.push(awakeningChoice(state.shipId));
+    state.awakeningDue = false;
+  }
+
   /** 1·3·5번째 레벨업(Lv.2/4/6): 슬롯 여유 있으면 미보유 T1을 확정 등장 */
   const guaranteeNew =
     !useEndgame
@@ -276,6 +283,47 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   }
 
   return choices.slice(0, 3);
+}
+
+function awakeningChoice(shipId: ShipId): LevelUpChoice {
+  const ship = SHIPS[shipId];
+  const desc = ship.id === 'scout'
+    ? '위상 대시가 3회 충전식이 되고, 궤적의 일반 적을 즉사시키며 보스에게 최대 체력 10% 피해를 줍니다.'
+    : ship.id === 'fortress'
+      ? '방벽이 적 탄막을 흡수하고, 종료 시 흡수 수에 비례한 화면 전체 폭발을 방출합니다.'
+      : '시간 왜곡이 4초간 적과 탄막을 완전 정지시키고, 그 동안 무기 쿨타임이 절반이 됩니다.';
+  const title = ship.id === 'scout' ? '초공간 붕괴' : ship.id === 'fortress' ? '반사 역장' : '정지장';
+  return {
+    kind: 'awakening',
+    weight: 0,
+    title: `[코어 각성] ${title}`,
+    desc,
+    icon: '✨',
+    color: '#fde68a',
+  };
+}
+
+export function generateAltarRewards(): LevelUpChoice[] {
+  return [
+    {
+      kind: 'altarReward',
+      weight: 0,
+      title: '확장 하드포인트',
+      desc: `무기 최대 슬롯 +1 (현재 상한 ${PLAYER.maxWeaponSlots} → 런 중 +1)`,
+      icon: '🔫',
+      color: '#7dd3fc',
+      altarOp: 'slot',
+    },
+    {
+      kind: 'altarReward',
+      weight: 0,
+      title: '공허 배당',
+      desc: `이번 런 크레딧 획득량 ×${VOID_ALTAR.creditMul}`,
+      icon: '💰',
+      color: '#fbbf24',
+      altarOp: 'credits',
+    },
+  ];
 }
 
 function pickRandom<T>(arr: T[]): T {
@@ -521,5 +569,17 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       state.events.push({ type: 'banner', text: `🧬 ${from.name} → ${next.name}` });
       break;
     }
+    case 'awakening':
+      state.activateAwakening();
+      break;
+    case 'altarReward':
+      if (choice.altarOp === 'slot') {
+        state.maxWeaponSlots += 1;
+        state.events.push({ type: 'banner', text: '🔫 무기 슬롯 +1' });
+      } else if (choice.altarOp === 'credits') {
+        state.creditMul *= VOID_ALTAR.creditMul;
+        state.events.push({ type: 'banner', text: `💰 크레딧 ×${VOID_ALTAR.creditMul}` });
+      }
+      break;
   }
 }
