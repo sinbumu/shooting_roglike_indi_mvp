@@ -980,3 +980,50 @@ button:hover { transform: scale(1.05); }
 }
 
 #gameover-stats b { color: #f8fafc; }
+
+#victory-stats {
+  font-size: 15px;
+  line-height: 2;
+  color: #cbd5e1;
+}
+
+#victory-stats b { color: #f8fafc; }
+
+.dps-meter {
+  margin-top: 12px;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.dps-title {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.dps-row {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr 2.4rem;
+  gap: 8px;
+  align-items: center;
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.dps-name { color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dps-bar {
+  height: 8px;
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.dps-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+
+.dps-pct { color: #cbd5e1; text-align: right; font-variant-numeric: tabular-nums; }

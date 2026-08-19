@@ -654,7 +654,7 @@ export class UI {
       const card = document.createElement('button');
       card.className = 'choice-card'
         + (choice.kind === 'jackpot' ? ' jackpot' : '')
-        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' ? ' endgame' : '');
+        + (choice.kind === 'tactical' || choice.kind === 'statBoost' || choice.kind === 'affix' || choice.kind === 'craft' || choice.kind === 'evolve' ? ' endgame' : '');
       card.style.setProperty('--card-color', choice.color);
       card.innerHTML = `
         <span class="card-icon">${choice.icon}</span>
@@ -687,11 +687,28 @@ export class UI {
     const achvLine = newAchv.length
       ? `<br/>업적 ${newAchv.map((id) => ACHIEVEMENTS[id].icon + ACHIEVEMENTS[id].name).join(', ')}`
       : '';
+    const dealt = Object.entries(state.damageDealt)
+      .map(([id, dmg]) => ({ id: id as WeaponId, dmg: dmg ?? 0 }))
+      .filter((e) => e.dmg > 0)
+      .sort((a, b) => b.dmg - a.dmg);
+    const total = dealt.reduce((sum, e) => sum + e.dmg, 0);
+    const meter = dealt.length === 0 || total <= 0
+      ? ''
+      : `<div class="dps-meter"><div class="dps-title">딜 기여도</div>${dealt.map((e) => {
+        const pct = (e.dmg / total) * 100;
+        const def = WEAPONS[e.id];
+        return `<div class="dps-row">
+          <span class="dps-name">${def.icon} ${def.name}</span>
+          <span class="dps-bar"><i style="width:${pct.toFixed(1)}%;background:${def.color}"></i></span>
+          <span class="dps-pct">${pct.toFixed(0)}%</span>
+        </div>`;
+      }).join('')}</div>`;
     return `
       점수 <b>${state.score.toLocaleString()}</b>${isNew ? ' <span class="new-record">🎉 신기록!</span>' : ''}<br/>
       최고 기록 <b>${best.toLocaleString()}</b> · 획득 크레딧 <b>+${creditsGained}</b><br/>
       생존 <b>${m}:${s}</b> · 처치 <b>${state.kills}</b> · Lv.<b>${state.level}</b><br/>
       ${STAGES[state.stageId].icon}${STAGES[state.stageId].name} · ${CHALLENGES[state.challengeId].icon}${CHALLENGES[state.challengeId].name}${achvLine}
+      ${meter}
     `;
   }
 

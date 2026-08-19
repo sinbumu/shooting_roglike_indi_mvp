@@ -57,31 +57,50 @@ function defaultSave(): MetaSave {
   };
 }
 
+function migrateStageId(id: string): StageId | null {
+  if (id === 'nebula') return 'rift';
+  if (id in STAGES) return id as StageId;
+  return null;
+}
+
+function migrateStageList(ids: string[] | undefined, fallback: StageId[]): StageId[] {
+  const out: StageId[] = [];
+  for (const raw of ids ?? []) {
+    const mapped = migrateStageId(raw);
+    if (mapped && !out.includes(mapped)) out.push(mapped);
+  }
+  return out.length ? out : fallback;
+}
+
 export function loadMeta(): MetaSave {
   try {
     // v1 → v2 마이그레이션
     const raw = localStorage.getItem(META.storageKey)
       ?? localStorage.getItem('stellar-meta-v1');
     if (!raw) return defaultSave();
-    const parsed = JSON.parse(raw) as Partial<MetaSave>;
+    const parsed = JSON.parse(raw) as Partial<MetaSave> & {
+      unlockedStages?: string[];
+      clearedStages?: string[];
+      selectedStage?: string;
+    };
     const base = defaultSave();
-    const unlockedStages = parsed.unlockedStages?.length
-      ? parsed.unlockedStages
-      : base.unlockedStages;
+    const unlockedStages = migrateStageList(parsed.unlockedStages, base.unlockedStages);
+    const clearedStages = (parsed.clearedStages ?? []).filter(
+      (id): id is StageId => typeof id === 'string' && id in STAGES,
+    );
+    const selected = parsed.selectedStage ? migrateStageId(parsed.selectedStage) : null;
     return {
       ...base,
       ...parsed,
       upgrades: { ...base.upgrades, ...parsed.upgrades },
       unlockedShips: parsed.unlockedShips?.length ? parsed.unlockedShips : base.unlockedShips,
       unlockedStages,
-      clearedStages: parsed.clearedStages ?? [],
+      clearedStages,
       achievements: parsed.achievements ?? [],
       selectedShip: parsed.selectedShip && (parsed.unlockedShips ?? base.unlockedShips).includes(parsed.selectedShip)
         ? parsed.selectedShip
         : DEFAULT_SHIP,
-      selectedStage: parsed.selectedStage && unlockedStages.includes(parsed.selectedStage)
-        ? parsed.selectedStage
-        : DEFAULT_STAGE,
+      selectedStage: selected && unlockedStages.includes(selected) ? selected : DEFAULT_STAGE,
       selectedChallenge: parsed.selectedChallenge ?? DEFAULT_CHALLENGE,
       stats: { ...base.stats, ...parsed.stats },
       unlockedShipSkins: parsed.unlockedShipSkins ?? [],
@@ -213,8 +232,8 @@ function evaluateAchievements(
   tryUnlock('survive_60', state.time >= 60);
   tryUnlock('survive_180', state.time >= 180);
   tryUnlock('clear_mission', cleared && state.stageId === 'orbit');
-  tryUnlock('nebula_clear', cleared && state.stageId === 'nebula');
   tryUnlock('rift_clear', cleared && state.stageId === 'rift');
+  tryUnlock('legion_clear', cleared && state.stageId === 'legion');
   tryUnlock('challenge_clear', cleared && state.challengeId !== 'standard');
   tryUnlock('boss_slayer', state.bossKills >= 1);
   tryUnlock('combo_20', state.maxCombo >= 20);

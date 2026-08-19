@@ -8,6 +8,7 @@ import {
   BOSS, SCORE, PICKUPS, COMBAT, ENDGAME, TACTICAL, AFFIXES, RIFT_EVENT,
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
   SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS, HOMING,
+  LEGION, LEVEL_AEGIS,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -54,6 +55,12 @@ export interface Projectile {
   /** 실더 정면 쉴드 관통 (관통·스웜 등) */
   shieldPierce?: boolean;
   ignoreShield?: boolean;
+  weaponId?: WeaponId;
+  orbitAngle?: number;
+  orbitRadius?: number;
+  orbitOmega?: number;
+  originX?: number;
+  originY?: number;
 }
 
 export interface Beam {
@@ -69,6 +76,7 @@ export interface Beam {
   color: string;
   ignoreShield: boolean;
   affix?: AffixId;
+  weaponId?: WeaponId;
 }
 
 export interface Enemy {
@@ -246,6 +254,10 @@ export class GameState {
 
   weapons: WeaponSlot[] = [];
   passives: PassiveSlot[] = [];
+  /** 획득 순서 (진화 카드용) */
+  acquireOrder: WeaponId[] = [];
+  /** 무기별 누적 딜 (결과창) */
+  damageDealt: Partial<Record<WeaponId, number>> = {};
 
   // 월드
   enemies: Enemy[] = [];
@@ -283,6 +295,16 @@ export class GameState {
   private riftWarnAt: number | null = null;
   private riftActive = 0;
   private baseExpMul = 1;
+
+  legionHpMul = 1;
+  legionSpawnMul = 0;
+  private wardenStacks = 0;
+  private heraldStacks = 0;
+  private nextCommanderAt = LEGION.firstAt;
+  private commanderWarned = false;
+  /** 레벨업 쉴드 남은 시간 */
+  levelAegisLeft = 0;
+  private levelAegisReduce = 0;
 
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
@@ -345,6 +367,8 @@ export class GameState {
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
+    this.acquireOrder = [ship.startingWeapon];
+    this.damageDealt = {};
     this.applyPassiveEffects();
     this.weapons = [{ weaponId: ship.startingWeapon, level: 1, cooldownLeft: 300 }];
     this.status = 'playing';
@@ -362,8 +386,6 @@ export class GameState {
 
   /** 패시브 + 한계돌파 + 버프 타이머 → 런타임 스탯 재계산 */
   applyPassiveEffects(): void {
-    let magnetAdd = 0;
-    let speedAdd = 0;
     let armor = 0;
     let expAdd = 0;
     let dmgAdd = 0;
@@ -373,8 +395,6 @@ export class GameState {
       const def = PASSIVES[p.passiveId];
       const v = def.perLevel * p.level;
       switch (p.passiveId) {
-        case 'magnet': magnetAdd += v; break;
-        case 'thruster': speedAdd += v; break;
         case 'plating': armor += v; break;
         case 'collector': expAdd += v; break;
         case 'overcharge': dmgAdd += v; break;
@@ -388,8 +408,8 @@ export class GameState {
     const storm = this.magnetStormLeft > 0;
     const magnetMul = storm ? (TACTICAL.magnetStorm.magnetMul ?? 1) : 1;
     const stormExp = storm ? (TACTICAL.magnetStorm.expMul ?? 1) : 1;
-    this.magnetRadius = (this.baseMagnet + magnetAdd) * magnetMul;
-    this.moveSpeed = this.baseMoveSpeed * (1 + speedAdd) * this.runStats.moveSpeedMul;
+    this.magnetRadius = this.baseMagnet * magnetMul;
+    this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul;
     this.armorReduce = Math.min(0.7, armor);
     this.expMul = this.baseExpMul * stormExp;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
@@ -452,6 +472,12 @@ export class GameState {
 
   noteWeapon(id: WeaponId): void {
     this.seenThisRun.add(id);
+    this.acquireOrder.push(id);
+  }
+
+  untrackAcquire(id: WeaponId): void {
+    const i = this.acquireOrder.lastIndexOf(id);
+    if (i >= 0) this.acquireOrder.splice(i, 1);
   }
 
   /** 어픽스 리롤 (T3 + 기존 어픽스) */
@@ -526,7 +552,7 @@ export class GameState {
       case 'emp': {
         this.enemyProjectiles.length = 0;
         for (const e of [...this.enemies]) {
-          const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+          const isBoss = this.isBossLike(e);
           if (isBoss) this.damageEnemy(e, PICKUPS.bombDamage * 1.2);
           else this.damageEnemy(e, e.hp + 1);
         }
@@ -590,6 +616,7 @@ export class GameState {
     this.updateWeapons(dt);
     this.updateSpawns(dt);
     this.updateBossSchedule();
+    this.updateCommanderSchedule();
     this.updateRiftEvent(dt);
     this.updateWarnings(dt);
     const edt = dt * this.worldSlow;
@@ -612,6 +639,15 @@ export class GameState {
         this.magnetStormLeft = 0;
         this.applyPassiveEffects();
       }
+    }
+    if (this.levelAegisLeft > 0) {
+      this.levelAegisLeft = Math.max(0, this.levelAegisLeft - dt);
+    }
+    if (this.wardenStacks > 0) {
+      this.legionHpMul += LEGION.hpPerSec * this.wardenStacks * dt;
+    }
+    if (this.heraldStacks > 0) {
+      this.legionSpawnMul += LEGION.spawnPerSec * this.heraldStacks * dt;
     }
   }
 
@@ -751,7 +787,11 @@ export class GameState {
     let pierce = p.pierce;
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
     const color = this.projSkinColors[slot.weaponId] ?? def.color;
-    const baseAngle = -Math.PI / 2; // 위쪽
+    let baseAngle = -Math.PI / 2; // 위쪽
+    if (p.targeted) {
+      const target = this.nearestEnemy(this.playerX, this.playerY, new Set());
+      if (target) baseAngle = Math.atan2(target.y - this.playerY, target.x - this.playerX);
+    }
     const sizeMul = 1 + (slot.radiusBonus ?? 0);
 
     if (p.beam) {
@@ -768,6 +808,7 @@ export class GameState {
         color,
         ignoreShield: !!p.ignoreShield,
         affix: slot.affix,
+        weaponId: slot.weaponId,
       });
       this.events.push({
         type: 'fired',
@@ -777,6 +818,8 @@ export class GameState {
       return;
     }
 
+    const originX = this.playerX;
+    const originY = this.playerY - PLAYER.radius;
     for (let i = 0; i < p.count; i++) {
       let angle: number;
       if (p.randomSpread) {
@@ -784,14 +827,14 @@ export class GameState {
       } else if (p.count === 1 || p.spreadDeg === 0) {
         angle = baseAngle;
       } else if (p.spreadDeg >= 360) {
-        angle = (Math.PI * 2 * i) / p.count + this.time; // 회전 살포
+        angle = (Math.PI * 2 * i) / p.count + (p.spiral ? 0 : this.time);
       } else {
         const arc = (p.spreadDeg * Math.PI) / 180;
         angle = baseAngle - arc / 2 + (arc * i) / (p.count - 1);
       }
-      this.projectiles.push({
-        x: this.playerX,
-        y: this.playerY - PLAYER.radius,
+      const proj: Projectile = {
+        x: originX,
+        y: originY,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         speed,
@@ -808,7 +851,18 @@ export class GameState {
         explodeRadius: p.explodeRadius ? p.explodeRadius * sizeMul : undefined,
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
         ignoreShield: p.ignoreShield,
-      });
+        weaponId: slot.weaponId,
+      };
+      if (p.spiral) {
+        proj.orbitAngle = angle;
+        proj.orbitRadius = PLAYER.radius + 8;
+        proj.orbitOmega = 2.8;
+        proj.originX = originX;
+        proj.originY = originY;
+        proj.x = originX + Math.cos(angle) * proj.orbitRadius;
+        proj.y = originY + Math.sin(angle) * proj.orbitRadius;
+      }
+      this.projectiles.push(proj);
     }
     this.events.push({
       type: 'fired',
@@ -826,7 +880,7 @@ export class GameState {
       wave.entries.forEach((entry, ei) => {
         const key = `${wi}:${ei}`;
         const t = (this.spawnTimers.get(key) ?? 0) + dt;
-        const interval = entry.interval * scale;
+        const interval = entry.interval * scale / (1 + this.legionSpawnMul);
         if (t >= interval) {
           this.spawnTimers.set(key, t - interval);
           this.spawnEnemy(entry.enemy, entry.mutation);
@@ -898,6 +952,33 @@ export class GameState {
       this.events.push({ type: 'bossSpawned', x: boss.x, y: boss.y });
       this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[bossType].name}` });
     }
+  }
+
+  private updateCommanderSchedule(): void {
+    if (this.stageId !== 'legion') return;
+    if (this.time < this.nextCommanderAt - BOSS.warningLead) return;
+
+    if (!this.commanderWarned && this.time < this.nextCommanderAt) {
+      this.commanderWarned = true;
+      this.events.push({ type: 'bossWarn' });
+      this.events.push({ type: 'banner', text: '⚠ 군단장 접근 중' });
+    }
+    if (this.time < this.nextCommanderAt) return;
+
+    const pool = LEGION.commanders;
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    const e = this.addEnemy(id, CANVAS.width / 2, -60, 1, false);
+    e.introLeft = BOSS.introDuration;
+    e.swimAge = 0;
+    if (id === 'warden') this.wardenStacks++;
+    if (id === 'herald') this.heraldStacks++;
+    if (id === 'architect') {
+      e.shieldHits = LEGION.techShieldBase + Math.floor(this.time * LEGION.techShieldPerSec);
+    }
+    this.nextCommanderAt += LEGION.interval;
+    this.commanderWarned = false;
+    this.events.push({ type: 'bossSpawned', x: e.x, y: e.y });
+    this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[id].name}` });
   }
 
   private nearBossWindow(): boolean {
@@ -975,7 +1056,7 @@ export class GameState {
     mutation?: MutationId,
   ): Enemy {
     const def = ENEMIES[enemyId];
-    const isBoss = def.movePattern === 'boss' || def.movePattern === 'bossSeraph';
+    const isBoss = this.isBossPattern(def.movePattern);
     const elite = forceElite
       || (allowElite
         && !isBoss
@@ -984,7 +1065,7 @@ export class GameState {
         && this.time >= ELITE.unlockAt
         && Math.random() < ELITE.chance);
 
-    let hp = def.hp * enemyHpScale(this.time) * this.enemyHpMul;
+    let hp = def.hp * enemyHpScale(this.time) * this.enemyHpMul * this.legionHpMul;
     if (elite) hp *= ELITE.hpMul;
 
     const enemy: Enemy = {
@@ -994,7 +1075,7 @@ export class GameState {
       age: 0, baseX: x, dir,
       hitFlash: 0,
       elite,
-      phase: isBoss ? 1 : undefined,
+      phase: (def.movePattern === 'boss' || def.movePattern === 'bossSeraph') ? 1 : undefined,
       mutation: enemyId === 'splinter' ? undefined : mutation,
       introLeft: isBoss ? BOSS.introDuration : undefined,
       swimAge: isBoss ? 0 : undefined,
@@ -1016,44 +1097,57 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
+      const moveMul = this.enemyMoveMul();
+      const eliteMul = e.elite ? ELITE.speedMul : 1;
+
       switch (e.def.movePattern) {
         case 'down':
         case 'slowDown':
-          e.y += e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
+          e.y += e.def.speed * eliteMul * moveMul * dt;
           break;
         case 'zigzag':
-          e.y += e.def.speed * 0.75 * (e.elite ? ELITE.speedMul : 1) * dt;
+          e.y += e.def.speed * 0.75 * eliteMul * moveMul * dt;
           e.x = e.baseX + Math.sin(e.age * 2.6) * 70;
           break;
         case 'dashAcross':
-          e.x += e.def.speed * (e.elite ? ELITE.speedMul : 1) * e.dir * dt;
-          e.y += 26 * dt;
+          e.x += e.def.speed * eliteMul * moveMul * e.dir * dt;
+          e.y += 26 * moveMul * dt;
           break;
         case 'dashUp':
-          e.y -= e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
+          e.y -= e.def.speed * eliteMul * moveMul * dt;
           break;
         case 'shieldDown':
         case 'cloakDown':
         case 'auraDown':
-          e.y += e.def.speed * (e.elite ? ELITE.speedMul : 1) * dt;
+          e.y += e.def.speed * eliteMul * moveMul * dt;
           break;
         case 'teleport':
-          this.updateTeleporter(e, dt);
+          this.updateTeleporter(e, dt * moveMul);
           break;
         case 'boss':
-          this.updateBoss(e, dt);
+          this.updateBoss(e, dt * moveMul);
           break;
         case 'bossSeraph':
-          this.updateBossSeraph(e, dt);
+          this.updateBossSeraph(e, dt * moveMul);
+          break;
+        case 'legion':
+          this.updateCommander(e, dt * moveMul);
           break;
       }
 
-      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+      const isBoss = this.isBossLike(e);
       const out =
         e.y > H + margin || e.y < -margin - 200 ||
         e.x < -margin - 200 || e.x > W + margin + 200;
       if (out && e.age > 1.5 && !isBoss) this.enemies.splice(i, 1);
     }
+  }
+
+  private updateCommander(e: Enemy, dt: number): void {
+    if (this.updateBossIntro(e, dt)) return;
+    e.swimAge = (e.swimAge ?? 0) + dt;
+    e.x = CANVAS.width / 2 + Math.sin(e.swimAge * 0.55) * 130;
+    e.y = BOSS.introTargetY + Math.sin(e.swimAge * 0.35) * 16;
   }
 
   private updateTeleporter(e: Enemy, dt: number): void {
@@ -1179,7 +1273,7 @@ export class GameState {
         }
       }
       if (this.invincibleLeft <= 0 && this.shieldLeft <= 0 && !aegis) {
-        const rr = PLAYER.radius + p.radius - 3;
+        const rr = this.playerHitRadius() + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
           this.enemyProjectiles.splice(i, 1);
           this.hurtPlayer(p.damage);
@@ -1216,8 +1310,16 @@ export class GameState {
         }
       }
 
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      const techSlow = this.architectAlive() ? LEGION.techSpeedMul : 1;
+      if (p.originX != null && p.originY != null && p.orbitAngle != null && p.orbitRadius != null) {
+        p.orbitAngle += (p.orbitOmega ?? 2.8) * dt * techSlow;
+        p.orbitRadius += p.speed * dt * techSlow;
+        p.x = p.originX + Math.cos(p.orbitAngle) * p.orbitRadius;
+        p.y = p.originY + Math.sin(p.orbitAngle) * p.orbitRadius;
+      } else {
+        p.x += p.vx * dt * techSlow;
+        p.y += p.vy * dt * techSlow;
+      }
 
       // 적과 충돌
       let removed = false;
@@ -1239,7 +1341,7 @@ export class GameState {
             p.pierceHits = (p.pierceHits ?? 0) + 1;
           }
           if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
-          this.damageEnemy(e, dmg);
+          this.damageEnemy(e, dmg, p.weaponId);
           if (p.explodeRadius) this.explodeProjectile(p, e);
 
           if (p.affix === 'chain') {
@@ -1293,7 +1395,7 @@ export class GameState {
       if (!b.ignoreShield && this.tryAbsorbShield(e, fromFront)) continue;
       let dmg = b.damage;
       if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
-      this.damageEnemy(e, dmg);
+      this.damageEnemy(e, dmg, b.weaponId);
     }
   }
 
@@ -1311,8 +1413,19 @@ export class GameState {
     return false;
   }
 
-  /** 실더 정면 역장: 1타격 흡수 후 투사체 소멸. true면 HP 데미지 없음 */
+  /** 실더 정면 역장 / 군단장 전방위 역장. true면 HP 데미지 없음 */
   private tryAbsorbShield(e: Enemy, fromFront: boolean): boolean {
+    if (e.def.id === 'architect') {
+      if ((e.shieldHits ?? 0) <= 0) return false;
+      e.shieldHits = (e.shieldHits ?? 1) - 1;
+      e.hitFlash = 0.07;
+      this.events.push({ type: 'shieldBlock', x: e.x, y: e.y });
+      if (e.shieldHits <= 0) {
+        e.shieldHits = 0;
+        this.events.push({ type: 'banner', text: '🛡️ 기술 역장 파괴' });
+      }
+      return true;
+    }
     if (e.def.id !== 'shielder') return false;
     if ((e.shieldHits ?? 0) <= 0) return false;
     if (!fromFront) return false;
@@ -1347,7 +1460,7 @@ export class GameState {
         p.hitIds.add(e.id);
         if (this.isCloaked(e)) continue;
         if (!p.ignoreShield && this.tryAbsorbShield(e, p.y > e.y)) continue;
-        this.damageEnemy(e, p.damage * 0.55);
+        this.damageEnemy(e, p.damage * 0.55, p.weaponId);
       }
     }
     this.events.push({ type: 'enemyDied', x: p.x, y: p.y, color: p.color, radius: r * 0.45 });
@@ -1394,6 +1507,7 @@ export class GameState {
         color: p.color,
         hitIds: new Set(p.hitIds),
         noSplit: true,
+        weaponId: p.weaponId,
       });
     }
   }
@@ -1427,7 +1541,7 @@ export class GameState {
       }
       let dmg = p.damage * syn.damageMul;
       if (Math.random() < COMBAT.baseCritChance) dmg *= this.runStats.critMul;
-      this.damageEnemy(best, dmg);
+      this.damageEnemy(best, dmg, p.weaponId);
       origin = best;
     }
   }
@@ -1447,17 +1561,20 @@ export class GameState {
     return best;
   }
 
-  private damageEnemy(e: Enemy, dmg: number): void {
+  private damageEnemy(e: Enemy, dmg: number, weaponId?: WeaponId): void {
     if (this.isCloaked(e)) return;
     if (this.inGuardianAura(e)) dmg *= GUARDIAN.damageTakenMul;
-    const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
     const prevRatio = e.hp / e.maxHp;
+    const applied = Math.min(e.hp, dmg);
     e.hp -= dmg;
     e.hitFlash = 0.08;
+    if (weaponId && applied > 0) {
+      this.damageDealt[weaponId] = (this.damageDealt[weaponId] ?? 0) + applied;
+    }
     this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color, damage: Math.round(dmg) });
 
     if (
-      isBoss
+      this.isTrueBoss(e)
       && (e.phase ?? 1) < 2
       && prevRatio > BOSS.phaseHpRatio
       && e.hp / e.maxHp <= BOSS.phaseHpRatio
@@ -1478,7 +1595,7 @@ export class GameState {
         Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul * this.scoreMul,
       );
 
-      if (isBoss) {
+      if (this.isTrueBoss(e)) {
         this.killBoss(e);
       } else {
         if (e.elite) this.eliteKills++;
@@ -1661,11 +1778,20 @@ export class GameState {
 
   private gainExp(amount: number): void {
     this.exp += amount * this.expMul;
+    let leveled = 0;
     while (this.exp >= this.expToNext) {
       this.exp -= this.expToNext;
       this.level++;
       this.expToNext = LEVELING.expForLevel(this.level);
       this.pendingLevelUps++;
+      leveled++;
+    }
+    if (leveled > 0) {
+      const aegisLv = this.passiveLevel('aegis');
+      if (aegisLv > 0) {
+        this.levelAegisLeft = LEVEL_AEGIS.durationBase + LEVEL_AEGIS.durationPerLv * (aegisLv - 1);
+        this.levelAegisReduce = LEVEL_AEGIS.reduceBase + LEVEL_AEGIS.reducePerLv * (aegisLv - 1);
+      }
     }
     if (this.pendingLevelUps > 0) {
       this.events.push({ type: 'levelUp', x: this.playerX, y: this.playerY });
@@ -1679,7 +1805,7 @@ export class GameState {
     if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     for (const e of this.enemies) {
-      const rr = PLAYER.radius + e.def.radius * (e.elite ? 1.15 : 1) - 4;
+      const rr = this.playerHitRadius() + e.def.radius * (e.elite ? 1.15 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
         const dmg = e.def.contactDamage * (e.elite ? ELITE.damageMul : 1);
         this.hurtPlayer(dmg);
@@ -1690,7 +1816,9 @@ export class GameState {
 
   private hurtPlayer(damage: number): void {
     if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
-    this.hp -= damage * (1 - this.armorReduce);
+    let taken = damage * (1 - this.armorReduce);
+    if (this.levelAegisLeft > 0) taken *= 1 - this.levelAegisReduce;
+    this.hp -= taken;
     this.invincibleLeft = PLAYER.invincibleMs;
     this.events.push({ type: 'playerHit' });
     if (this.hp <= 0) {
@@ -1698,6 +1826,36 @@ export class GameState {
       this.status = 'gameover';
       this.events.push({ type: 'gameover' });
     }
+  }
+
+  playerHitRadius(): number {
+    const lv = this.passiveLevel('evasion');
+    return PLAYER.radius * (1 - PASSIVES.evasion.perLevel * lv);
+  }
+
+  private passiveLevel(id: PassiveId): number {
+    return this.passives.find((p) => p.passiveId === id)?.level ?? 0;
+  }
+
+  private enemyMoveMul(): number {
+    const lv = this.passiveLevel('cripple');
+    return Math.max(0.2, 1 - PASSIVES.cripple.perLevel * lv);
+  }
+
+  private architectAlive(): boolean {
+    return this.enemies.some((e) => e.def.id === 'architect');
+  }
+
+  private isBossPattern(pattern: Enemy['def']['movePattern']): boolean {
+    return pattern === 'boss' || pattern === 'bossSeraph' || pattern === 'legion';
+  }
+
+  private isBossLike(e: Enemy): boolean {
+    return this.isBossPattern(e.def.movePattern);
+  }
+
+  private isTrueBoss(e: Enemy): boolean {
+    return e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
   }
 }
 

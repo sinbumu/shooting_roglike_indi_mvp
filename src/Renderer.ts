@@ -691,6 +691,15 @@ export class Renderer {
       glow.width = glow.height = PLAYER.radius * 5 + Math.sin(this.elapsed * 8) * 6;
       glow.alpha = 0.4;
     }
+    if (state.levelAegisLeft > 0) {
+      const glow = this.glowPool.get();
+      glow.tint = 0x86efac;
+      glow.position.set(x, y);
+      glow.width = glow.height = PLAYER.radius * 4.6 + Math.sin(this.elapsed * 10) * 6;
+      glow.alpha = 0.45;
+      this.coreG.circle(x, y, PLAYER.radius + 10)
+        .stroke({ width: 2, color: 0x86efac, alpha: 0.7 });
+    }
     if (shipTex) {
       if (!this.playerSprite) {
         this.playerSprite = new Sprite(shipTex);
@@ -727,7 +736,9 @@ export class Renderer {
     g.clear();
     for (const e of state.enemies) {
       const r = e.def.radius * (e.elite ? 1.2 : 1);
-      const isBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+      const isTrueBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
+      const isCommander = e.def.movePattern === 'legion';
+      const isBoss = isTrueBoss || isCommander;
       const tex = this.atlas.enemies[e.def.id as EnemyId];
 
       if (tex) {
@@ -743,6 +754,9 @@ export class Renderer {
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (e.elite) spr.tint = 0xfbbf24;
+        else if (e.def.id === 'warden') spr.tint = 0xf87171;
+        else if (e.def.id === 'herald') spr.tint = 0xc084fc;
+        else if (e.def.id === 'architect') spr.tint = 0x67e8f9;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
         else if (e.mutation === 'burst') spr.tint = 0xe879f9;
@@ -780,6 +794,15 @@ export class Renderer {
           aura.width = aura.height = GUARDIAN.auraRadius * 2 + Math.sin(this.elapsed * 3) * 10;
           aura.alpha = 0.28;
         }
+        if (isCommander) {
+          const aura = this.glowPool.get();
+          aura.tint = e.def.id === 'warden' ? 0xf87171
+            : e.def.id === 'herald' ? 0xc084fc
+            : 0x67e8f9;
+          aura.position.set(e.x, e.y);
+          aura.width = aura.height = r * 5.2 + Math.sin(this.elapsed * 3.5) * 14;
+          aura.alpha = 0.42;
+        }
       } else {
         // Graphics 폴백
         const color = e.hitFlash > 0 ? 0xffffff : (e.elite ? 0xfbbf24 : hex(e.def.color));
@@ -815,6 +838,9 @@ export class Renderer {
           case 'guardian':
             pts = [-r, -r * 0.6, r, -r * 0.6, r * 0.85, r, -r * 0.85, r];
             break;
+          case 'warden':
+          case 'herald':
+          case 'architect':
           case 'boss':
           case 'bossSeraph': {
             const sides = e.def.id === 'bossSeraph' ? 8 : 6;
@@ -879,7 +905,12 @@ export class Renderer {
           .stroke({ width: 2, color: mutColor, alpha: 0.7 + Math.sin(this.elapsed * 7) * 0.15 });
       }
 
-      if (e.hp < e.maxHp && !isBoss) {
+      if (e.def.id === 'architect' && (e.shieldHits ?? 0) > 0) {
+        const pulse = 0.55 + Math.sin(this.elapsed * 6) * 0.15;
+        g.circle(e.x, e.y, r + 18)
+          .stroke({ width: 4, color: 0x67e8f9, alpha: pulse });
+      }
+      if (e.hp < e.maxHp && !isTrueBoss) {
         g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
         g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4)
           .fill(e.elite ? 0xfbbf24 : 0x4ade80);

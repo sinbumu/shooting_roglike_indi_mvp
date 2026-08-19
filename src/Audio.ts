@@ -151,6 +151,12 @@ export class AudioManager {
           this.noise(0.12, { gain: 0.05, freq: 1600, highpass: 800 });
           break;
         }
+        if (ev.weaponId === 'helix') {
+          this.noise(0.12, { gain: 0.07, freq: 280 });
+          this.tone(160, 0.18, { type: 'sawtooth', slideTo: 60, gain: 0.045 });
+          this.tone(420, 0.1, { type: 'triangle', slideTo: 180, gain: 0.028, delay: 0.03 });
+          break;
+        }
         const base = 620 + bias;
         const wave: OscillatorType = bias > 40 ? 'triangle' : bias < -40 ? 'sawtooth' : 'square';
         this.tone(base, 0.055, { type: wave, slideTo: 140 + bias * 0.2, gain: 0.02 });

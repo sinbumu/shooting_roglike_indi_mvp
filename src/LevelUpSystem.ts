@@ -19,6 +19,7 @@ const KIND_LABEL: Record<LevelUpChoice['kind'], string> = {
   tactical: 'TACTICAL — 전술',
   affix: 'AFFIX — T0 접사',
   craft: 'CRAFT — 크래프팅',
+  evolve: 'EVOLVE — 진화',
 };
 
 export function kindLabel(kind: LevelUpChoice['kind']): string {
@@ -169,6 +170,25 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
       icon: def.icon,
       color: def.color,
       weaponIds: [slot.weaponId],
+    });
+  }
+
+  if (
+    state.weapons.length >= state.maxWeaponSlots
+    && state.weapons.length > 0
+    && state.weapons.every((w) => w.level >= LEVELING.maxWeaponLevel)
+  ) {
+    const lastId = state.acquireOrder[state.acquireOrder.length - 1]
+      ?? state.weapons[state.weapons.length - 1].weaponId;
+    const from = WEAPONS[lastId];
+    pool.push({
+      kind: 'evolve',
+      weight: 80,
+      title: `${from.name} 진화`,
+      desc: `마지막 획득 무기를 한 티어 위 무작위 무장 Lv.1로 교체합니다.`,
+      icon: '🧬',
+      color: '#f0abfc',
+      weaponIds: [lastId],
     });
   }
 
@@ -385,6 +405,8 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       const slotB = state.weapons.find((w) => w.weaponId === b && w !== slotA);
       if (!slotA || !slotB) break;
       const inheritLevel = Math.min(slotA.level, slotB.level);
+      state.untrackAcquire(a);
+      state.untrackAcquire(b);
       state.weapons = state.weapons.filter((w) => w !== slotA && w !== slotB);
       const resultId = choice.resultId as WeaponId;
       const result: WeaponSlot = {
@@ -472,6 +494,31 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       } else if (op === 'radius') {
         state.buffWeaponRadius(wid);
       }
+      break;
+    }
+    case 'evolve': {
+      const fromId = (choice.weaponIds as WeaponId[])[0];
+      const slot = [...state.weapons].reverse().find((w) => w.weaponId === fromId);
+      if (!slot) break;
+      const from = WEAPONS[fromId];
+      const nextTier = Math.min(3, from.tier + 1) as 1 | 2 | 3;
+      const owned = new Set(state.weapons.map((w) => w.weaponId));
+      let pool = Object.values(WEAPONS).filter((w) => w.tier === nextTier && w.id !== fromId);
+      const unused = pool.filter((w) => !owned.has(w.id));
+      if (unused.length > 0) pool = unused;
+      if (pool.length === 0) break;
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      state.untrackAcquire(fromId);
+      slot.weaponId = next.id;
+      slot.level = 1;
+      slot.cooldownLeft = 200;
+      slot.affix = undefined;
+      slot.damageBonus = undefined;
+      slot.speedBonus = undefined;
+      slot.cooldownBonus = undefined;
+      slot.radiusBonus = undefined;
+      state.noteWeapon(next.id);
+      state.events.push({ type: 'banner', text: `🧬 ${from.name} → ${next.name}` });
       break;
     }
   }

@@ -17,7 +17,8 @@ export type WeaponId =
   | 'genesis'
   | 'tempest'
   | 'rupture'
-  | 'solance';
+  | 'solance'
+  | 'helix';
 
 export type WeaponTier = 1 | 2 | 3;
 
@@ -44,6 +45,10 @@ export interface ProjectileSpec {
     width: number;
     length: number;
   };
+  /** true면 최근접 적 방향으로 발사 */
+  targeted?: boolean;
+  /** true면 원점에서 나선형으로 퍼짐 */
+  spiral?: boolean;
 }
 
 export interface WeaponDef {
@@ -102,7 +107,7 @@ export interface ShipDef {
   activeSkill: ActiveSkillDef;
 }
 
-export type PassiveId = 'magnet' | 'thruster' | 'plating' | 'collector' | 'overcharge' | 'overload';
+export type PassiveId = 'evasion' | 'cripple' | 'aegis' | 'plating' | 'collector' | 'overcharge' | 'overload';
 
 export interface PassiveDef {
   id: PassiveId;
@@ -154,6 +159,7 @@ export type AchievementId =
   | 'elite_hunter'
   | 'nebula_clear'
   | 'rift_clear'
+  | 'legion_clear'
   | 'challenge_clear';
 
 export interface AchievementDef {
@@ -164,7 +170,7 @@ export interface AchievementDef {
   reward: number;
 }
 
-export type StageId = 'orbit' | 'nebula' | 'rift';
+export type StageId = 'orbit' | 'rift' | 'legion';
 
 export interface StoryBeat {
   /** 경과 초 */
@@ -218,6 +224,9 @@ export type EnemyId =
   | 'splinter'
   | 'mirage'
   | 'guardian'
+  | 'warden'
+  | 'herald'
+  | 'architect'
   | 'boss'
   | 'bossSeraph';
 
@@ -233,6 +242,7 @@ export type MovePattern =
   | 'teleport'
   | 'cloakDown'
   | 'auraDown'
+  | 'legion'
   | 'boss'
   | 'bossSeraph';
 
@@ -292,7 +302,8 @@ export type ChoiceKind =
   | 'statBoost'
   | 'tactical'
   | 'affix'
-  | 'craft';
+  | 'craft'
+  | 'evolve';
 
 export interface LevelUpChoice {
   kind: ChoiceKind;

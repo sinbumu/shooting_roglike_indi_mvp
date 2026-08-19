@@ -57,7 +57,9 @@ export const LEVELING = {
 //   Tier1: vulcan(직사) / spread(방사) / homing(유도)
 //   Tier2 이종: laser = vulcan+spread / railgun = vulcan+homing / swarm = spread+homing
 //   Tier2 동형: gatling = vulcan+vulcan / nova = spread+spread / mothership = homing+homing
-//   Tier3: omega = laser+railgun / starfall = laser+swarm / genesis = railgun+swarm
+//   Tier3 이종: omega = laser+railgun / starfall = laser+swarm / genesis = railgun+swarm
+//   Tier3 동형: tempest = gatling+nova / rupture = gatling+mothership
+//               helix = nova+mothership / solance = gatling+railgun
 // ------------------------------------------------------------
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
@@ -139,9 +141,12 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   genesis: {
     id: 'genesis', name: '제네시스', tier: 3, icon: '💫', color: '#c084fc',
-    desc: '[레일건+스웜] 강력한 유도 관통탄 4발을 연달아 발사',
-    cooldownMs: 540,
-    projectile: { damage: 30, speed: 820, radius: 8, count: 4, spreadDeg: 140, homingTurnRate: 6.0, pierce: 3, lifetime: 2.2 },
+    desc: '[레일건+스웜] 가장 가까운 적을 조준하는 관통탄',
+    cooldownMs: 480,
+    projectile: {
+      damage: 38, speed: 1100, radius: 7, count: 2, spreadDeg: 10,
+      homingTurnRate: 0, pierce: 8, lifetime: 1.4, targeted: true,
+    },
   },
   // ---------- Tier 3 동형 T2 경로 ----------
   tempest: {
@@ -164,12 +169,21 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   solance: {
     id: 'solance', name: '솔라 랜스', tier: 3, icon: '🔆', color: '#fde68a',
-    desc: '[노바+모선] 정면으로 굵은 빔이 경로의 모든 적을 지짐',
+    desc: '[가틀링+레일건] 정면으로 굵은 빔이 경로의 모든 적을 지짐',
     cooldownMs: 680,
     projectile: {
       damage: 18, speed: 0, radius: 8, count: 1, spreadDeg: 0,
       homingTurnRate: 0, pierce: 99, lifetime: 0.22,
       beam: { duration: 0.22, tickInterval: 0.05, width: 20, length: 920 },
+    },
+  },
+  helix: {
+    id: 'helix', name: '해머딘', tier: 3, icon: '🌀', color: '#f472b6',
+    desc: '[노바+모선] 주위를 나선형으로 돌며 퍼지는 폭발탄',
+    cooldownMs: 700,
+    projectile: {
+      damage: 20, speed: 110, radius: 8, count: 4, spreadDeg: 360,
+      homingTurnRate: 0, pierce: 0, lifetime: 2.6, explodeRadius: 62, spiral: true,
     },
   },
 };
@@ -186,7 +200,8 @@ export const RECIPES: Recipe[] = [
   { materials: ['railgun', 'swarm'], result: 'genesis' },
   { materials: ['gatling', 'nova'], result: 'tempest' },
   { materials: ['gatling', 'mothership'], result: 'rupture' },
-  { materials: ['nova', 'mothership'], result: 'solance' },
+  { materials: ['nova', 'mothership'], result: 'helix' },
+  { materials: ['gatling', 'railgun'], result: 'solance' },
 ];
 
 /** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
@@ -252,6 +267,18 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     id: 'guardian', name: '가디언', hp: 420, speed: 38, radius: 28, color: DANGER.high,
     contactDamage: 26, exp: 14, spawnEdge: 'top', movePattern: 'auraDown',
   },
+  warden: {
+    id: 'warden', name: '방어의 군단장', hp: 780, speed: 38, radius: 36, color: DANGER.high,
+    contactDamage: 28, exp: 22, spawnEdge: 'top', movePattern: 'legion',
+  },
+  herald: {
+    id: 'herald', name: '무리의 군단장', hp: 560, speed: 52, radius: 32, color: DANGER.high,
+    contactDamage: 26, exp: 20, spawnEdge: 'top', movePattern: 'legion',
+  },
+  architect: {
+    id: 'architect', name: '기술의 군단장', hp: 680, speed: 44, radius: 34, color: DANGER.high,
+    contactDamage: 27, exp: 22, spawnEdge: 'top', movePattern: 'legion',
+  },
   boss: {
     id: 'boss', name: '드레드노트', hp: 950, speed: 60, radius: 42, color: DANGER.high,
     contactDamage: 30, exp: 0, spawnEdge: 'top', movePattern: 'boss',
@@ -304,13 +331,17 @@ export const DEFAULT_SHIP: ShipId = 'scout';
 // ------------------------------------------------------------
 
 export const PASSIVES: Record<PassiveId, PassiveDef> = {
-  magnet: {
-    id: 'magnet', name: '자력장', icon: '🧲', color: '#38bdf8',
-    desc: '보석 자석 반경 +35', perLevel: 35, maxLevel: 5,
+  evasion: {
+    id: 'evasion', name: '소형화', icon: '🪶', color: '#67e8f9',
+    desc: '피격 판정 -8% 감소', perLevel: 0.08, maxLevel: 5,
   },
-  thruster: {
-    id: 'thruster', name: '추력 부스터', icon: '💨', color: '#a5b4fc',
-    desc: '이동 속도 +8% 증가', perLevel: 0.08, maxLevel: 5,
+  cripple: {
+    id: 'cripple', name: '구속장', icon: '🕸️', color: '#c084fc',
+    desc: '적 이동 속도 -4% 감소', perLevel: 0.04, maxLevel: 5,
+  },
+  aegis: {
+    id: 'aegis', name: '레벨업 쉴드', icon: '🛡️', color: '#86efac',
+    desc: '레벨업 시 짧은 피해 감소 보호막', perLevel: 0.1, maxLevel: 5,
   },
   plating: {
     id: 'plating', name: '반응장갑', icon: '🧱', color: '#94a3b8',
@@ -359,12 +390,12 @@ export const META_UPGRADES: Record<MetaUpgradeId, MetaUpgradeDef> = {
   overclock: {
     id: 'overclock', name: '오버클럭', icon: '⚙️',
     desc: '모든 무기 데미지 +0.2%/레벨 (상한 없음)',
-    maxLevel: Infinity, baseCost: 2000, costMul: 1.75, perLevel: 0.002,
+    maxLevel: Infinity, baseCost: 2000, costMul: 1.15, perLevel: 0.002,
   },
   lightArmor: {
     id: 'lightArmor', name: '초경량 장갑', icon: '🪶',
     desc: '이동 속도 +0.2%/레벨 (상한 없음)',
-    maxLevel: Infinity, baseCost: 2000, costMul: 1.75, perLevel: 0.002,
+    maxLevel: Infinity, baseCost: 2000, costMul: 1.15, perLevel: 0.002,
   },
 };
 
@@ -413,6 +444,7 @@ export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
   elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 200 },
   nebula_clear: { id: 'nebula_clear', name: '성운 돌파', desc: '성운 전선 클리어', icon: '🌌', reward: 500 },
   rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 700 },
+  legion_clear: { id: 'legion_clear', name: '군단 격파', desc: '군단장의 성역 클리어', icon: '👑', reward: 900 },
   challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 450 },
 };
 
@@ -469,6 +501,26 @@ export const DROPS = {
 export const HOMING = {
   damageMul: 0.75,
   maxSpeed: 640,
+} as const;
+
+/** 군단 스테이지 군단장 */
+export const LEGION = {
+  interval: 60,
+  firstAt: 60,
+  hpPerSec: 0.005,
+  spawnPerSec: 0.01,
+  techSpeedMul: 0.5,
+  techShieldBase: 10,
+  techShieldPerSec: 0.1,
+  commanders: ['warden', 'herald', 'architect'] as const,
+} as const;
+
+/** 레벨업 쉴드 패시브 (lv1 = 0.2초 / 30% 감소) */
+export const LEVEL_AEGIS = {
+  durationBase: 0.2,
+  durationPerLv: 0.1,
+  reduceBase: 0.3,
+  reducePerLv: 0.1,
 } as const;
 
 export const TELEPORTER = {
@@ -720,23 +772,6 @@ const ORBIT_WAVES: Wave[] = [
   ] },
 ];
 
-const NEBULA_WAVES: Wave[] = [
-  { from: 0, to: Infinity, entries: [{ enemy: 'zigzag', interval: 1.4 }] },
-  { from: 10, to: Infinity, entries: [{ enemy: 'drone', interval: 1.0 }] },
-  { from: 25, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.5 }] },
-  { from: 45, to: Infinity, entries: [{ enemy: 'rusher', interval: 5.0 }] },
-  { from: 60, to: Infinity, entries: [{ enemy: 'tank', interval: 7.5 }] },
-  { from: 100, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.0 }, { enemy: 'zigzag', interval: 1.2 }] },
-  { from: 165, to: Infinity, entries: [
-    { enemy: 'shielder', interval: 6.4 },
-    { enemy: 'teleporter', interval: 5.8 },
-    { enemy: 'mirage', interval: 7.2 },
-    { enemy: 'guardian', interval: 16 },
-    { enemy: 'drone', interval: 1.3, mutation: 'burst' },
-    { enemy: 'zigzag', interval: 2.8, mutation: 'explode' },
-  ] },
-];
-
 const RIFT_WAVES: Wave[] = [
   { from: 0, to: Infinity, entries: [{ enemy: 'drone', interval: 0.85 }] },
   { from: 8, to: Infinity, entries: [{ enemy: 'dasher', interval: 3.2 }] },
@@ -752,6 +787,28 @@ const RIFT_WAVES: Wave[] = [
     { enemy: 'drone', interval: 1.1, mutation: 'split' },
     { enemy: 'tank', interval: 10, mutation: 'burst' },
     { enemy: 'zigzag', interval: 2.4, mutation: 'explode' },
+  ] },
+];
+
+const LEGION_WAVES: Wave[] = [
+  { from: 0, to: Infinity, entries: [{ enemy: 'drone', interval: 0.7 }] },
+  { from: 6, to: Infinity, entries: [{ enemy: 'dasher', interval: 2.6 }] },
+  { from: 16, to: Infinity, entries: [{ enemy: 'rusher', interval: 3.6 }] },
+  { from: 28, to: Infinity, entries: [{ enemy: 'tank', interval: 5.5 }] },
+  { from: 40, to: Infinity, entries: [{ enemy: 'zigzag', interval: 0.9 }] },
+  { from: 70, to: Infinity, entries: [
+    { enemy: 'dasher', interval: 2.0 },
+    { enemy: 'rusher', interval: 3.2 },
+    { enemy: 'drone', interval: 0.55 },
+  ] },
+  { from: 120, to: Infinity, entries: [
+    { enemy: 'shielder', interval: 4.8 },
+    { enemy: 'teleporter', interval: 4.2 },
+    { enemy: 'mirage', interval: 5.5 },
+    { enemy: 'guardian', interval: 12 },
+    { enemy: 'drone', interval: 0.9, mutation: 'split' },
+    { enemy: 'tank', interval: 8, mutation: 'burst' },
+    { enemy: 'zigzag', interval: 2.0, mutation: 'explode' },
   ] },
 ];
 
@@ -773,39 +830,39 @@ export const STAGES: Record<StageId, StageDef> = {
       { at: 250, text: '최종 방어선. 조금만 더!' },
     ],
   },
-  nebula: {
-    id: 'nebula', name: '성운 전선', icon: '🌌', color: '#c084fc',
-    desc: '시야가 흐린 성운. 기습이 빠르고 보스가 먼저 옵니다.',
-    unlockAfter: 'orbit',
-    victoryTime: 270,
-    bgTop: 0x1a1030, bgBottom: 0x0a0618,
-    waves: NEBULA_WAVES,
-    bossTimes: [55, 140, 230],
-    bossRoster: ['bossSeraph', 'boss', 'bossSeraph'],
-    clearCreditMul: 1.25,
-    story: [
-      { at: 0, text: '성운 속으로 진입. 센서 교란 주의.' },
-      { at: 25, text: '측면 돌파가 잦습니다. Warning을 믿으세요.' },
-      { at: 52, text: '푸른 섬광… 세라프가 먼저 나타납니다.' },
-      { at: 135, text: '성운 핵에 접근 중. 화력을 모으세요.' },
-      { at: 220, text: '돌파까지 얼마 남지 않았습니다.' },
-    ],
-  },
   rift: {
     id: 'rift', name: '공허 균열', icon: '🕳️', color: '#fb7185',
     desc: '최전선. 물량과 탄막이 동시에 몰려옵니다. 4분 30초.',
-    unlockAfter: 'nebula',
+    unlockAfter: 'orbit',
     victoryTime: 270,
     bgTop: 0x2a0a14, bgBottom: 0x0c0408,
     waves: RIFT_WAVES,
     bossTimes: [45, 120, 210],
     bossRoster: ['boss', 'bossSeraph', 'boss'],
-    clearCreditMul: 1.5,
+    clearCreditMul: 1.25,
     story: [
       { at: 0, text: '균열 너머. 귀환 좌표는 확보되지 않았습니다.' },
       { at: 40, text: '조기 보스 경보! 대비하세요.' },
       { at: 90, text: '공허가 밀려옵니다. 콤보를 유지하세요.' },
       { at: 200, text: '마지막 파도. 여기서 끝내십시오.' },
+    ],
+  },
+  legion: {
+    id: 'legion', name: '군단장의 성역', icon: '👑', color: '#fbbf24',
+    desc: '7분 지구전. 군단장이 60초마다 누적 패널티를 겁니다.',
+    unlockAfter: 'rift',
+    victoryTime: 420,
+    bgTop: 0x1a1030, bgBottom: 0x0a0618,
+    waves: LEGION_WAVES,
+    bossTimes: [70, 200, 340],
+    bossRoster: ['boss', 'bossSeraph', 'boss'],
+    clearCreditMul: 1.5,
+    story: [
+      { at: 0, text: '군단장의 성역. 생존 시간 7분. 패널티는 처치해도 남습니다.' },
+      { at: 55, text: '첫 군단장 접근. 방어·무리·기술 중 하나가 옵니다.' },
+      { at: 68, text: '드레드노트급 반응. 군단장과 겹치지 않게.' },
+      { at: 195, text: '성역 심부. 누적 패널티를 계산하세요.' },
+      { at: 330, text: '마지막 파도. 여기서 끝내십시오.' },
     ],
   },
 };

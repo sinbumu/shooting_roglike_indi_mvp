@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-18** — **v1.4.1 크래프팅 무작위/쿨·크기 · 유도 선회 동기화** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.5.0 스테이지·무기·패시브 개편** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -23,6 +23,7 @@
 | 후반 텐션? | **완료** — 에이지스/보스 등장 픽스 · 전역 자석 · 미라지/가디언/실더 리워크 ([docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md)) |
 | QA 폴리싱? | **완료** — 무기고 스펙/도감 · 실더 50히트 · 오메가 상향 · 호밍 너프 · 동형 T3 3종 ([docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md)) |
 | 크래프트·유도 후속? | **완료** — T3 선택지 무작위 · 쿨/크기 옵션 · 선회력 동기화 ([docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md)) |
+| 스테이지·무기 폴리시? | **완료** — orbit→rift→legion · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 ([docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -55,7 +56,7 @@
 ### 시스템 체크리스트 (요약)
 
 - [x] 전투·월드: 종스크롤, Warning 스폰, 충돌/무적, 보석 자석, 보스 탄막, 드롭 3종  
-- [x] 성장: 레벨업 3선택지, 슬롯 5, 패시브 4, Tier1→2→3 (15무기/12레시피, 동형 조합 포함)  
+- [x] 성장: 레벨업 3선택지, 슬롯 5, 패시브 4, Tier1→2→3 (16무기/13레시피, 동형 조합·진화 포함)  
 - [x] 피드백: 점수·콤보, 배너, 데미지 숫자, 히트스톱, 흔들림, SFX/BGM, 진동  
 - [x] 메타: 기체·패시브·영구강화·업적·스테이지 해금·도전·로컬 통계  
 - [x] 비주얼/오디오: Pixi 스프라이트 + Graphics 폴백, Web Audio 합성  
@@ -71,6 +72,7 @@
 - [x] 후반 텐션: 에이지스 충격파 · 보스 등장 Lerp · 전역 자석/상단 중력 · 미라지·가디언·실더 역장  
 - [x] QA 폴리싱: 무기고 스펙 · 도감 · 치명타 공개 · 실더 50히트 · 오메가/호밍 · 동형 T3 3종  
 - [x] 크래프트 후속: T3 선택지 무작위 · 쿨/크기 옵션 · 유도 선회력 동기화  
+- [x] v1.5.0: 군단 스테이지 · 제네시스 조준관통 · 해머딘 · 패시브 교체 · 딜미터 · 진화 카드  
 
 ---
 
@@ -99,8 +101,8 @@
 | 1 | `vulcan` / `spread` / `homing` | 벌컨 / 스프레드 / 호밍 | 직사 / 부채 / 유도 |
 | 2 | `laser` / `railgun` / `swarm` | 레이저 / 레일건 / 스웜 | 이종 조합 |
 | 2 | `gatling` / `nova` / `mothership` | 가틀링 / 노바 / 모선 | 동형 조합 (같은 T1 2개) |
-| 3 | `omega` / `starfall` / `genesis` | 오메가 / 스타폴 / 제네시스 | 이종 T2 종결 |
-| 3 | `tempest` / `rupture` / `solance` | 템페스트 / 파열핵 / 솔라 랜스 | 동형 T2 종결 (난사 / 역장무시 폭발 / 빔) |
+| 3 | `omega` / `starfall` / `genesis` | 오메가 / 스타폴 / 제네시스 | 이종 T2 종결 (제네시스=최근접 조준 관통) |
+| 3 | `tempest` / `rupture` / `solance` / `helix` | 템페스트 / 파열핵 / 솔라 랜스 / 해머딘 | 동형 경로 (난사 / 역장무시 폭발 / 가틀링+레일건 빔 / 노바+모선 나선) |
 
 - 슬롯 5 → 경로 선택형 빌드. T1은 슬롯당 최대 2개까지 복제 가능  
 - 조합 레벨 = 재료 중 **낮은 쪽** 계승  
@@ -116,6 +118,7 @@
 | `splinter` | 파편 | 분열 돌연변이 처치 시 등장 (추가 분열 없음) |
 | `mirage` | 미라지 | 200px 밖 은신·무적·유도 불가 |
 | `guardian` | 가디언 | 오라 안 아군 피감 50%. 우선 점사 대상 |
+| `warden` / `herald` / `architect` | 군단장 3종 | 군단 스테이지 전용. 방어 HP 가산 / 스폰 가속 / 전방위 역장+투사체 감속 |
 | (엘리트) | 동일 풀 + 강화 | 금색 tint, 보상↑ |
 | (돌연변이) | 자폭 / 분열 / 탄막 | 후반 웨이브 속성 |
 | `boss` | 드레드노트 | 탄막 + 조준. 탄환은 흰 코어+보라 테두리 |
@@ -129,12 +132,12 @@
 
 | 분류 | 내용 |
 |---|---|
-| 스테이지 | `orbit` → `nebula` → `rift` (클리어 해금) |
+| 스테이지 | `orbit` → `rift` → `legion` (클리어 해금, 군단 7분) |
 | 도전 | 표준 / 제한무장 / 유리장갑 / 맨몸 |
 | 기체 | 스카웃(위상 대시) / 포트리스(절대 방벽) / 헌터(시간 왜곡) |
-| 패시브 | 자력장·추력·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
-| 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한) · 블랙마켓 스킨 |
-| 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트 등 |
+| 패시브 | 소형화·구속장·레벨업 쉴드·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
+| 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한, 비용 ×1.15) · 블랙마켓 스킨 |
+| 업적 | 생존·클리어·보스·Tier·콤보·점수·엘리트·군단 격파 등 |
 
 ### 3-4. 아이템
 
@@ -150,7 +153,7 @@
 | ~3:00~ | 실더·텔레포터 + 자폭/분열/탄막 돌연변이 |
 | ~5:00 | Mission Clear |
 
-성운·균열은 타임·웨이브·스토리가 다름 → `GameConfig.ts`의 `STAGES` 참고.
+균열(4:30)·군단(7:00, 60초마다 군단장)은 타임·웨이브·스토리가 다름 → `GameConfig.ts`의 `STAGES` 참고.
 
 ---
 
@@ -244,4 +247,5 @@
 | [docs/DESIGN_UPDATE_LATEGAME_TENSION.md](./docs/DESIGN_UPDATE_LATEGAME_TENSION.md) | 후반 텐션·강적 기믹 (구현 완료) |
 | [docs/DESIGN_UPDATE_QA_FEEDBACK.md](./docs/DESIGN_UPDATE_QA_FEEDBACK.md) | QA 피드백 폴리싱 (구현 완료) |
 | [docs/DESIGN_UPDATE_CRAFT_HOMING.md](./docs/DESIGN_UPDATE_CRAFT_HOMING.md) | 크래프팅 무작위·쿨/크기 · 유도 선회 (구현 완료) |
+| [docs/DESIGN_UPDATE_FINAL_POLISHING.md](./docs/DESIGN_UPDATE_FINAL_POLISHING.md) | 스테이지 재구성·무기/패시브 리워크·딜미터 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
