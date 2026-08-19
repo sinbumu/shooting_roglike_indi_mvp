@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.7.5 지형 기믹** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.8.0 성좌(Constellation)** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -31,6 +31,7 @@
 | v1.7.3 밸런스·UI? | **완료** — 제네시스 단발 · 크래프트 슬롯 표기 · 프레데터/해머딘 · 관통 블랙리스트 ([docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md](./docs/DESIGN_UPDATE_V1_7_3_BALANCE_UI.md)) |
 | v1.7.4 타겟팅? | **완료** — 파열핵 최원거리 조준 · 제네시스 무작위 관통 ([docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md)) |
 | v1.7.5 지형 기믹? | **완료** — 단방향 쉴드 · 퀀텀 코어 · 성운 가스 · 모선 잔해 대피소 ([docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md)) · EXP 곡선·솔라 랜스 필터·결과창 버전 ([docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md)) |
+| v1.8 성좌? | **완료** — 만렙 이후 판테온 포인트 · 격납고 22노드 성좌 보드 · 다음 런 룰 분기 ([docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -56,6 +57,7 @@
 | 로컬 세션 통계 | ✅ |
 | 스프라이트 (기체·적·보스·픽업) | ✅ |
 | 엔드게임·도파민 (한계돌파/어픽스/균열 등) | ✅ |
+| v1.8 성좌 (판테온 포인트 · 격납고 22노드) | ✅ |
 | 온라인 리더보드·시드 런 | ❌ **보류** (백엔드/BaaS 필요) |
 | 외부 애널리틱스 | ❌ **보류** (도구·개인정보 정책 결정 필요) |
 | 외부 음원 파일 | ❌ **의도적 미채택** (프로시저럴로 충분하다고 판단 시 유지) |
@@ -87,6 +89,7 @@
 - [x] v1.7.3: 제네시스 단발 융합 · 크래프트 슬롯 번호 · 프레데터/해머딘 상향 · 고관통 어픽스 제외  
 - [x] v1.7.4: 파열핵 최원거리 조준·폭발 상향 · 제네시스 무작위 타겟·탄속 상향 
 - [x] v1.7.5: 단방향 쉴드 · 퀀텀 코어 폭파 · 성운 둔화 · 궤도 모선 잔해 대피소 · EXP 곡선 · 솔라 랜스 필터 
+- [x] v1.8.0: 격납고 성좌 보드 22노드 · 판테온 포인트 · 만렙 스탯 카드 제거 · 런타임 룰 분기 
 
 ---
 
@@ -282,4 +285,5 @@
 | [docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md) | v1.7.4 파열핵·제네시스 타겟팅 (구현 완료) |
 | [docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md) | v1.7.5 지형 기믹 4종 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md) | v1.7.5 EXP 곡선 · 솔라 랜스 필터 · 결과창 버전 (구현 완료) |
+| [docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md) | v1.8 성좌 22노드 · 판테온 포인트 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

@@ -142,6 +142,16 @@ export class AudioManager {
     this.applyBgmGain();
   }
 
+  /** 격납고 성좌 해금 — 전투 FxEvent와 분리 */
+  playConstellationUnlock(): void {
+    if (!this.ctx) this.init();
+    this.noise(0.28, { gain: 0.16, freq: 90 });
+    this.tone(70, 0.4, { type: 'sawtooth', slideTo: 32, gain: 0.1 });
+    this.tone(180, 0.22, { type: 'triangle', slideTo: 90, gain: 0.05, delay: 0.04 });
+    this.tone(520, 0.18, { type: 'sine', slideTo: 1040, gain: 0.045, delay: 0.08 });
+    this.tone(780, 0.12, { type: 'square', slideTo: 220, gain: 0.03, delay: 0.12 });
+  }
+
   private applyBgmGain(): void {
     if (!this.ctx || !this.bgmBus) return;
     const combat = 1 - this.combatIntensity * 0.35;
@@ -473,6 +483,11 @@ export class AudioManager {
       case 'creditPickup':
         this.tone(880, 0.07, { type: 'sine', gain: 0.04 });
         this.tone(1320, 0.08, { type: 'triangle', gain: 0.03, delay: 0.03 });
+        break;
+
+      case 'bloodBurst':
+        this.noise(0.32, { gain: 0.16, freq: 180 });
+        this.tone(90, 0.28, { type: 'sawtooth', slideTo: 36, gain: 0.08 });
         break;
 
       case 'bomb':

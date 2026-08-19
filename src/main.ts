@@ -328,6 +328,7 @@ function backToHangar(): void {
   audio.setPaused(false);
 }
 
+ui.setAudio(audio);
 ui.bindHangar(meta, () => {
   saveMeta(meta);
   ui.refreshHangar();

@@ -1,7 +1,7 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
   AffixId, StatBoostId, TacticalId, MutationId, ActiveSkillId, DroneId, PilotTraitId,
-  ProjectileSpec,
+  ProjectileSpec, ConstellationId,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
@@ -11,6 +11,7 @@ import {
   SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS, HOMING,
   LEGION, LEVEL_AEGIS, TRAPPER, VORTEX, DRONE_FX,
   VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX, TERRAIN,
+  CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
@@ -115,6 +116,8 @@ export interface Enemy {
   shieldHits?: number;
   /** 트래퍼 고정 여부 */
   anchored?: boolean;
+  /** 탐욕 오염 픽업에 피격되어 광폭화 */
+  enraged?: boolean;
 }
 
 export interface Slash {
@@ -301,12 +304,17 @@ export interface Pickup {
   kind: PickupKind;
   x: number; y: number;
   life: number;
+  /** 탐욕: 오염까지 남은 시간. 0 이하이면 적 유도 */
+  corruptIn?: number;
+  homing?: boolean;
 }
 
 export interface Gem {
   x: number; y: number;
   exp: number;
   life: number;
+  corruptIn?: number;
+  homing?: boolean;
 }
 
 /** 기습 스폰 경고 — 2초 대기 후 실제 적으로 전환 */
@@ -368,7 +376,8 @@ export type FxEvent =
   | { type: 'terrainBoost'; x: number; y: number }
   | { type: 'coreBurst'; x: number; y: number; radius: number }
   | { type: 'derelictBreak'; x: number; y: number; w: number; h: number }
-  | { type: 'creditPickup'; x: number; y: number };
+  | { type: 'creditPickup'; x: number; y: number }
+  | { type: 'bloodBurst'; x: number; y: number; radius: number };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -450,6 +459,10 @@ export class GameState {
   derelict: DerelictWreck | null = null;
   creditOrbs: CreditOrb[] = [];
   runCreditBonus = 0;
+  runCoreBonus = 0;
+  pantheonEarned = 0;
+  constellation: Record<ConstellationId, number> = emptyConstellation();
+  fogRadius = 0;
 
   runStats: RunStats = {
     projSpeedMul: 1,
@@ -519,7 +532,7 @@ export class GameState {
   legionSpawnMul = 0;
   private wardenStacks = 0;
   private heraldStacks = 0;
-  private nextCommanderAt = LEGION.firstAt;
+  private nextCommanderAt: number = LEGION.firstAt;
   private commanderWarned = false;
   /** 레벨업 쉴드 남은 시간 */
   levelAegisLeft = 0;
@@ -537,6 +550,18 @@ export class GameState {
   private nextNebulaAt: number = TERRAIN.nebula.firstAt;
   private nextCoreId = 100000;
   private derelictGoldDropped = false;
+  private hunterBuffLeft = 0;
+  private wheelAcc = 0;
+  private wheelPending = false;
+  private bloodBursting = false;
+
+  nodeLv(id: ConstellationId): number {
+    return this.constellation[id] ?? 0;
+  }
+
+  hasNode(id: ConstellationId): boolean {
+    return this.nodeLv(id) > 0;
+  }
 
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
@@ -548,6 +573,10 @@ export class GameState {
     this.shipId = shipId;
     this.stageId = stage.id;
     this.challengeId = challenge.id;
+    this.constellation = { ...emptyConstellation(), ...meta.constellation };
+    this.fogRadius = this.hasNode('darkFog') ? CONSTELLATION_FX.fogRadius : 0;
+    this.pantheonEarned = 0;
+    this.runCoreBonus = 0;
     const skinId = meta.equippedShipSkins?.[shipId];
     this.shipSkinTint = skinId ? SHIP_SKINS[skinId].tint : null;
     this.projSkinColors = {};
@@ -567,6 +596,8 @@ export class GameState {
     this.maxWeaponSlots = challenge.weaponSlotCap ?? PLAYER.maxWeaponSlots;
     this.maxPassiveSlots = challenge.passiveSlotCap ?? PLAYER.maxPassiveSlots;
     this.enemyHpMul = challenge.enemyHpMul ?? 1;
+    const abyss = this.nodeLv('endlessAbyss');
+    if (abyss > 0) this.enemyHpMul *= Math.pow(1 + CONSTELLATION_FX.abyssPerStack, abyss);
     this.scoreMul = challenge.scoreMul ?? 1;
     this.creditMul = challenge.creditMul ?? 1;
 
@@ -584,6 +615,17 @@ export class GameState {
       critMul: COMBAT.baseCritMul,
       moveSpeedMul: 1,
     };
+    const orbit = this.nodeLv('infiniteOrbit');
+    if (orbit > 0) {
+      this.runStats.projSpeedMul *= Math.pow(1 + CONSTELLATION_FX.orbitSpeed, orbit);
+      this.runStats.critMul += CONSTELLATION_FX.orbitCrit * orbit;
+      this.runStats.moveSpeedMul *= Math.pow(1 + CONSTELLATION_FX.orbitMove, orbit);
+    }
+    if (this.hasNode('glassCannon')) {
+      this.baseMaxHp = 1;
+      this.maxHp = 1;
+      this.hp = 1;
+    }
     this.shieldLeft = 0;
     this.magnetStormLeft = 0;
     this.pendingCrafts = 0;
@@ -614,6 +656,10 @@ export class GameState {
     this.derelict = null;
     this.creditOrbs = [];
     this.runCreditBonus = 0;
+    this.hunterBuffLeft = 0;
+    this.wheelAcc = 0;
+    this.wheelPending = false;
+    this.bloodBursting = false;
     this.derelictGoldDropped = false;
     this.nextShieldAt = TERRAIN.shield.firstAt;
     this.nextCoreAt = TERRAIN.core.firstAt;
@@ -628,6 +674,10 @@ export class GameState {
     this.nextRiftAt = RIFT_EVENT.firstAt;
     this.riftWarnAt = null;
     this.riftActive = 0;
+    this.nextCommanderAt = this.hasNode('traitorLegion')
+      ? CONSTELLATION_FX.legionInterval
+      : LEGION.firstAt;
+    this.commanderWarned = false;
     this.acquireOrder = [ship.startingWeapon];
     this.damageDealt = {};
     this.droneId = meta.selectedDrone ?? null;
@@ -674,15 +724,33 @@ export class GameState {
     }
     this.baseExpMul = 1 + expAdd;
     const storm = this.magnetStormLeft > 0;
-    const magnetMul = storm ? (TACTICAL.magnetStorm.magnetMul ?? 1) : 1;
-    const stormExp = storm ? (TACTICAL.magnetStorm.expMul ?? 1) : 1;
+    const hunter = this.hunterBuffLeft > 0;
+    const magnetMul = (storm ? (TACTICAL.magnetStorm.magnetMul ?? 1) : 1)
+      * (hunter ? CONSTELLATION_FX.hunterMagnetMul : 1);
+    const stormExp = (storm ? (TACTICAL.magnetStorm.expMul ?? 1) : 1)
+      * (hunter ? CONSTELLATION_FX.hunterExpMul : 1);
     this.magnetRadius = this.baseMagnet * magnetMul;
     this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul;
     this.armorReduce = Math.min(0.7, armor);
     this.expMul = this.baseExpMul * stormExp;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
-    this.cooldownMul = cdMul;
-    const newMax = Math.max(1, Math.round(this.baseMaxHp * hpMul));
+    if (this.hasNode('glassCannon')) this.damageMul *= CONSTELLATION_FX.glassDmgMul;
+    if (this.hasNode('overloadGear')) {
+      this.damageMul += Math.max(0, 1 - cdMul) * CONSTELLATION_FX.overloadDmgPerCdr;
+      this.cooldownMul = 1;
+    } else {
+      this.cooldownMul = cdMul;
+    }
+    if (this.hasNode('disasterEye') && this.envHazard?.phase === 'active') {
+      this.cooldownMul *= CONSTELLATION_FX.hazardCdMul;
+    }
+    if (this.hasNode('berserker')) {
+      const spd = Math.hypot(this.velX, this.velY);
+      this.damageMul *= Math.max(0.15, spd / CONSTELLATION_FX.berserkerSpdRef);
+    }
+    const newMax = this.hasNode('glassCannon')
+      ? 1
+      : Math.max(1, Math.round(this.baseMaxHp * hpMul));
     if (newMax !== this.maxHp) {
       const ratio = this.maxHp > 0 ? this.hp / this.maxHp : 1;
       this.maxHp = newMax;
@@ -730,12 +798,46 @@ export class GameState {
   }
 
   dropCube(x: number, y: number): void {
-    this.pickups.push({
-      kind: 'cube',
+    this.spawnPickup('cube', x, y);
+  }
+
+  private spawnPickup(kind: PickupKind, x: number, y: number, life: number = PICKUPS.lifetime): Pickup {
+    const p: Pickup = {
+      kind,
       x: Math.max(24, Math.min(CANVAS.width - 24, x)),
       y: Math.max(24, Math.min(CANVAS.height - 24, y)),
-      life: PICKUPS.lifetime,
-    });
+      life,
+    };
+    if (this.hasNode('greed')) {
+      p.corruptIn = CONSTELLATION_FX.greedLife;
+      p.life = CONSTELLATION_FX.greedLife + 12;
+    }
+    this.pickups.push(p);
+    return p;
+  }
+
+  private spawnGem(x: number, y: number, exp: number): void {
+    const g: Gem = { x, y, exp, life: GEM.lifetime };
+    if (this.hasNode('greed')) {
+      g.corruptIn = CONSTELLATION_FX.greedLife;
+      g.life = CONSTELLATION_FX.greedLife + 12;
+    }
+    const n = this.bossGemMul();
+    if (n > 1) g.exp *= n;
+    this.gems.push(g);
+  }
+
+  private bossGemMul(): number {
+    if (!this.hasNode('twinDread')) return 1;
+    if (this.enemies.some((e) => this.isTrueBoss(e))) return CONSTELLATION_FX.twinGemMul;
+    return 1;
+  }
+
+  growthExhausted(): boolean {
+    if (this.weapons.length < this.maxWeaponSlots) return false;
+    if (this.weapons.some((w) => w.level < LEVELING.maxWeaponLevel)) return false;
+    if (this.passives.length < this.maxPassiveSlots) return false;
+    return this.passives.every((p) => p.level >= PASSIVES[p.passiveId].maxLevel);
   }
 
   noteWeapon(id: WeaponId): void {
@@ -907,6 +1009,7 @@ export class GameState {
     this.updateDrones(dt);
     this.updateAltar(dt);
     this.updateHazard(dt);
+    this.updateConstellation(dt);
     this.updateTerrain(dt);
     this.updateSpawns(dt);
     this.updateBossSchedule();
@@ -935,6 +1038,10 @@ export class GameState {
         this.applyPassiveEffects();
       }
     }
+    if (this.hunterBuffLeft > 0) {
+      this.hunterBuffLeft = Math.max(0, this.hunterBuffLeft - dt);
+      if (this.hunterBuffLeft <= 0) this.applyPassiveEffects();
+    }
     if (this.levelAegisLeft > 0) {
       this.levelAegisLeft = Math.max(0, this.levelAegisLeft - dt);
     }
@@ -943,6 +1050,33 @@ export class GameState {
     }
     if (this.heraldStacks > 0) {
       this.legionSpawnMul += LEGION.spawnPerSec * this.heraldStacks * dt;
+    }
+  }
+
+  private updateConstellation(dt: number): void {
+    if (this.hasNode('disasterEye') && this.envHazard?.phase === 'active') {
+      this.skillCdLeft = 0;
+      this.skillRechargeLeft = 0;
+      if (this.skillChargeMax > 0) this.skillCharges = this.skillChargeMax;
+    }
+    if (this.hasNode('berserker') && Math.hypot(this.velX, this.velY) < 18) {
+      this.hp -= this.maxHp * CONSTELLATION_FX.berserkerHpPct * dt;
+      if (this.hp <= 0) {
+        this.hp = 0;
+        this.status = 'gameover';
+        this.events.push({ type: 'gameover' });
+      }
+    }
+    if (this.hasNode('berserker')) this.applyPassiveEffects();
+    if (this.hasNode('fateWheel')) {
+      this.wheelAcc += dt;
+      if (this.wheelAcc >= CONSTELLATION_FX.wheelPeriod && !this.envHazard) {
+        this.wheelAcc = 0;
+        const kinds: Array<'solar' | 'asteroid' | 'emp'> = ['solar', 'asteroid', 'emp'];
+        const kind = kinds[Math.floor(Math.random() * kinds.length)];
+        this.wheelPending = true;
+        this.beginHazardWarn(kind);
+      }
     }
   }
 
@@ -1161,15 +1295,25 @@ export class GameState {
   private fireWeapon(slot: WeaponSlot): void {
     const def = WEAPONS[slot.weaponId];
     const p = def.projectile;
+    const puristLow = this.hasNode('purist') && def.tier <= 2;
     let damage = p.damage
       * (1 + (slot.level - 1) * LEVELING.damagePerLevel)
       * this.damageMul
       * (1 + (slot.damageBonus ?? 0))
       * (this.turretDarkActive ? PILOT_FX.turretDmgMul : 1);
-    let speed = p.speed * this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
+    let speedMul = this.runStats.projSpeedMul * (1 + (slot.speedBonus ?? 0));
+    if (this.hasNode('spacetime')) {
+      speedMul = Math.max(CONSTELLATION_FX.speedFloor, 1 / Math.max(speedMul, CONSTELLATION_FX.speedFloor));
+      damage *= 1 / speedMul;
+    }
+    if (this.hasNode('pacifist') && !p.drop) damage = 0;
+    if (this.hasNode('pacifist') && p.drop) damage *= CONSTELLATION_FX.pacifistEnvMul;
+    let speed = p.speed * speedMul;
     if (p.homingTurnRate > 0) {
       damage *= HOMING.damageMul;
-      speed = Math.min(speed, HOMING.maxSpeed);
+      if (!this.hasNode('endlessAbyss') && !this.hasNode('spacetime')) {
+        speed = Math.min(speed, HOMING.maxSpeed);
+      }
     }
     let pierce = p.pierce;
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
@@ -1181,7 +1325,9 @@ export class GameState {
       const target = this.pickTargetedEnemy(p.targeted);
       if (target) baseAngle = Math.atan2(target.y - this.playerY, target.x - this.playerX);
     }
-    const sizeMul = 1 + (slot.radiusBonus ?? 0);
+    let sizeMul = 1 + (slot.radiusBonus ?? 0);
+    if (puristLow) sizeMul *= CONSTELLATION_FX.puristRadiusMul;
+    const shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0);
 
     if (p.melee) {
       const arcDeg = Math.min(360, p.melee.arcDeg * sizeMul);
@@ -1284,17 +1430,17 @@ export class GameState {
 
     const originX = this.playerX;
     const originY = this.playerY - PLAYER.radius;
-    for (let i = 0; i < p.count; i++) {
+    for (let i = 0; i < shotCount; i++) {
       let angle: number;
       if (p.randomSpread) {
         angle = Math.random() * Math.PI * 2;
-      } else if (p.count === 1 || p.spreadDeg === 0) {
+      } else if (shotCount === 1 || p.spreadDeg === 0) {
         angle = baseAngle;
       } else if (p.spreadDeg >= 360) {
-        angle = (Math.PI * 2 * i) / p.count + (p.spiral ? 0 : this.time);
+        angle = (Math.PI * 2 * i) / shotCount + (p.spiral ? 0 : this.time);
       } else {
         const arc = (p.spreadDeg * Math.PI) / 180;
-        angle = baseAngle - arc / 2 + (arc * i) / (p.count - 1);
+        angle = baseAngle - arc / 2 + (arc * i) / Math.max(1, shotCount - 1);
       }
       const proj: Projectile = {
         x: originX,
@@ -1344,7 +1490,8 @@ export class GameState {
       wave.entries.forEach((entry, ei) => {
         const key = `${wi}:${ei}`;
         const t = (this.spawnTimers.get(key) ?? 0) + dt;
-        const interval = entry.interval * scale / (1 + this.legionSpawnMul);
+        const interval = entry.interval * scale / (1 + this.legionSpawnMul)
+          / (this.hasNode('bloodFeast') ? CONSTELLATION_FX.bloodSpawnMul : 1);
         if (t >= interval) {
           this.spawnTimers.set(key, t - interval);
           this.spawnEnemy(entry.enemy, entry.mutation);
@@ -1411,6 +1558,11 @@ export class GameState {
       boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth) * this.enemyHpMul;
       boss.phase = 1;
       this.bossId = boss.id;
+      if (this.hasNode('twinDread')) {
+        const twin = this.addEnemy(bossType, CANVAS.width / 2 + 70, -90, 1, false);
+        twin.hp = twin.maxHp = boss.maxHp;
+        twin.phase = 1;
+      }
       this.bossIndex++;
       this.bossWarned = false;
       this.events.push({ type: 'bossSpawned', x: boss.x, y: boss.y });
@@ -1419,7 +1571,7 @@ export class GameState {
   }
 
   private updateCommanderSchedule(): void {
-    if (this.stageId !== 'legion') return;
+    if (this.stageId !== 'legion' && !this.hasNode('traitorLegion')) return;
     if (this.time < this.nextCommanderAt - BOSS.warningLead) return;
 
     if (!this.commanderWarned && this.time < this.nextCommanderAt) {
@@ -1439,7 +1591,9 @@ export class GameState {
     if (id === 'architect') {
       e.shieldHits = LEGION.techShieldBase + Math.floor(this.time * LEGION.techShieldPerSec);
     }
-    this.nextCommanderAt += LEGION.interval;
+    this.nextCommanderAt += this.hasNode('traitorLegion')
+      ? CONSTELLATION_FX.legionInterval
+      : LEGION.interval;
     this.commanderWarned = false;
     this.events.push({ type: 'bossSpawned', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[id].name}` });
@@ -1468,14 +1622,16 @@ export class GameState {
     }
 
     this.riftWarnAt = this.time + RIFT_EVENT.warnLead;
-    this.nextRiftAt = this.time + RIFT_EVENT.cooldown;
+    this.nextRiftAt = this.time + RIFT_EVENT.cooldown
+      * (this.hasNode('voidPredator') ? CONSTELLATION_FX.riftCooldownMul : 1);
     this.events.push({ type: 'riftWarn' });
     this.events.push({ type: 'banner', text: '⚠ RIFT INCOMING' });
   }
 
   private spawnRiftElites(): void {
     const pool = RIFT_EVENT.elitePool;
-    for (let i = 0; i < RIFT_EVENT.eliteCount; i++) {
+    const n = RIFT_EVENT.eliteCount * (this.hasNode('voidPredator') ? CONSTELLATION_FX.riftEliteMul : 1);
+    for (let i = 0; i < n; i++) {
       const enemyId = pool[i % pool.length];
       const def = ENEMIES[enemyId];
       const x = def.radius + Math.random() * (CANVAS.width - def.radius * 2);
@@ -1519,7 +1675,8 @@ export class GameState {
     if (this.altar.done || this.altar.trialLeft > 0) return;
     const dist = Math.hypot(this.playerX - this.altar.x, this.playerY - this.altar.y);
     if (dist <= VOID_ALTAR.radius) {
-      this.altar.charge = Math.min(1, this.altar.charge + dt / VOID_ALTAR.chargeSec);
+      const chargeSec = this.hasNode('altarFrenzy') ? CONSTELLATION_FX.altarChargeSec : VOID_ALTAR.chargeSec;
+      this.altar.charge = Math.min(1, this.altar.charge + dt / chargeSec);
       this.altarTickAcc += dt;
       if (this.altarTickAcc >= 0.18) {
         this.altarTickAcc = 0;
@@ -1556,13 +1713,13 @@ export class GameState {
     if (!this.altar) return;
     this.altar.trialLeft = Math.max(0, this.altar.trialLeft - 1);
     if (this.altar.trialLeft > 0) return;
-    this.altar.done = true;
-    this.pickups.push({
-      kind: 'goldCube',
-      x: this.altar.x,
-      y: this.altar.y,
-      life: PICKUPS.lifetime * 2,
-    });
+    if (this.hasNode('altarFrenzy')) {
+      this.altar.done = false;
+      this.altar.charge = 0;
+    } else {
+      this.altar.done = true;
+    }
+    this.spawnPickup('goldCube', this.altar.x, this.altar.y, PICKUPS.lifetime * 2);
     this.events.push({ type: 'banner', text: '✨ 공허의 보상' });
   }
 
@@ -1587,7 +1744,14 @@ export class GameState {
         this.applyPassiveEffects();
       }
       if (this.envHazard.kind === 'solar') this.beginDerelictBreak();
+      if (this.wheelPending) {
+        this.wheelPending = false;
+        this.runCreditBonus += CONSTELLATION_FX.wheelCredits * this.nodeLv('fateWheel');
+        this.runCoreBonus += CONSTELLATION_FX.wheelCores * this.nodeLv('fateWheel');
+        this.events.push({ type: 'banner', text: '🎡 운명의 수레바퀴: 생존 보상' });
+      }
       this.envHazard = null;
+      if (this.hasNode('disasterEye')) this.applyPassiveEffects();
       return;
     }
 
@@ -1604,10 +1768,10 @@ export class GameState {
     this.beginHazardWarn();
   }
 
-  private beginHazardWarn(): void {
-    const kind = this.stageId === 'orbit' ? 'solar' as const
+  private beginHazardWarn(forced?: 'solar' | 'asteroid' | 'emp'): void {
+    const kind = forced ?? (this.stageId === 'orbit' ? 'solar' as const
       : this.stageId === 'rift' ? 'asteroid' as const
-      : 'emp' as const;
+      : 'emp' as const);
     const warn = kind === 'solar' ? HAZARDS.solar.warnSec
       : kind === 'asteroid' ? HAZARDS.asteroid.warnSec
       : 0;
@@ -1670,9 +1834,9 @@ export class GameState {
     this.events.push({ type: 'derelictBreak', x: d.x, y: d.y, w: d.w, h: d.h });
     if (!this.derelictGoldDropped) {
       this.derelictGoldDropped = true;
-      this.pickups.push({ kind: 'goldCube', x: d.x, y: d.y, life: PICKUPS.lifetime * 2 });
+      this.spawnPickup('goldCube', d.x, d.y, PICKUPS.lifetime * 2);
     } else {
-      this.pickups.push({ kind: 'heal', x: d.x, y: d.y - 10, life: PICKUPS.lifetime });
+      this.spawnPickup('heal', d.x, d.y - 10);
     }
     const n = TERRAIN.derelict.creditOrbs;
     for (let i = 0; i < n; i++) {
@@ -1713,7 +1877,7 @@ export class GameState {
     const h = this.envHazard;
     h.phase = 'active';
     if (h.kind === 'solar') {
-      h.left = HAZARDS.solar.burnSec;
+      h.left = HAZARDS.solar.burnSec * (this.hasNode('disasterEye') ? CONSTELLATION_FX.hazardDurMul : 1);
       h.burnAcc = 0;
       this.events.push({ type: 'solarFlare' });
     } else if (h.kind === 'asteroid') {
@@ -1721,12 +1885,13 @@ export class GameState {
       this.strikeAsteroids();
       this.events.push({ type: 'asteroid' });
     } else {
-      h.left = HAZARDS.emp.duration;
-      this.empLeft = HAZARDS.emp.duration;
+      h.left = HAZARDS.emp.duration * (this.hasNode('disasterEye') ? CONSTELLATION_FX.hazardDurMul : 1);
+      this.empLeft = h.left;
       this.ampAura = null;
       this.applyPassiveEffects();
       this.events.push({ type: 'empStart' });
     }
+    if (this.hasNode('disasterEye')) this.applyPassiveEffects();
   }
 
   private tickSolarBurn(dt: number): void {
@@ -1736,7 +1901,7 @@ export class GameState {
     }
     for (const e of [...this.enemies]) {
       if (this.inSolarShade(e.x, e.y)) continue;
-      this.damageEnemy(e, e.maxHp * pct);
+      this.damageEnemy(e, e.maxHp * pct * (this.hasNode('pacifist') ? CONSTELLATION_FX.pacifistEnvMul : 1));
     }
   }
 
@@ -1749,7 +1914,8 @@ export class GameState {
       const hit = this.envHazard.beams.some((x) => Math.abs(e.x - x) <= half + e.def.radius);
       if (!hit) continue;
       if (this.isTrueBoss(e) || this.isBossLike(e)) {
-        this.damageEnemy(e, e.maxHp * HAZARDS.asteroid.bossHpPct);
+        this.damageEnemy(e, e.maxHp * HAZARDS.asteroid.bossHpPct
+          * (this.hasNode('pacifist') ? CONSTELLATION_FX.pacifistEnvMul : 1));
       } else {
         this.damageEnemy(e, e.hp + 1);
       }
@@ -1954,7 +2120,9 @@ export class GameState {
   ): Enemy {
     const def = ENEMIES[enemyId];
     const isBoss = this.isBossPattern(def.movePattern);
+    const giant = this.hasNode('giantMarch') && allowElite && !isBoss && enemyId !== 'splinter';
     const elite = forceElite
+      || giant
       || (allowElite
         && !isBoss
         && enemyId !== 'splinter'
@@ -1978,7 +2146,9 @@ export class GameState {
       mutation: enemyId === 'splinter' ? undefined : mutation,
       introLeft: isBoss ? BOSS.introDuration : undefined,
       swimAge: isBoss ? 0 : undefined,
-      shieldHits: enemyId === 'shielder' ? SHIELDER.hits : undefined,
+      shieldHits: enemyId === 'shielder'
+        ? SHIELDER.hits * (this.hasNode('shieldBreaker') ? CONSTELLATION_FX.shieldHitsMul : 1)
+        : undefined,
     };
     this.enemies.push(enemy);
     return enemy;
@@ -1996,8 +2166,10 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
-      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y);
-      const eliteMul = e.elite ? ELITE.speedMul : 1;
+      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y)
+        * (this.hasNode('hunterToy') && (e.def.id === 'teleporter' || e.def.id === 'mirage')
+          ? CONSTELLATION_FX.hunterSpeedMul : 1);
+      const eliteMul = (e.elite ? ELITE.speedMul : 1) * (e.enraged ? 1.5 : 1);
 
       switch (e.def.movePattern) {
         case 'down':
@@ -2065,7 +2237,7 @@ export class GameState {
       if (e.y >= targetY) {
         e.y = targetY;
         e.anchored = true;
-        const d = TRAPPER.pylonDist;
+        const d = TRAPPER.pylonDist * (this.hasNode('deathArena') ? CONSTELLATION_FX.fenceRadiusMul : 1);
         const cx = Math.max(d, Math.min(CANVAS.width - d, this.playerX));
         const cy = Math.max(d, Math.min(CANVAS.height - d, this.playerY));
         const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
@@ -2139,7 +2311,7 @@ export class GameState {
   }
 
   private checkFenceCollision(): void {
-    if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
+    if (!this.hasNode('glassCannon') && (this.invincibleLeft > 0 || this.shieldLeft > 0)) return;
     const r = this.playerHitRadius();
     for (const s of this.fenceSegments()) {
       if (distToSegment(this.playerX, this.playerY, s.ax, s.ay, s.bx, s.by) <= r + TRAPPER.fenceWidth) {
@@ -2187,10 +2359,13 @@ export class GameState {
   private syncOrbiters(slot: WeaponSlot, damage: number, color: string, sizeMul: number): boolean {
     const spec = WEAPONS[slot.weaponId].projectile.orbit;
     if (!spec) return false;
+    const extra = this.hasNode('purist') && WEAPONS[slot.weaponId].tier <= 2
+      ? CONSTELLATION_FX.puristExtraCount : 0;
+    const count = spec.count + extra;
     const existing = this.orbiters.filter((o) => o.weaponId === slot.weaponId);
     const radius = spec.radius * sizeMul;
     const hitR = WEAPONS[slot.weaponId].projectile.radius * sizeMul;
-    if (existing.length === spec.count) {
+    if (existing.length === count) {
       for (const o of existing) {
         o.damage = damage;
         o.radius = radius;
@@ -2201,16 +2376,16 @@ export class GameState {
       return false;
     }
     this.orbiters = this.orbiters.filter((o) => o.weaponId !== slot.weaponId);
-    for (let i = 0; i < spec.count; i++) {
+    for (let i = 0; i < count; i++) {
       this.orbiters.push({
         weaponId: slot.weaponId,
-        angle: (Math.PI * 2 * i) / spec.count,
+        angle: (Math.PI * 2 * i) / count,
         radius,
         damage,
         hitRadius: hitR,
         color,
         pull: spec.pull ?? 0,
-        ring: spec.count === 1,
+        ring: count === 1,
         tickLeft: 0,
       });
     }
@@ -2517,14 +2692,18 @@ export class GameState {
         const r = DRONE_FX.retrieverRadius;
         for (let i = this.gems.length - 1; i >= 0; i--) {
           const g = this.gems[i];
+          if (g.homing) continue;
           if (Math.hypot(g.x - this.playerX, g.y - this.playerY) <= r) {
             this.events.push({ type: 'gemPickup', x: g.x, y: g.y });
-            this.gainExp(g.exp);
+            const mul = this.hasNode('greed') && (g.corruptIn == null || g.corruptIn > 0)
+              ? CONSTELLATION_FX.greedRewardMul : 1;
+            this.gainExp(g.exp * mul);
             this.gems.splice(i, 1);
           }
         }
         for (let i = this.pickups.length - 1; i >= 0; i--) {
           const p = this.pickups[i];
+          if (p.homing) continue;
           if (Math.hypot(p.x - this.playerX, p.y - this.playerY) <= r) {
             this.pickups.splice(i, 1);
             this.applyPickup(p);
@@ -2570,12 +2749,12 @@ export class GameState {
     e.y += spd * dt;
     e.teleportCd = (e.teleportCd ?? 0) - dt;
     const dist = Math.hypot(this.playerX - e.x, this.playerY - e.y);
-    if (e.teleportCd <= 0 && dist < TELEPORTER.triggerDist && dist > 24) {
+    if ((e.teleportCd ?? 0) <= 0 && dist < TELEPORTER.triggerDist * (this.hasNode('hunterToy') ? 1.6 : 1) && dist > 24) {
       const side = Math.random() < 0.5 ? -1 : 1;
       const r = e.def.radius;
       e.x = Math.max(r, Math.min(CANVAS.width - r, this.playerX + side * (38 + Math.random() * 36)));
       e.y = Math.max(r, Math.min(CANVAS.height - r, this.playerY + 40 + Math.random() * 28));
-      e.teleportCd = TELEPORTER.cooldown;
+      e.teleportCd = TELEPORTER.cooldown * (this.hasNode('hunterToy') ? 0.45 : 1);
       e.hitFlash = 0.15;
       this.events.push({ type: 'teleport', x: e.x, y: e.y });
     }
@@ -2691,7 +2870,7 @@ export class GameState {
           continue;
         }
       }
-      if (this.invincibleLeft <= 0 && this.shieldLeft <= 0 && !aegis) {
+      if ((this.hasNode('glassCannon') || (this.invincibleLeft <= 0 && this.shieldLeft <= 0)) && !aegis) {
         const rr = this.playerHitRadius() + p.radius - 3;
         if ((this.playerX - p.x) ** 2 + (this.playerY - p.y) ** 2 <= rr * rr) {
           this.enemyProjectiles.splice(i, 1);
@@ -2849,7 +3028,8 @@ export class GameState {
     if (e.def.id === 'guardian') return false;
     for (const g of this.enemies) {
       if (g.def.id !== 'guardian' || g.id === e.id) continue;
-      if (Math.hypot(g.x - e.x, g.y - e.y) <= GUARDIAN.auraRadius + e.def.radius) return true;
+      if (Math.hypot(g.x - e.x, g.y - e.y) <= GUARDIAN.auraRadius
+        * (this.hasNode('shieldBreaker') ? CONSTELLATION_FX.guardianAuraMul : 1) + e.def.radius) return true;
     }
     return false;
   }
@@ -3034,8 +3214,62 @@ export class GameState {
     return best;
   }
 
+  private modHitDamage(dmg: number, e: Enemy, weaponId?: WeaponId): number {
+    const def = weaponId ? WEAPONS[weaponId] : null;
+    const isMine = !!def?.projectile.drop;
+    const isWeapon = !!def && !isMine;
+    if (this.hasNode('pacifist') && isWeapon) return 0;
+    if (this.hasNode('pacifist') && !isWeapon) dmg *= CONSTELLATION_FX.pacifistEnvMul;
+    if (this.hasNode('sniper')) {
+      const dist = Math.hypot(e.x - this.playerX, e.y - this.playerY);
+      if (dist <= CONSTELLATION_FX.sniperNear) dmg *= CONSTELLATION_FX.sniperNearMul;
+      else if (dist >= CONSTELLATION_FX.sniperFar) dmg *= CONSTELLATION_FX.sniperFarMul;
+    }
+    if (this.hasNode('deathArena') && this.playerInsideFence()) dmg *= CONSTELLATION_FX.arenaDmgMul;
+    return dmg;
+  }
+
+  private playerInsideFence(): boolean {
+    const segs = this.fenceSegments();
+    if (segs.length < 3) return false;
+    let hits = 0;
+    const px = this.playerX;
+    const py = this.playerY;
+    for (const s of segs) {
+      const [x1, y1, x2, y2] = [s.ax, s.ay, s.bx, s.by];
+      const cond = ((y1 > py) !== (y2 > py))
+        && (px < (x2 - x1) * (py - y1) / ((y2 - y1) || 1e-6) + x1);
+      if (cond) hits++;
+    }
+    return hits % 2 === 1;
+  }
+
+  private enrageEnemy(e: Enemy): void {
+    e.hp = e.maxHp;
+    e.enraged = true;
+    if (!e.elite && !this.isBossLike(e)) {
+      e.elite = true;
+      e.maxHp *= ELITE.hpMul;
+      e.hp = e.maxHp;
+    }
+  }
+
+  private tryBloodBurst(x: number, y: number): void {
+    if (!this.hasNode('bloodFeast') || this.bloodBursting) return;
+    if (Math.random() >= CONSTELLATION_FX.bloodChance) return;
+    this.bloodBursting = true;
+    const r = CONSTELLATION_FX.bloodRadius;
+    this.events.push({ type: 'bloodBurst', x, y, radius: r });
+    for (const other of [...this.enemies]) {
+      if ((other.x - x) ** 2 + (other.y - y) ** 2 > r * r) continue;
+      this.damageEnemy(other, other.maxHp * 0.35);
+    }
+    this.bloodBursting = false;
+  }
+
   private damageEnemy(e: Enemy, dmg: number, weaponId?: WeaponId, fromEcho = false): void {
     if (this.isCloaked(e)) return;
+    dmg = this.modHitDamage(dmg, e, weaponId);
     if (this.inGuardianAura(e)) dmg *= GUARDIAN.damageTakenMul;
     const prevRatio = e.hp / e.maxHp;
     const applied = Math.min(e.hp, dmg);
@@ -3075,9 +3309,32 @@ export class GameState {
 
       const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1));
       const scoreMul = e.elite ? ELITE.scoreMul : 1;
+      let fogScore = 1;
+      if (this.hasNode('darkFog') && Math.hypot(e.x - this.playerX, e.y - this.playerY) > CONSTELLATION_FX.fogRadius) {
+        fogScore = CONSTELLATION_FX.fogScoreMul;
+      }
       this.score += Math.round(
-        Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus) * scoreMul * this.scoreMul,
+        Math.max(1, expDrop) * SCORE.killBase * (1 + this.comboCount * SCORE.comboBonus)
+          * scoreMul * this.scoreMul * fogScore,
       );
+
+      if (this.hasNode('traitorLegion') && e.def.movePattern === 'legion') {
+        this.runStats.moveSpeedMul *= 1 + CONSTELLATION_FX.legionStack;
+        this.runStats.projSpeedMul *= 1 + CONSTELLATION_FX.legionStack;
+        this.applyPassiveEffects();
+      }
+      if (this.hasNode('shieldBreaker') && (e.def.id === 'shielder' || e.def.id === 'guardian')) {
+        for (const other of this.enemies) {
+          if (other.id === e.id) continue;
+          other.hp = Math.max(1, other.hp * (1 - CONSTELLATION_FX.empHpFrac));
+        }
+        this.events.push({ type: 'banner', text: '💥 방패 붕괴 EMP' });
+      }
+      if (this.hasNode('hunterToy') && (e.def.id === 'teleporter' || e.def.id === 'mirage')) {
+        this.hunterBuffLeft = CONSTELLATION_FX.hunterBuffSec;
+        this.applyPassiveEffects();
+        this.events.push({ type: 'banner', text: '🎯 사냥 표식: 자석·EXP 3배' });
+      }
 
       if (this.isTrueBoss(e)) {
         this.killBoss(e);
@@ -3085,6 +3342,9 @@ export class GameState {
         if (e.elite) this.eliteKills++;
         if (e.fromRift) {
           this.dropCube(e.x, e.y);
+          if (this.hasNode('voidPredator') && Math.random() < CONSTELLATION_FX.riftCubeChance) {
+            this.dropCube(e.x + 16, e.y);
+          }
           this.onRiftEliteKilled();
         }
         if (e.fromAltar) this.onAltarEliteKilled();
@@ -3096,19 +3356,19 @@ export class GameState {
           color: e.elite ? '#fbbf24' : e.def.color,
           radius: e.def.radius * (e.elite ? 1.3 : 1),
         });
-        this.gems.push({
-          x: e.x, y: e.y,
-          exp: Math.max(1, expDrop),
-          life: GEM.lifetime,
-        });
+        this.spawnGem(e.x, e.y, Math.max(1, expDrop));
         const dropRate = PICKUPS.dropChance + this.dropChanceBonus;
         if ((e.elite && ELITE.guaranteedPickup && !e.fromAltar) || Math.random() < dropRate) {
           const r = Math.random();
           const kind: PickupKind = r < 0.45 ? 'heal' : r < 0.8 ? 'magnet' : 'bomb';
-          this.pickups.push({ kind, x: e.x, y: e.y, life: PICKUPS.lifetime });
+          this.spawnPickup(kind, e.x, e.y);
+        }
+        if (this.hasNode('giantMarch') && !this.isBossLike(e) && Math.random() < CONSTELLATION_FX.giantCubeChance) {
+          this.dropCube(e.x, e.y - 10);
         }
         if (e.elite) this.vacuumDrops();
       }
+      this.tryBloodBurst(e.x, e.y);
 
       if (
         !fromEcho
@@ -3175,12 +3435,7 @@ export class GameState {
     this.enemyProjectiles.length = 0;
     const gems = Math.round(BOSS.gemDrop * BOSS.phaseGemMul);
     for (let k = 0; k < gems; k++) {
-      this.gems.push({
-        x: e.x + (Math.random() - 0.5) * 220,
-        y: e.y + Math.random() * 160 + 10,
-        exp: 3,
-        life: GEM.lifetime,
-      });
+      this.spawnGem(e.x + (Math.random() - 0.5) * 220, e.y + Math.random() * 160 + 10, 3);
     }
     this.events.push({ type: 'bossPhase', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: '⚡ PHASE 2' });
@@ -3189,21 +3444,18 @@ export class GameState {
   }
 
   private killBoss(e: Enemy): void {
-    this.bossId = null;
+    const other = this.enemies.find((x) => this.isTrueBoss(x) && x.id !== e.id);
+    this.bossId = other?.id ?? null;
     this.bossKills++;
+    if (this.hasNode('twinDread')) this.runCoreBonus += CONSTELLATION_FX.twinCoreMul - 1;
     this.score += Math.round(BOSS.score * this.scoreMul);
     this.events.push({ type: 'bossDied', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: `${e.def.name} 격파!` });
     for (let k = 0; k < BOSS.gemDrop; k++) {
-      this.gems.push({
-        x: e.x + (Math.random() - 0.5) * 200,
-        y: e.y + Math.random() * 140 + 20,
-        exp: 3,
-        life: GEM.lifetime,
-      });
+      this.spawnGem(e.x + (Math.random() - 0.5) * 200, e.y + Math.random() * 140 + 20, 3);
     }
-    this.pickups.push({ kind: 'heal', x: e.x - 40, y: e.y + 60, life: PICKUPS.lifetime });
-    this.pickups.push({ kind: 'magnet', x: e.x + 40, y: e.y + 60, life: PICKUPS.lifetime });
+    this.spawnPickup('heal', e.x - 40, e.y + 60);
+    this.spawnPickup('magnet', e.x + 40, e.y + 60);
   }
 
   // ---------- 드롭 아이템 ----------
@@ -3213,9 +3465,35 @@ export class GameState {
     const vacuum = this.vacuumLeft > 0;
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
+      if (p.corruptIn != null && !p.homing) {
+        p.corruptIn -= dt;
+        if (p.corruptIn <= 0) {
+          p.homing = true;
+          p.corruptIn = 0;
+        }
+      }
       p.life -= dt;
-      if (p.life <= 0) {
+      if (p.life <= 0 && !p.homing) {
         this.pickups.splice(i, 1);
+        continue;
+      }
+      if (p.homing) {
+        const t = this.nearestEnemy(p.x, p.y, new Set());
+        if (!t) {
+          this.pickups.splice(i, 1);
+          continue;
+        }
+        const dx = t.x - p.x;
+        const dy = t.y - p.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const step = CONSTELLATION_FX.greedHoming * dt;
+        p.x += (dx / dist) * step;
+        p.y += (dy / dist) * step;
+        if (dist <= t.def.radius + PICKUPS.radius + 8) {
+          this.enrageEnemy(t);
+          this.events.push({ type: 'banner', text: '💰 탐욕의 오염' });
+          this.pickups.splice(i, 1);
+        }
         continue;
       }
       const dx = this.playerX - p.x;
@@ -3237,6 +3515,8 @@ export class GameState {
   }
 
   private applyPickup(p: Pickup): void {
+    if (p.homing) return;
+    const greedFresh = this.hasNode('greed') && (p.corruptIn == null || p.corruptIn > 0);
     this.events.push({ type: 'pickup', kind: p.kind, x: p.x, y: p.y });
     switch (p.kind) {
       case 'heal':
@@ -3262,6 +3542,7 @@ export class GameState {
         this.pendingAltarRewards++;
         this.status = 'levelup';
         this.events.push({ type: 'banner', text: '🏆 VOID CACHE' });
+        if (greedFresh) this.runCreditBonus += 80 * CONSTELLATION_FX.greedRewardMul;
         break;
     }
   }
@@ -3271,9 +3552,34 @@ export class GameState {
   private updateGems(dt: number): void {
     for (let i = this.gems.length - 1; i >= 0; i--) {
       const g = this.gems[i];
+      if (g.corruptIn != null && !g.homing) {
+        g.corruptIn -= dt;
+        if (g.corruptIn <= 0) {
+          g.homing = true;
+          g.corruptIn = 0;
+        }
+      }
       g.life -= dt;
-      if (g.life <= 0) {
+      if (g.life <= 0 && !g.homing) {
         this.gems.splice(i, 1);
+        continue;
+      }
+      if (g.homing) {
+        const t = this.nearestEnemy(g.x, g.y, new Set());
+        if (!t) {
+          this.gems.splice(i, 1);
+          continue;
+        }
+        const dx = t.x - g.x;
+        const dy = t.y - g.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const step = CONSTELLATION_FX.greedHoming * dt;
+        g.x += (dx / dist) * step;
+        g.y += (dy / dist) * step;
+        if (dist <= t.def.radius + GEM.radius + 6) {
+          this.enrageEnemy(t);
+          this.gems.splice(i, 1);
+        }
         continue;
       }
       const dx = this.playerX - g.x;
@@ -3291,7 +3597,9 @@ export class GameState {
       if (dist < PLAYER.radius + GEM.radius + 4) {
         this.gems.splice(i, 1);
         this.events.push({ type: 'gemPickup', x: g.x, y: g.y });
-        this.gainExp(g.exp);
+        const mul = this.hasNode('greed') && (g.corruptIn == null || g.corruptIn > 0)
+          ? CONSTELLATION_FX.greedRewardMul : 1;
+        this.gainExp(g.exp * mul);
       }
     }
   }
@@ -3306,6 +3614,10 @@ export class GameState {
       this.expToNext = LEVELING.expForLevel(this.level);
       this.pendingLevelUps++;
       leveled++;
+      if (this.growthExhausted()) {
+        this.pantheonEarned++;
+        this.events.push({ type: 'banner', text: '✨ 판테온 공명 +1' });
+      }
       if (prevLv < AWAKEN.level && this.level >= AWAKEN.level) this.awakeningDue = true;
     }
     if (leveled > 0) {
@@ -3324,25 +3636,33 @@ export class GameState {
   // ---------- 플레이어 피격 ----------
 
   private checkPlayerCollision(_dt: number): void {
-    if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
+    if (!this.hasNode('glassCannon') && (this.invincibleLeft > 0 || this.shieldLeft > 0)) return;
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     for (const e of this.enemies) {
-      const rr = this.playerHitRadius() + e.def.radius * (e.elite ? 1.15 : 1) - 4;
+      const rr = this.playerHitRadius() + e.def.radius * (e.elite ? 1.15 : 1) * (e.enraged ? 1.5 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
-        const dmg = e.def.contactDamage * (e.elite ? ELITE.damageMul : 1);
+        const abyss = this.nodeLv('endlessAbyss');
+        const dmg = e.def.contactDamage * (e.elite ? ELITE.damageMul : 1)
+          * Math.pow(1 + CONSTELLATION_FX.abyssPerStack, abyss);
         this.hurtPlayer(dmg);
         return;
       }
     }
   }
 
+  private glassIgnoresGuard(): boolean {
+    return this.hasNode('glassCannon');
+  }
+
   private hurtPlayer(damage: number): void {
-    if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
+    if (!this.glassIgnoresGuard()) {
+      if (this.invincibleLeft > 0 || this.shieldLeft > 0) return;
+    }
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     let taken = damage * (1 - this.armorReduce);
     if (this.levelAegisLeft > 0) taken *= 1 - this.levelAegisReduce;
     this.hp -= taken;
-    this.invincibleLeft = PLAYER.invincibleMs;
+    this.invincibleLeft = this.glassIgnoresGuard() ? 0 : PLAYER.invincibleMs;
     this.events.push({ type: 'playerHit' });
     if (this.hp <= 0) {
       this.hp = 0;
@@ -3352,9 +3672,11 @@ export class GameState {
   }
 
   playerHitRadius(): number {
-    if (this.empLeft > 0) return PLAYER.radius;
     const lv = this.passiveLevel('evasion');
-    return PLAYER.radius * (1 - PASSIVES.evasion.perLevel * lv);
+    const shrunk = PLAYER.radius * (1 - PASSIVES.evasion.perLevel * lv);
+    if (this.hasNode('glassCannon')) return Math.max(1, shrunk);
+    if (this.empLeft > 0) return PLAYER.radius;
+    return shrunk;
   }
 
   private passiveLevel(id: PassiveId): number {
@@ -3368,6 +3690,7 @@ export class GameState {
   }
 
   private rollCrit(): boolean {
+    if (this.hasNode('deathArena') && this.playerInsideFence()) return true;
     const chance = this.pilotTrait === 'lastStand' && this.hp / this.maxHp <= PILOT_FX.lastStandHp
       ? 1
       : COMBAT.baseCritChance;

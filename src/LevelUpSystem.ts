@@ -75,18 +75,6 @@ function pickWeighted(pool: LevelUpChoice[]): LevelUpChoice | null {
 function buildEndgamePool(state: GameState): LevelUpChoice[] {
   const pool: LevelUpChoice[] = [];
 
-  for (const s of Object.values(ENDGAME.stats)) {
-    pool.push({
-      kind: 'statBoost',
-      weight: s.weight,
-      title: s.title,
-      desc: s.desc,
-      icon: s.icon,
-      color: s.color,
-      statId: s.id,
-    });
-  }
-
   for (const t of Object.values(TACTICAL)) {
     pool.push({
       kind: 'tactical',
@@ -145,6 +133,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
     const countB = a === b ? countA : owned.filter((id) => id === b).length;
     const ready = a === b ? countA >= 2 : countA >= 1 && countB >= 1;
     if (!ready) continue;
+    if (state.nodeLv('purist') > 0 && WEAPONS[recipe.result].tier >= 3) continue;
     const result = WEAPONS[recipe.result];
     pool.push({
       kind: 'merge',
@@ -207,7 +196,7 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   ) {
     const evolveId = [...state.acquireOrder].reverse().find((id) => WEAPONS[id].tier !== 3)
       ?? state.weapons.map((w) => w.weaponId).reverse().find((id) => WEAPONS[id].tier !== 3);
-    if (evolveId) {
+    if (evolveId && state.nodeLv('purist') <= 0) {
       const from = WEAPONS[evolveId];
       pool.push({
         kind: 'evolve',
@@ -518,6 +507,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
       state.untrackAcquire(b);
       state.weapons = state.weapons.filter((w) => w !== slotA && w !== slotB);
       const resultId = choice.resultId as WeaponId;
+      if (state.nodeLv('purist') > 0 && WEAPONS[resultId].tier >= 3) break;
       const result: WeaponSlot = {
         weaponId: resultId,
         level: inheritLevel,
@@ -612,6 +602,7 @@ export function applyChoice(state: GameState, choice: LevelUpChoice): void {
     case 'evolve': {
       const fromId = (choice.weaponIds as WeaponId[])[0];
       if (WEAPONS[fromId].tier === 3) break;
+      if (state.nodeLv('purist') > 0) break;
       const slot = [...state.weapons].reverse().find((w) => w.weaponId === fromId);
       if (!slot) break;
       const from = WEAPONS[fromId];

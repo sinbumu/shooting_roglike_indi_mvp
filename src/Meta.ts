@@ -1,11 +1,13 @@
 import type {
   AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
   ShipSkinId, ProjSkinId, WeaponId, DroneId, PilotTraitId,
+  ConstellationId,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
   STAGES, DEFAULT_STAGE, DEFAULT_CHALLENGE,
   GACHA, SHIP_SKINS, PROJ_SKINS, DRONES, PILOT_TRAITS,
+  CONSTELLATION, emptyConstellation, constellationUnlockCost,
 } from './GameConfig';
 import type { GameState } from './GameState';
 import { WEAPONS } from './GameConfig';
@@ -41,6 +43,8 @@ export interface MetaSave {
   unlockedTraits: PilotTraitId[];
   selectedTrait: PilotTraitId | null;
   seenAltarHint: boolean;
+  pantheonPoints: number;
+  constellation: Record<ConstellationId, number>;
 }
 
 function defaultSave(): MetaSave {
@@ -68,6 +72,8 @@ function defaultSave(): MetaSave {
     unlockedTraits: [],
     selectedTrait: null,
     seenAltarHint: false,
+    pantheonPoints: 0,
+    constellation: emptyConstellation(),
   };
 }
 
@@ -140,6 +146,11 @@ export function loadMeta(): MetaSave {
         ? parsed.selectedTrait
         : null,
       seenAltarHint: parsed.seenAltarHint === true,
+      pantheonPoints: Math.max(0, parsed.pantheonPoints ?? 0),
+      constellation: {
+        ...emptyConstellation(),
+        ...(parsed.constellation ?? {}),
+      },
     };
   } catch {
     return defaultSave();
@@ -260,6 +271,30 @@ export function selectTrait(meta: MetaSave, id: PilotTraitId | null): boolean {
   return true;
 }
 
+export function constellationLv(meta: MetaSave, id: ConstellationId): number {
+  return meta.constellation[id] ?? 0;
+}
+
+/** 선행 해금 + (비반복이면 미해금). 포인트 부족이어도 인접으로 본다. */
+export function isConstellationAdjacent(meta: MetaSave, id: ConstellationId): boolean {
+  const def = CONSTELLATION[id];
+  const lv = constellationLv(meta, id);
+  if (!def.repeatable && lv > 0) return false;
+  if (def.prereq && constellationLv(meta, def.prereq) <= 0) return false;
+  return true;
+}
+
+export function tryUnlockConstellation(meta: MetaSave, id: ConstellationId): boolean {
+  if (!isConstellationAdjacent(meta, id)) return false;
+  const lv = constellationLv(meta, id);
+  const cost = constellationUnlockCost(id, lv);
+  if (meta.pantheonPoints < cost) return false;
+  meta.pantheonPoints -= cost;
+  meta.constellation[id] = lv + 1;
+  saveMeta(meta);
+  return true;
+}
+
 function unlockNextStages(meta: MetaSave, cleared: StageId): void {
   for (const stage of Object.values(STAGES)) {
     if (stage.unlockAfter === cleared && !meta.unlockedStages.includes(stage.id)) {
@@ -304,7 +339,8 @@ export function settleRun(
     achvReward += ACHIEVEMENTS[id].reward;
   }
 
-  meta.bossCores += state.bossKills;
+  meta.bossCores += state.bossKills + Math.max(0, state.runCoreBonus || 0);
+  meta.pantheonPoints += Math.max(0, state.pantheonEarned || 0);
 
   const creditsGained = baseGain + achvReward + Math.floor(state.runCreditBonus || 0);
   meta.credits += creditsGained;

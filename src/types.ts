@@ -384,3 +384,47 @@ export interface LevelUpChoice {
   craftOp?: CraftOp;
   altarOp?: 'slot' | 'credits';
 }
+
+// ------------------------------------------------------------
+// 성좌 (v1.8)
+// ------------------------------------------------------------
+
+export type ConstellationCategory = 'stage' | 'elite' | 'rule' | 'risk' | 'sink';
+
+export type ConstellationId =
+  | 'voidPredator'
+  | 'disasterEye'
+  | 'traitorLegion'
+  | 'shieldBreaker'
+  | 'deathArena'
+  | 'twinDread'
+  | 'hunterToy'
+  | 'spacetime'
+  | 'overloadGear'
+  | 'purist'
+  | 'sniper'
+  | 'berserker'
+  | 'pacifist'
+  | 'greed'
+  | 'glassCannon'
+  | 'bloodFeast'
+  | 'giantMarch'
+  | 'darkFog'
+  | 'endlessAbyss'
+  | 'fateWheel'
+  | 'altarFrenzy'
+  | 'infiniteOrbit';
+
+export interface ConstellationDef {
+  id: ConstellationId;
+  category: ConstellationCategory;
+  name: string;
+  icon: string;
+  color: string;
+  penalty: string;
+  reward: string;
+  /** 첫 해금 비용. 반복 노드는 투자마다 cost + floor(level/3) */
+  cost: number;
+  prereq: ConstellationId | null;
+  repeatable: boolean;
+}

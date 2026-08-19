@@ -539,6 +539,66 @@ button.secondary {
   padding-bottom: 28px;
 }
 
+#constellation-overlay {
+  overflow: hidden;
+  padding: 12px 0 16px;
+  justify-content: flex-start;
+}
+#constellation-overlay .overlay-title {
+  font-size: 22px;
+  margin: 0;
+}
+#constellation-overlay .cst-head {
+  flex: 0 0 auto;
+  text-align: center;
+  z-index: 2;
+}
+#constellation-canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 420px;
+  touch-action: none;
+  cursor: grab;
+}
+#constellation-canvas:active { cursor: grabbing; }
+.cst-close {
+  z-index: 3;
+  margin-top: 8px;
+}
+.cst-tooltip {
+  position: absolute;
+  z-index: 4;
+  width: 210px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(8, 15, 32, 0.92);
+  border: 1px solid rgba(125, 211, 252, 0.45);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+  text-align: left;
+  pointer-events: none;
+}
+.cst-tip-title {
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.cst-tip-penalty {
+  font-size: 11px;
+  color: #f87171;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.cst-tip-reward {
+  font-size: 11px;
+  color: #7dd3fc;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.cst-tip-cost {
+  font-size: 10px;
+  color: #fde68a;
+}
+
 .gacha-odds {
   width: 100%;
   max-width: 340px;

@@ -10,6 +10,8 @@ import type { MetaSave } from './Meta';
 import { upgradeCost, droneUpgradeCost } from './Meta';
 import { SPRITE_PATHS } from './assets';
 import { PATCH_NOTES, LATEST_VERSION } from './PatchNotes';
+import { ConstellationBoard } from './ConstellationBoard';
+import type { AudioManager } from './Audio';
 
 function droneStatLine(id: DroneId, lv: number): string {
   if (id === 'retriever') {
@@ -71,6 +73,8 @@ export class UI {
   private gachaOverlay = document.getElementById('gacha-overlay') as HTMLDivElement;
   private droneOverlay = document.getElementById('drone-overlay') as HTMLDivElement;
   private traitOverlay = document.getElementById('trait-overlay') as HTMLDivElement;
+  private constellationOverlay = document.getElementById('constellation-overlay') as HTMLDivElement;
+  private constellationSummary = document.getElementById('constellation-summary') as HTMLButtonElement;
   private patchOverlay = document.getElementById('patch-overlay') as HTMLDivElement;
   private codexOverlay = document.getElementById('codex-overlay') as HTMLDivElement;
   private patchList = document.getElementById('patch-list') as HTMLDivElement;
@@ -117,6 +121,8 @@ export class UI {
   private skillBtn = document.getElementById('skill-btn') as HTMLButtonElement;
   private skillIcon = document.getElementById('skill-icon') as HTMLSpanElement;
   private skillCd = document.getElementById('skill-cd') as HTMLSpanElement;
+  private constellationBoard: ConstellationBoard | null = null;
+  private audio: AudioManager | null = null;
 
   constructor() {
     this.slotsEl.addEventListener('click', (e) => {
@@ -198,6 +204,16 @@ export class UI {
       this.traitOverlay.classList.add('hidden');
       this.refreshHangar();
     };
+    const openConstellation = () => {
+      this.ensureConstellationBoard();
+      this.constellationBoard?.open();
+    };
+    this.constellationSummary.onclick = openConstellation;
+    (document.getElementById('constellation-btn') as HTMLButtonElement).onclick = openConstellation;
+    (document.getElementById('constellation-close-btn') as HTMLButtonElement).onclick = () => {
+      this.constellationBoard?.close();
+      this.refreshHangar();
+    };
     const costEl = document.getElementById('gacha-cost');
     if (costEl) costEl.textContent = fmtCredits(GACHA.cost);
 
@@ -218,6 +234,26 @@ export class UI {
 
   setMeta(meta: MetaSave): void {
     this.meta = meta;
+  }
+
+  setAudio(audio: AudioManager): void {
+    this.audio = audio;
+  }
+
+  private ensureConstellationBoard(): void {
+    if (this.constellationBoard) return;
+    const canvas = document.getElementById('constellation-canvas') as HTMLCanvasElement;
+    const tooltip = document.getElementById('constellation-tooltip') as HTMLDivElement;
+    const points = document.getElementById('cst-points') as HTMLSpanElement;
+    this.constellationBoard = new ConstellationBoard(
+      this.constellationOverlay,
+      canvas,
+      tooltip,
+      points,
+      () => this.meta as MetaSave,
+      () => this.onHangarChange?.(),
+      () => this.audio?.playConstellationUnlock(),
+    );
   }
 
   displayedCredits(): number {
@@ -303,6 +339,7 @@ export class UI {
 
     this.updateDroneSummary();
     this.updateTraitSummary();
+    this.updateConstellationSummary();
     if (!this.droneOverlay.classList.contains('hidden')) this.renderDroneModal();
     if (!this.traitOverlay.classList.contains('hidden')) this.renderTraitModal();
 
@@ -311,6 +348,7 @@ export class UI {
     const gachaBtn = document.getElementById('gacha-btn') as HTMLButtonElement;
     const droneBayBtn = document.getElementById('drone-bay-btn') as HTMLButtonElement;
     const traitBtn = document.getElementById('trait-btn') as HTMLButtonElement;
+    const cstBtn = document.getElementById('constellation-btn') as HTMLButtonElement;
     const achvBtn = document.getElementById('achv-btn') as HTMLButtonElement;
     const codexBtn = document.getElementById('codex-btn') as HTMLButtonElement;
     this.hangarGroups = [
@@ -319,7 +357,8 @@ export class UI {
       [...this.shipSelect.querySelectorAll('button')],
       [this.droneSummary],
       [this.traitSummary],
-      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, droneBayBtn, traitBtn, achvBtn, codexBtn],
+      [this.constellationSummary],
+      [this.patchNotesBtn, startBtn, metaBtn, gachaBtn, droneBayBtn, traitBtn, cstBtn, achvBtn, codexBtn],
     ];
     if (!this.startOverlay.classList.contains('hidden')
       && this.metaOverlay.classList.contains('hidden')
@@ -328,9 +367,10 @@ export class UI {
       && this.patchOverlay.classList.contains('hidden')
       && this.codexOverlay.classList.contains('hidden')
       && this.droneOverlay.classList.contains('hidden')
-      && this.traitOverlay.classList.contains('hidden')) {
-      this.hangarGroupIdx = 5;
-      this.setFocusGroup(this.hangarGroups[5]);
+      && this.traitOverlay.classList.contains('hidden')
+      && this.constellationOverlay.classList.contains('hidden')) {
+      this.hangarGroupIdx = 6;
+      this.setFocusGroup(this.hangarGroups[6]);
     }
   }
 
@@ -355,6 +395,12 @@ export class UI {
     }
     const t = PILOT_TRAITS[id];
     this.traitSummary.textContent = `현재 특성: ${t.icon} ${t.name}`;
+  }
+
+  private updateConstellationSummary(): void {
+    if (!this.meta) return;
+    const n = Object.values(this.meta.constellation).filter((lv) => lv > 0).length;
+    this.constellationSummary.textContent = `성좌 ${n} · 판테온 ${this.meta.pantheonPoints}`;
   }
 
   private renderDroneModal(): void {

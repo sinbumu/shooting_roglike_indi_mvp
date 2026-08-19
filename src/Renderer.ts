@@ -494,6 +494,11 @@ export class Renderer {
         case 'creditPickup':
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 8, sizeTo: 28, tint: 0xfbbf24, alphaFrom: 0.9, ring: true });
           break;
+        case 'bloodBurst':
+          this.explode(ev.x, ev.y, 0xf43f5e, ev.radius * 0.55);
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.4, sizeFrom: 20, sizeTo: ev.radius, tint: 0xbe123c, alphaFrom: 0.9, ring: true });
+          this.shake(8, 0.28);
+          break;
         default:
           break;
       }
@@ -794,6 +799,19 @@ export class Renderer {
         this.flashG.rect(x, y, w, h).fill({ color: 0xe2e8f0, alpha: 0.06 + Math.random() * 0.12 });
       }
     }
+    if (state.fogRadius > 0) {
+      const px = state.playerX;
+      const py = state.playerY;
+      const r = state.fogRadius;
+      this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: 0x020617, alpha: 0.42 });
+      for (let i = 0; i < 14; i++) {
+        this.flashG.circle(px, py, r + i * 26).stroke({
+          width: 28,
+          color: 0x020617,
+          alpha: Math.min(0.92, 0.18 + i * 0.07),
+        });
+      }
+    }
   }
 
   // ---------- 월드 드로잉 ----------
@@ -975,7 +993,7 @@ export class Renderer {
     const g = this.enemyG;
     g.clear();
     for (const e of state.enemies) {
-      const r = e.def.radius * (e.elite ? 1.2 : 1);
+      const r = e.def.radius * (e.elite ? 1.2 : 1) * (e.enraged ? 1.5 : 1);
       const isTrueBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
       const isCommander = e.def.movePattern === 'legion';
       const isBoss = isTrueBoss || isCommander;
@@ -994,6 +1012,7 @@ export class Renderer {
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (state.inNebula(e.x, e.y)) spr.tint = 0x67e8f9;
+        else if (e.enraged) spr.tint = 0xf43f5e;
         else if (e.elite) spr.tint = 0xfbbf24;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
@@ -1245,6 +1264,15 @@ export class Renderer {
     const g = this.pickupG;
     g.clear();
     for (const p of state.pickups) {
+      if (p.homing) {
+        const glow = this.glowPool.get();
+        glow.tint = 0xf43f5e;
+        glow.position.set(p.x, p.y);
+        glow.width = glow.height = 48;
+        glow.alpha = 0.95;
+        g.circle(p.x, p.y, PICKUPS.radius + 2).fill(0xf43f5e);
+        continue;
+      }
       if (p.life < 3 && Math.floor(this.elapsed * 8) % 2 === 0) continue;
 
       const bob = Math.sin(this.elapsed * 4 + p.x) * 3;
@@ -1723,10 +1751,10 @@ export class Renderer {
       for (let i = 0; i < 8; i += 2) {
         abs.push(gem.x + local[i] * cos - local[i + 1] * sin, gem.y + local[i] * sin + local[i + 1] * cos);
       }
-      g.poly(abs, true).fill(0x34d399);
+      g.poly(abs, true).fill(gem.homing ? 0xf43f5e : 0x34d399);
 
       const glow = this.glowPool.get();
-      glow.tint = 0x34d399;
+      glow.tint = gem.homing ? 0xf43f5e : 0x34d399;
       glow.position.set(gem.x, gem.y);
       glow.width = glow.height = 26 * pulse;
       glow.alpha = 0.75;

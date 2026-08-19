@@ -91,12 +91,14 @@
         <div id="ship-select"></div>
         <button id="drone-summary" class="drone-summary" type="button">장착된 드론 없음</button>
         <button id="trait-summary" class="drone-summary" type="button">장착된 특성 없음</button>
+        <button id="constellation-summary" class="drone-summary" type="button">성좌 · 판테온 0</button>
         <div class="hangar-actions">
           <button id="start-btn">출격</button>
           <button id="meta-btn" class="secondary">영구 강화</button>
           <button id="gacha-btn" class="secondary">블랙마켓</button>
           <button id="drone-bay-btn" class="secondary">드론 베이</button>
           <button id="trait-btn" class="secondary">특성</button>
+          <button id="constellation-btn" class="secondary">성좌</button>
           <button id="achv-btn" class="secondary">업적</button>
           <button id="codex-btn" class="secondary">도감</button>
         </div>
@@ -116,6 +118,17 @@
         <p class="overlay-sub">보스 코어로 해금 · 출격 전 1개만 장착 · 🔮 <span id="trait-shop-cores">0</span></p>
         <div id="trait-select"></div>
         <button id="trait-close-btn" class="secondary">닫기</button>
+      </div>
+
+      <!-- ===== 성좌 보드 ===== -->
+      <div id="constellation-overlay" class="overlay hidden">
+        <div class="cst-head">
+          <h2 class="overlay-title">CONSTELLATION</h2>
+          <p class="overlay-sub">만렙 이후 공명으로 모은 판테온 포인트 · ✨ <span id="cst-points">0</span></p>
+        </div>
+        <canvas id="constellation-canvas"></canvas>
+        <div id="constellation-tooltip" class="cst-tooltip hidden"></div>
+        <button id="constellation-close-btn" class="secondary cst-close">닫기</button>
       </div>
 
       <!-- ===== 패치 노트 ===== -->

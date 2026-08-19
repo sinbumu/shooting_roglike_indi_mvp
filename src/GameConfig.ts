@@ -5,6 +5,7 @@ import type {
   StageDef, StageId, ChallengeDef, ChallengeId,
   AffixId, StatBoostId, TacticalId, WeaponTag,
   ShipSkinId, ProjSkinId, DroneDef, DroneId, PilotTraitId,
+  ConstellationDef, ConstellationId,
 } from './types';
 
 // ============================================================
@@ -797,6 +798,213 @@ export const ENDGAME = {
   /** Tier3 조합 성공 시 어픽스 부여 확률 */
   tier3AffixChance: 0.4,
 } as const;
+
+/** v1.8 성좌 — 격납고 해금, 런 적용 */
+export const CONSTELLATION_CAT_COLOR: Record<ConstellationDef['category'], string> = {
+  stage: '#38bdf8',
+  elite: '#4ade80',
+  rule: '#c084fc',
+  risk: '#f87171',
+  sink: '#facc15',
+};
+
+export const CONSTELLATION: Record<ConstellationId, ConstellationDef> = {
+  voidPredator: {
+    id: 'voidPredator', category: 'stage', name: '공허의 포식자', icon: '🌀', color: '#38bdf8',
+    penalty: '돌발 균열 쿨 50% 감소 · 엘리트 3배',
+    reward: '균열 처치 시 퀀텀 큐브 드랍률 대폭 상승',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  disasterEye: {
+    id: 'disasterEye', category: 'stage', name: '재해의 눈', icon: '👁', color: '#38bdf8',
+    penalty: '환경 재해 지속 시간 2배',
+    reward: '재해 중 무기 쿨 70% 감소 · 액티브 즉시 충전',
+    cost: 2, prereq: 'voidPredator', repeatable: false,
+  },
+  traitorLegion: {
+    id: 'traitorLegion', category: 'stage', name: '반역의 군단', icon: '⚔', color: '#38bdf8',
+    penalty: '군단장 스폰 주기 30초',
+    reward: '처치 시 기동·투속 2%씩 무한 누적',
+    cost: 3, prereq: 'disasterEye', repeatable: false,
+  },
+  shieldBreaker: {
+    id: 'shieldBreaker', category: 'elite', name: '방패 부수기', icon: '🛡', color: '#4ade80',
+    penalty: '실더/가디언 방어 기믹 2배',
+    reward: '처치 시 화면 적 현재 체력 50% 증발',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  deathArena: {
+    id: 'deathArena', category: 'elite', name: '죽음의 투기장', icon: '🏟', color: '#4ade80',
+    penalty: '트래퍼 펜스 반경 50% 축소',
+    reward: '펜스 안 데미지 +300% · 치명타 100%',
+    cost: 2, prereq: 'shieldBreaker', repeatable: false,
+  },
+  twinDread: {
+    id: 'twinDread', category: 'elite', name: '드레드노트의 쌍둥이', icon: '👥', color: '#4ade80',
+    penalty: '모든 보스 2기 동시 스폰',
+    reward: '보스 코어 3배 · 보스전 보석 5배',
+    cost: 3, prereq: 'deathArena', repeatable: false,
+  },
+  hunterToy: {
+    id: 'hunterToy', category: 'elite', name: '사냥꾼의 장난감', icon: '🎯', color: '#4ade80',
+    penalty: '텔레포터/미라지 기동력 극대화',
+    reward: '처치 시 10초간 자석·경험치 3배',
+    cost: 3, prereq: 'deathArena', repeatable: false,
+  },
+  spacetime: {
+    id: 'spacetime', category: 'rule', name: '시공간 역행', icon: '⏳', color: '#c084fc',
+    penalty: '투사체 속도 증감이 음수로 역전 (하한 10%)',
+    reward: '최종 투속이 느릴수록 데미지 기하급수 폭증',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  overloadGear: {
+    id: 'overloadGear', category: 'rule', name: '과부하 톱니바퀴', icon: '⚙', color: '#c084fc',
+    penalty: '무기 쿨타임 감소 0% 고정',
+    reward: '깎인 쿨감의 500%만큼 최종 데미지 증폭',
+    cost: 2, prereq: 'spacetime', repeatable: false,
+  },
+  purist: {
+    id: 'purist', category: 'rule', name: '순수주의자의 광기', icon: '✨', color: '#c084fc',
+    penalty: '3티어 종결 무기 장착/진화 불가',
+    reward: 'T1·T2 투사체 개수 +3 · 타격 반경 200%',
+    cost: 3, prereq: 'overloadGear', repeatable: false,
+  },
+  sniper: {
+    id: 'sniper', category: 'rule', name: '저격수의 고독', icon: '🔭', color: '#c084fc',
+    penalty: '200px 이내 근접 데미지 90% 감소',
+    reward: '400px 밖 원거리 데미지 1000% 증폭',
+    cost: 3, prereq: 'overloadGear', repeatable: false,
+  },
+  berserker: {
+    id: 'berserker', category: 'rule', name: '광전사의 춤', icon: '💃', color: '#c084fc',
+    penalty: '정지 시 초당 최대 체력 15% 감소',
+    reward: '현재 이동 속도에 비례해 딜 증폭',
+    cost: 3, prereq: 'overloadGear', repeatable: false,
+  },
+  pacifist: {
+    id: 'pacifist', category: 'rule', name: '평화주의자', icon: '🕊', color: '#c084fc',
+    penalty: '플레이어 무기 데미지 0 고정',
+    reward: '드론·지뢰·환경 재해 데미지 1000% 증폭',
+    cost: 3, prereq: 'overloadGear', repeatable: false,
+  },
+  greed: {
+    id: 'greed', category: 'risk', name: '탐욕의 대가', icon: '💰', color: '#f87171',
+    penalty: '픽업 수명 2초. 만료 시 적에게 역유도되어 풀피·광폭화',
+    reward: '2초 내 획득 시 크레딧·경험치 500% 증폭',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  glassCannon: {
+    id: 'glassCannon', category: 'risk', name: '유리 대포의 극의', icon: '🪟', color: '#f87171',
+    penalty: '최대 체력 1 · 무적/쉴드 무효',
+    reward: '회피 상한 해제 · 기본 데미지 10배',
+    cost: 2, prereq: 'greed', repeatable: false,
+  },
+  bloodFeast: {
+    id: 'bloodFeast', category: 'risk', name: '피의 축제', icon: '🩸', color: '#f87171',
+    penalty: '적 스폰 속도 3배',
+    reward: '처치 시 15% 확률 광역 혈폭발',
+    cost: 3, prereq: 'glassCannon', repeatable: false,
+  },
+  giantMarch: {
+    id: 'giantMarch', category: 'risk', name: '거인들의 진격', icon: '🦶', color: '#f87171',
+    penalty: '일반 몹이 엘리트급 스펙',
+    reward: '확률적으로 퀀텀 큐브 드랍',
+    cost: 4, prereq: 'bloodFeast', repeatable: false,
+  },
+  darkFog: {
+    id: 'darkFog', category: 'risk', name: '칠흑의 안개', icon: '🌫', color: '#f87171',
+    penalty: '시야 반경 300px로 축소',
+    reward: '암전 속 적 처치 시 스코어 10배',
+    cost: 5, prereq: 'giantMarch', repeatable: false,
+  },
+  endlessAbyss: {
+    id: 'endlessAbyss', category: 'sink', name: '끝없는 심연', icon: '♾', color: '#facc15',
+    penalty: '투자마다 적 체력/공격력 복리 5% 증가',
+    reward: '치명타 배율·투속 상한 해제',
+    cost: 1, prereq: null, repeatable: true,
+  },
+  fateWheel: {
+    id: 'fateWheel', category: 'sink', name: '운명의 수레바퀴', icon: '🎡', color: '#facc15',
+    penalty: '30초마다 무작위 재해 강제 발생',
+    reward: '재해 생존 시 대량 크레딧·보스 코어',
+    cost: 1, prereq: 'endlessAbyss', repeatable: true,
+  },
+  altarFrenzy: {
+    id: 'altarFrenzy', category: 'sink', name: '제단 폭주', icon: '🕯', color: '#facc15',
+    penalty: '시련이 더 자주 찾아옴',
+    reward: '제단 충전 1초 · 반복 사용 · 보상 무한 중첩',
+    cost: 1, prereq: 'fateWheel', repeatable: true,
+  },
+  infiniteOrbit: {
+    id: 'infiniteOrbit', category: 'sink', name: '무한의 궤도', icon: '🪐', color: '#facc15',
+    penalty: '없음 (한계 돌파 통합)',
+    reward: '투자마다 투속 +2% · 기동 +3% · 치명 배율 +5%',
+    cost: 1, prereq: 'altarFrenzy', repeatable: true,
+  },
+};
+
+export const CONSTELLATION_FX = {
+  holdSec: 0.5,
+  riftCooldownMul: 0.5,
+  riftEliteMul: 3,
+  riftCubeChance: 0.55,
+  hazardDurMul: 2,
+  hazardCdMul: 0.3,
+  legionInterval: 30,
+  legionStack: 0.02,
+  shieldHitsMul: 2,
+  guardianAuraMul: 2,
+  empHpFrac: 0.5,
+  fenceRadiusMul: 0.5,
+  arenaDmgMul: 4,
+  twinGemMul: 5,
+  twinCoreMul: 3,
+  hunterSpeedMul: 1.85,
+  hunterBuffSec: 10,
+  hunterMagnetMul: 3,
+  hunterExpMul: 3,
+  speedFloor: 0.1,
+  overloadDmgPerCdr: 5,
+  puristExtraCount: 3,
+  puristRadiusMul: 3,
+  sniperNear: 200,
+  sniperFar: 400,
+  sniperNearMul: 0.1,
+  sniperFarMul: 11,
+  berserkerHpPct: 0.15,
+  berserkerSpdRef: 430,
+  pacifistEnvMul: 11,
+  greedLife: 2,
+  greedHoming: 600,
+  greedRewardMul: 6,
+  glassDmgMul: 10,
+  bloodSpawnMul: 3,
+  bloodChance: 0.15,
+  bloodRadius: 90,
+  giantCubeChance: 0.08,
+  fogRadius: 300,
+  fogScoreMul: 10,
+  abyssPerStack: 0.05,
+  wheelPeriod: 30,
+  wheelCredits: 180,
+  wheelCores: 1,
+  altarChargeSec: 1,
+  orbitSpeed: 0.02,
+  orbitMove: 0.03,
+  orbitCrit: 0.05,
+} as const;
+
+export function constellationUnlockCost(id: ConstellationId, currentLevel: number): number {
+  const def = CONSTELLATION[id];
+  if (!def.repeatable) return def.cost;
+  return def.cost + Math.floor(currentLevel / 3);
+}
+
+export function emptyConstellation(): Record<ConstellationId, number> {
+  const out = {} as Record<ConstellationId, number>;
+  for (const id of Object.keys(CONSTELLATION) as ConstellationId[]) out[id] = 0;
+  return out;
+}
 
 export const TACTICAL: Record<TacticalId, {
   id: TacticalId;
