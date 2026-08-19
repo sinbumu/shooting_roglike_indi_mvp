@@ -55,8 +55,8 @@ export interface ProjectileSpec {
     width: number;
     length: number;
   };
-  /** true면 최근접 적 방향으로 발사 */
-  targeted?: boolean;
+  /** 조준 발사: 최근접 / 최원거리 / 화면 내 무작위 */
+  targeted?: 'nearest' | 'farthest' | 'random';
   /** true면 원점에서 나선형으로 퍼짐 */
   spiral?: boolean;
   /** 부채 참격 (근접) */

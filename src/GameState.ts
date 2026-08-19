@@ -1,6 +1,7 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
   AffixId, StatBoostId, TacticalId, MutationId, ActiveSkillId, DroneId, PilotTraitId,
+  ProjectileSpec,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
@@ -1096,7 +1097,7 @@ export class GameState {
     if (p.melee) {
       baseAngle = Math.atan2(this.lastAimY, this.lastAimX);
     } else if (p.targeted) {
-      const target = this.nearestEnemy(this.playerX, this.playerY, new Set());
+      const target = this.pickTargetedEnemy(p.targeted);
       if (target) baseAngle = Math.atan2(target.y - this.playerY, target.x - this.playerX);
     }
     const sizeMul = 1 + (slot.radiusBonus ?? 0);
@@ -2662,6 +2663,38 @@ export class GameState {
       if (this.isCloaked(e)) continue;
       const d = (e.x - x) ** 2 + (e.y - y) ** 2;
       if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  /** 화면 안 적만. 은신(미라지) 제외 */
+  private onScreenEnemies(): Enemy[] {
+    const out: Enemy[] = [];
+    for (const e of this.enemies) {
+      if (this.isCloaked(e)) continue;
+      if (e.x < 0 || e.x > CANVAS.width || e.y < 0 || e.y > CANVAS.height) continue;
+      out.push(e);
+    }
+    return out;
+  }
+
+  private pickTargetedEnemy(mode: NonNullable<ProjectileSpec['targeted']>): Enemy | null {
+    const pool = this.onScreenEnemies();
+    if (pool.length === 0) return null;
+    if (mode === 'random') {
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    const px = this.playerX;
+    const py = this.playerY;
+    let best = pool[0];
+    let bestD = (best.x - px) ** 2 + (best.y - py) ** 2;
+    for (let i = 1; i < pool.length; i++) {
+      const e = pool[i];
+      const d = (e.x - px) ** 2 + (e.y - py) ** 2;
+      if (mode === 'farthest' ? d > bestD : d < bestD) {
         bestD = d;
         best = e;
       }

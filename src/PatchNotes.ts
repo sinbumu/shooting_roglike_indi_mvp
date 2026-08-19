@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.7.4',
+    date: '2026-08-19',
+    changes: [
+      '☢️ 파열핵: 가장 먼 적 조준 · 단발 광역 폭발 강화',
+      '💫 제네시스: 무작위 적 조준 관통 · 탄속 상향 (파열핵 및 제네시스 타겟팅 로직 개편)',
+    ],
+  },
+  {
     version: 'v1.7.3',
     date: '2026-08-19',
     changes: [

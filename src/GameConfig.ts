@@ -149,11 +149,11 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   genesis: {
     id: 'genesis', name: '제네시스', tier: 3, icon: '💫', color: '#c084fc',
-    desc: '[레일건+스웜] 가장 가까운 적을 조준하는 고화력 관통탄',
+    desc: '[레일건+스웜] 무작위 적을 조준해 궤적의 적을 꿰뚫는 고화력 관통탄',
     cooldownMs: 480,
     projectile: {
-      damage: 76, speed: 1100, radius: 7, count: 1, spreadDeg: 0,
-      homingTurnRate: 0, pierce: 8, lifetime: 1.4, targeted: true,
+      damage: 76, speed: 1375, radius: 7, count: 1, spreadDeg: 0,
+      homingTurnRate: 0, pierce: 8, lifetime: 1.4, targeted: 'random',
     },
   },
   // ---------- Tier 3 동형 T2 경로 ----------
@@ -168,11 +168,12 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   },
   rupture: {
     id: 'rupture', name: '파열핵', tier: 3, icon: '☢️', color: '#fb923c',
-    desc: '[가틀링+모선] 직격보다 폭발. 역장을 무시하는 광역탄',
+    desc: '[가틀링+모선] 가장 먼 적을 조준. 적진을 가로지른 뒤 폭발하는 광역탄',
     cooldownMs: 560,
     projectile: {
-      damage: 36, speed: 520, radius: 12, count: 2, spreadDeg: 22,
-      homingTurnRate: 0, pierce: 0, lifetime: 1.5, explodeRadius: 118, ignoreShield: true,
+      damage: 72, speed: 520, radius: 12, count: 1, spreadDeg: 0,
+      homingTurnRate: 0, pierce: 0, lifetime: 1.5, explodeRadius: 142, ignoreShield: true,
+      targeted: 'farthest',
     },
   },
   solance: {
