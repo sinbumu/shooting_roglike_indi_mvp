@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -61,6 +61,20 @@ interface ParticleOpts {
   drag?: number;
   gravity?: number;
   ring?: boolean;
+}
+
+interface WreckShard {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  rot: number;
+  vr: number;
+  life: number;
+  maxLife: number;
+  w: number;
+  h: number;
+  tint: number;
 }
 
 /** 매 프레임 재할당하는 글로우 스프라이트 풀 (투사체/보석/엔진 광원용) */
@@ -193,12 +207,14 @@ export class Renderer {
   private glowPool!: FramePool;
   private entityPool!: EntityPool;
   private playerSprite: Sprite | null = null;
-  private atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, ready: false };
+  private atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, ready: false };
 
   private particles: Particle[] = [];
   private freeSprites: Sprite[] = [];
   private dmgTexts: DamageText[] = [];
   private freeTexts: Text[] = [];
+  private wreckShards: WreckShard[] = [];
+  private nebulaGhosts: { x: number; y: number }[] = [];
 
   private stars: Star[] = [];
   private drifts: Drift[] = [];
@@ -266,6 +282,7 @@ export class Renderer {
     this.updateDamageTexts(dt);
     this.updateShake(dt);
     this.updateFlash(dt, state);
+    this.updateWreckShards(dt);
 
     this.glowPool.begin();
     this.entityPool.begin();
@@ -273,6 +290,7 @@ export class Renderer {
 
     this.drawBackground(state);
     this.drawStars(dt, state);
+    this.drawTerrain(state);
     this.drawAltarAndHazards(state);
     this.drawGems(state);
     this.drawPickups(state);
@@ -441,6 +459,40 @@ export class Renderer {
         case 'execProc':
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 16, sizeTo: 70, tint: 0xf8fafc, alphaFrom: 0.95, ring: true });
           this.hitSpark(ev.x, ev.y, 0xf87171);
+          break;
+        case 'terrainShieldBlock':
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 10, sizeTo: 52, tint: 0xef4444, alphaFrom: 0.95, ring: true });
+          this.hitSpark(ev.x, ev.y, 0xf87171);
+          break;
+        case 'terrainBoost':
+          for (let i = 0; i < 8; i++) {
+            const a = (Math.PI * 2 * i) / 8;
+            this.spawnParticle({
+              x: ev.x, y: ev.y,
+              vx: Math.cos(a) * 90, vy: Math.sin(a) * 90,
+              life: 0.28, sizeFrom: 7, sizeTo: 1, tint: 0xf8fafc, alphaFrom: 0.95,
+            });
+          }
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.2, sizeFrom: 8, sizeTo: 36, tint: 0x67e8f9, alphaFrom: 0.8, ring: true });
+          break;
+        case 'coreBurst':
+          this.flashAlpha = 0.55;
+          this.flashColor = 0xfb923c;
+          this.shake(18, 0.55);
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 24, sizeTo: ev.radius * 0.7, tint: 0xf97316, alphaFrom: 0.95, ring: true });
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.5, sizeFrom: 40, sizeTo: ev.radius * 1.15, tint: 0xfbbf24, alphaFrom: 0.85, ring: true });
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.7, sizeFrom: 56, sizeTo: ev.radius * 1.7, tint: 0xf8fafc, alphaFrom: 0.7, ring: true });
+          this.explode(ev.x, ev.y, 0xa855f7, 28);
+          break;
+        case 'derelictBreak':
+          this.flashAlpha = 0.4;
+          this.flashColor = 0xef4444;
+          this.shake(14, 0.5);
+          this.spawnWreckShards(ev.x, ev.y, ev.w, ev.h);
+          this.explode(ev.x, ev.y, 0xf97316, 36);
+          break;
+        case 'creditPickup':
+          this.spawnParticle({ x: ev.x, y: ev.y, life: 0.28, sizeFrom: 8, sizeTo: 28, tint: 0xfbbf24, alphaFrom: 0.9, ring: true });
           break;
         default:
           break;
@@ -727,6 +779,11 @@ export class Renderer {
       this.flashG.rect(0, CANVAS.height - t, CANVAS.width, t).fill({ color: 0xef4444, alpha: pulse });
       this.flashG.rect(0, 0, t, CANVAS.height).fill({ color: 0xef4444, alpha: pulse });
       this.flashG.rect(CANVAS.width - t, 0, t, CANVAS.height).fill({ color: 0xef4444, alpha: pulse });
+      const flare = hz.phase === 'active' ? 0.22 : 0.1;
+      for (let i = 0; i < 10; i++) {
+        const a = flare * (1 - i / 10) * (0.7 + pulse * 0.6);
+        this.flashG.rect(0, i * 22, CANVAS.width, 22).fill({ color: 0xfff7ed, alpha: a });
+      }
     }
     if (state.empLeft > 0) {
       for (let i = 0; i < 36; i++) {
@@ -823,6 +880,19 @@ export class Renderer {
 
     const iframe = state.invincibleLeft > 0 && state.shieldLeft <= 0;
     const pulse = iframe ? 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(this.elapsed * 22)) : 1;
+    const frosted = state.inNebula(x, y);
+
+    if (frosted) {
+      this.nebulaGhosts.push({ x, y });
+      if (this.nebulaGhosts.length > 4) this.nebulaGhosts.shift();
+      for (let i = 0; i < this.nebulaGhosts.length - 1; i++) {
+        const gh = this.nebulaGhosts[i];
+        const ga = 0.12 + i * 0.06;
+        g.circle(gh.x, gh.y, PLAYER.radius * 1.15).fill({ color: 0x7dd3fc, alpha: ga });
+      }
+    } else {
+      this.nebulaGhosts.length = 0;
+    }
 
     const engine = this.glowPool.get();
     engine.tint = 0xfb923c;
@@ -879,7 +949,9 @@ export class Renderer {
       const size = PLAYER.radius * 3.2;
       this.playerSprite.width = size;
       this.playerSprite.height = size;
-      this.playerSprite.tint = state.shipSkinTint ? hex(state.shipSkinTint) : 0xffffff;
+      this.playerSprite.tint = frosted
+        ? 0x7dd3fc
+        : state.shipSkinTint ? hex(state.shipSkinTint) : 0xffffff;
       this.playerSprite.alpha = pulse;
       if (state.isFocusing) {
         g.circle(x, y, 3.2).fill({ color: 0xfef08a, alpha: 0.95 * pulse });
@@ -921,6 +993,7 @@ export class Renderer {
           spr.rotation = 0;
         }
         if (e.hitFlash > 0) spr.tint = 0xffffff;
+        else if (state.inNebula(e.x, e.y)) spr.tint = 0x67e8f9;
         else if (e.elite) spr.tint = 0xfbbf24;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
         else if (e.mutation === 'split') spr.tint = 0xa3e635;
@@ -1221,12 +1294,18 @@ export class Renderer {
     for (const p of state.projectiles) {
       const color = hex(p.color);
       const angle = Math.atan2(p.vy, p.vx);
-      const tail = p.radius * 4;
+      const tail = p.radius * (p.boosted ? 6.5 : 4);
 
       // 잔상 꼬리
       g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
         .lineTo(p.x, p.y)
-        .stroke({ width: p.radius * 1.2, color, alpha: 0.4 });
+        .stroke({ width: p.radius * (p.boosted ? 1.8 : 1.2), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.85 : 0.4 });
+
+      if (p.boosted) {
+        g.moveTo(p.x - Math.cos(angle) * tail * 1.15, p.y - Math.sin(angle) * tail * 1.15)
+          .lineTo(p.x, p.y)
+          .stroke({ width: p.radius * 0.7, color: 0xffffff, alpha: 0.95 });
+      }
 
       // 탄두 글로우 (additive)
       const glow = this.glowPool.get();
@@ -1356,6 +1435,208 @@ export class Renderer {
     }
   }
 
+  private spawnWreckShards(x: number, y: number, w: number, h: number): void {
+    for (let i = 0; i < 10; i++) {
+      const a = (Math.PI * 2 * i) / 10 + Math.random() * 0.4;
+      const spd = 70 + Math.random() * 160;
+      this.wreckShards.push({
+        x: x + (Math.random() - 0.5) * w * 0.4,
+        y: y + (Math.random() - 0.5) * h * 0.4,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd + 40,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 6,
+        life: 0.7 + Math.random() * 0.4,
+        maxLife: 1,
+        w: 10 + Math.random() * 18,
+        h: 6 + Math.random() * 10,
+        tint: Math.random() < 0.4 ? 0xef4444 : 0x64748b,
+      });
+    }
+  }
+
+  private updateWreckShards(dt: number): void {
+    for (let i = this.wreckShards.length - 1; i >= 0; i--) {
+      const s = this.wreckShards[i];
+      s.life -= dt;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.vy += 180 * dt;
+      s.rot += s.vr * dt;
+      if (s.life <= 0) this.wreckShards.splice(i, 1);
+    }
+  }
+
+  private drawTerrain(state: GameState): void {
+    const g = this.coreG;
+    this.drawNebulaZones(state, g);
+    this.drawDerelict(state, g);
+    this.drawOneWayShield(state, g);
+    this.drawQuantumCores(state, g);
+    this.drawCreditOrbs(state, g);
+    this.drawWreckShards(g);
+  }
+
+  private drawNebulaZones(state: GameState, g: Graphics): void {
+    for (const z of state.nebulaZones) {
+      const pulse = 0.16 + Math.sin(this.elapsed * 1.6 + z.x) * 0.04;
+      g.circle(z.x, z.y, z.r).fill({ color: 0x6d28d9, alpha: pulse });
+      g.circle(z.x, z.y, z.r * 0.72).fill({ color: 0x4ade80, alpha: pulse * 0.45 });
+      const glow = this.glowPool.get();
+      glow.tint = 0xa78bfa;
+      glow.position.set(z.x, z.y);
+      glow.width = glow.height = z.r * 2.1;
+      glow.alpha = 0.22;
+      if (Math.random() < 0.35) {
+        const a = Math.random() * Math.PI * 2;
+        const d = Math.random() * z.r * 0.85;
+        this.spawnParticle({
+          x: z.x + Math.cos(a) * d,
+          y: z.y + Math.sin(a) * d,
+          vx: (Math.random() - 0.5) * 20,
+          vy: -12 - Math.random() * 18,
+          life: 0.7, sizeFrom: 10, sizeTo: 22,
+          tint: Math.random() < 0.5 ? 0xc084fc : 0x86efac,
+          alphaFrom: 0.35,
+        });
+      }
+    }
+  }
+
+  private drawOneWayShield(state: GameState, g: Graphics): void {
+    const s = state.oneWayShield;
+    if (!s) return;
+    const fade = Math.min(1, s.life / 2);
+    g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x22d3ee, alpha: 0.14 * fade });
+    g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x67e8f9, alpha: 0.75 * fade });
+    const size = 9;
+    const dx = size * 1.75;
+    const dy = size * 1.5;
+    const scroll = (this.elapsed * 28) % dy;
+    for (let row = -1; row < s.h / dy + 2; row++) {
+      for (let col = -1; col < s.w / dx + 2; col++) {
+        const ox = col * dx + ((row & 1) ? dx * 0.5 : 0);
+        const oy = row * dy + scroll;
+        if (ox < -size || ox > s.w + size || oy < -size || oy > s.h + size) continue;
+        const cx = s.x + ox;
+        const cy = s.y + oy;
+        const pts: number[] = [];
+        for (let k = 0; k < 6; k++) {
+          const a = (Math.PI / 3) * k + Math.PI / 6;
+          pts.push(cx + Math.cos(a) * size, cy + Math.sin(a) * size);
+        }
+        g.poly(pts, true).stroke({ width: 1, color: 0xa5f3fc, alpha: 0.35 * fade });
+      }
+    }
+    const genX = s.x + s.w * 0.5;
+    const genY = s.y + s.h + 6;
+    g.roundRect(genX - 8, genY - 4, 16, 10, 2).fill({ color: 0x0f172a, alpha: 0.9 * fade });
+    g.circle(genX, genY, 3).fill({ color: 0x22d3ee, alpha: 0.9 * fade });
+  }
+
+  private drawQuantumCores(state: GameState, g: Graphics): void {
+    for (const c of state.quantumCores) {
+      const hp = Math.max(0, c.hp / c.maxHp);
+      const pulseHz = 3 + (1 - hp) * 10;
+      const pulse = 0.55 + Math.sin(this.elapsed * pulseHz) * 0.35;
+      const r = c.radius;
+      const pts = [
+        c.x, c.y - r,
+        c.x + r * 0.72, c.y - r * 0.25,
+        c.x + r * 0.55, c.y + r * 0.7,
+        c.x - r * 0.55, c.y + r * 0.7,
+        c.x - r * 0.72, c.y - r * 0.25,
+      ];
+      g.poly(pts, true).fill({ color: c.hitFlash > 0 ? 0xffffff : 0x7c3aed, alpha: 0.92 });
+      g.poly(pts, true).stroke({ width: 2, color: 0xc4b5fd, alpha: 0.9 });
+      const core = this.glowPool.get();
+      core.tint = 0xfb923c;
+      core.position.set(c.x, c.y);
+      core.width = core.height = r * (1.4 + pulse * 0.8);
+      core.alpha = 0.55 + pulse * 0.35;
+      g.circle(c.x, c.y, r * 0.32).fill({ color: 0xf97316, alpha: 0.7 + pulse * 0.25 });
+      const cracks = Math.floor((1 - hp) * 5);
+      for (let i = 0; i < cracks; i++) {
+        const a = -0.9 + i * 0.55;
+        g.moveTo(c.x + Math.cos(a) * r * 0.15, c.y + Math.sin(a) * r * 0.1)
+          .lineTo(c.x + Math.cos(a) * r * 0.85, c.y + Math.sin(a) * r * 0.75)
+          .stroke({ width: 1.5, color: 0x0f172a, alpha: 0.75 });
+      }
+    }
+  }
+
+  private drawDerelict(state: GameState, g: Graphics): void {
+    const d = state.derelict;
+    if (!d) return;
+    const shadeW = d.w * TERRAIN.derelict.shadeWMul;
+    const shadeX = d.x - shadeW / 2;
+    const shadeY = d.y + d.h / 2;
+    const shadeH = TERRAIN.derelict.shadeH;
+    const solar = state.envHazard?.kind === 'solar';
+    if (solar) {
+      g.rect(shadeX, shadeY, shadeW, shadeH).fill({ color: 0x020617, alpha: 0.72 });
+      g.rect(shadeX, shadeY, shadeW, shadeH).stroke({ width: 2, color: 0x1e293b, alpha: 0.85 });
+    }
+    const heat = d.breaking ? 0.35 + d.glow * 0.65 : 0;
+    const tex = this.atlas.terrain.derelict;
+    if (tex) {
+      const spr = this.entityPool.get(tex);
+      spr.position.set(d.x, d.y);
+      spr.width = d.w;
+      spr.height = d.h;
+      spr.tint = heat > 0 ? 0xf87171 : 0xffffff;
+      spr.alpha = 1;
+    } else {
+      g.roundRect(d.x - d.w / 2, d.y - d.h / 2, d.w, d.h, 6).fill({ color: heat > 0 ? 0x7f1d1d : 0x334155, alpha: 0.95 });
+      g.roundRect(d.x - d.w / 2, d.y - d.h / 2, d.w, d.h, 6).stroke({ width: 2, color: 0x94a3b8 });
+    }
+    if (Math.random() < 0.45) {
+      this.spawnParticle({
+        x: d.x + (Math.random() - 0.5) * d.w * 0.7,
+        y: d.y + (Math.random() - 0.5) * d.h * 0.4,
+        vx: (Math.random() - 0.5) * 40,
+        vy: -40 - Math.random() * 50,
+        life: 0.22, sizeFrom: 5, sizeTo: 1,
+        tint: Math.random() < 0.5 ? 0xfbbf24 : 0x38bdf8,
+        alphaFrom: 0.95,
+      });
+    }
+    if (heat > 0) {
+      const glow = this.glowPool.get();
+      glow.tint = 0xef4444;
+      glow.position.set(d.x, d.y);
+      glow.width = d.w * (1.4 + heat);
+      glow.height = d.h * (1.6 + heat);
+      glow.alpha = 0.35 + heat * 0.4;
+    }
+  }
+
+  private drawCreditOrbs(state: GameState, g: Graphics): void {
+    for (const o of state.creditOrbs) {
+      const bob = Math.sin(this.elapsed * 8 + o.x) * 2;
+      g.circle(o.x, o.y + bob, 6).fill(0xfbbf24);
+      g.circle(o.x, o.y + bob, 3).fill(0xfef3c7);
+      const glow = this.glowPool.get();
+      glow.tint = 0xfbbf24;
+      glow.position.set(o.x, o.y + bob);
+      glow.width = glow.height = 18;
+      glow.alpha = 0.7;
+    }
+  }
+
+  private drawWreckShards(g: Graphics): void {
+    for (const s of this.wreckShards) {
+      const a = Math.max(0, s.life / 0.9);
+      const hx = Math.cos(s.rot) * s.w * 0.5;
+      const hy = Math.sin(s.rot) * s.h * 0.5;
+      g.poly([
+        s.x - hx, s.y - hy,
+        s.x + hy, s.y - hx,
+        s.x + hx, s.y + hy,
+      ], true).fill({ color: s.tint, alpha: a });
+    }
+  }
+
   private drawAltarAndHazards(state: GameState): void {
     const g = this.coreG;
     const altar = state.altar;
@@ -1385,9 +1666,11 @@ export class Renderer {
     const hz = state.envHazard;
     if (!hz) return;
     if (hz.kind === 'solar') {
-      for (const s of hz.shades) {
-        g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x38bdf8, alpha: 0.22 + Math.sin(this.elapsed * 5) * 0.05 });
-        g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x7dd3fc, alpha: 0.7 });
+      if (!state.derelict) {
+        for (const s of hz.shades) {
+          g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x38bdf8, alpha: 0.22 + Math.sin(this.elapsed * 5) * 0.05 });
+          g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x7dd3fc, alpha: 0.7 });
+        }
       }
     } else if (hz.kind === 'asteroid') {
       const t = hz.phase === 'warn' ? 1 - hz.left / HAZARDS.asteroid.warnSec : 1;

@@ -36,19 +36,23 @@ export const SPRITE_PATHS = {
     cube: `${base}/pickup_cube.png`,
     goldCube: `${base}/pickup_goldCube.png`,
   } satisfies Record<PickupKind, string>,
+  terrain: {
+    derelict: `${base}/spr_derelict_ship.png`,
+  },
 } as const;
 
 export interface SpriteAtlas {
   ships: Partial<Record<ShipId, Texture>>;
   enemies: Partial<Record<EnemyId, Texture>>;
   pickups: Partial<Record<PickupKind, Texture>>;
+  terrain: { derelict?: Texture };
   ready: boolean;
 }
 
 /** 실패해도 빈 atlas 반환 (Graphics 폴백) */
 export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
-  const atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, ready: false };
-  const entries: { bucket: 'ships' | 'enemies' | 'pickups'; id: string; url: string }[] = [];
+  const atlas: SpriteAtlas = { ships: {}, enemies: {}, pickups: {}, terrain: {}, ready: false };
+  const entries: { bucket: 'ships' | 'enemies' | 'pickups' | 'terrain'; id: string; url: string }[] = [];
 
   for (const [id, url] of Object.entries(SPRITE_PATHS.ships)) {
     entries.push({ bucket: 'ships', id, url });
@@ -59,6 +63,9 @@ export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
   for (const [id, url] of Object.entries(SPRITE_PATHS.pickups)) {
     entries.push({ bucket: 'pickups', id, url });
   }
+  for (const [id, url] of Object.entries(SPRITE_PATHS.terrain)) {
+    entries.push({ bucket: 'terrain', id, url });
+  }
 
   let loaded = 0;
   await Promise.all(
@@ -67,7 +74,8 @@ export async function loadSpriteAtlas(): Promise<SpriteAtlas> {
         const tex = await Assets.load<Texture>(url);
         if (bucket === 'ships') atlas.ships[id as ShipId] = tex;
         else if (bucket === 'enemies') atlas.enemies[id as EnemyId] = tex;
-        else atlas.pickups[id as PickupKind] = tex;
+        else if (bucket === 'pickups') atlas.pickups[id as PickupKind] = tex;
+        else if (id === 'derelict') atlas.terrain.derelict = tex;
         loaded++;
       } catch (err) {
         console.warn('[sprites] load failed', url, err);

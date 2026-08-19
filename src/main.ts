@@ -248,6 +248,14 @@ function processEvents(): void {
         hitstop = Math.max(hitstop, 0.08);
         vibrate(150);
         break;
+      case 'coreBurst':
+        hitstop = Math.max(hitstop, 0.1);
+        vibrate(180);
+        break;
+      case 'derelictBreak':
+        hitstop = Math.max(hitstop, 0.08);
+        vibrate(140);
+        break;
       case 'playerHit':
         vibrate(120);
         break;

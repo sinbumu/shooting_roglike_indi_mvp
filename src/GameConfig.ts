@@ -938,6 +938,47 @@ export const HAZARDS = {
   },
 } as const;
 
+/** 기믹형 지형지물 (쉴드 / 퀀텀 코어 / 성운 / 모선 잔해) */
+export const TERRAIN = {
+  shield: {
+    firstAt: 35,
+    cooldown: 28,
+    life: 18,
+    w: 28,
+    h: 170,
+    boostRadius: 1.5,
+    sidePad: 36,
+    yMin: 140,
+    yMax: 500,
+  },
+  core: {
+    firstAt: 50,
+    cooldown: 40,
+    hp: 220,
+    radius: 34,
+    explodeRadius: 168,
+    damage: 420,
+  },
+  nebula: {
+    firstAt: 25,
+    cooldown: 32,
+    life: 22,
+    radius: 150,
+    slowMul: 0.55,
+    drift: 18,
+  },
+  derelict: {
+    w: 168,
+    h: 78,
+    shadeH: 168,
+    shadeWMul: 0.92,
+    y: 168,
+    glowSec: 0.55,
+    creditOrbs: 8,
+    creditEach: 18,
+  },
+} as const;
+
 /** Lv.50 코어 각성 */
 export const AWAKEN = {
   level: 50,

@@ -306,7 +306,7 @@ export function settleRun(
 
   meta.bossCores += state.bossKills;
 
-  const creditsGained = baseGain + achvReward;
+  const creditsGained = baseGain + achvReward + Math.floor(state.runCreditBonus || 0);
   meta.credits += creditsGained;
   if (state.score > meta.bestScore) meta.bestScore = state.score;
   mergeSeenWeapons(meta, [...state.seenThisRun]);

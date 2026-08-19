@@ -446,6 +446,35 @@ export class AudioManager {
         this.noise(0.03, { gain: 0.04, freq: 1600, highpass: 1000 });
         break;
 
+      case 'terrainShieldBlock':
+        if (now - this.lastShieldAt < 50) return;
+        this.lastShieldAt = now;
+        this.tone(420, 0.06, { type: 'square', slideTo: 180, gain: 0.03 });
+        this.noise(0.05, { gain: 0.05, freq: 900, highpass: 400 });
+        break;
+
+      case 'terrainBoost':
+        this.tone(1480, 0.07, { type: 'sine', slideTo: 2100, gain: 0.035 });
+        this.noise(0.04, { gain: 0.03, freq: 2200, highpass: 1200 });
+        break;
+
+      case 'coreBurst':
+        this.noise(0.55, { gain: 0.2, freq: 110 });
+        this.tone(70, 0.5, { type: 'sawtooth', slideTo: 28, gain: 0.12 });
+        this.tone(220, 0.18, { type: 'square', slideTo: 80, gain: 0.05, delay: 0.04 });
+        break;
+
+      case 'derelictBreak':
+        this.noise(0.45, { gain: 0.16, freq: 140 });
+        this.tone(90, 0.4, { type: 'sawtooth', slideTo: 36, gain: 0.09 });
+        this.tone(520, 0.16, { type: 'triangle', slideTo: 180, gain: 0.04, delay: 0.08 });
+        break;
+
+      case 'creditPickup':
+        this.tone(880, 0.07, { type: 'sine', gain: 0.04 });
+        this.tone(1320, 0.08, { type: 'triangle', gain: 0.03, delay: 0.03 });
+        break;
+
       case 'bomb':
         this.noise(0.65, { gain: 0.28, freq: 160 });
         this.noise(0.35, { gain: 0.1, freq: 1100, highpass: 700, delay: 0.03 });

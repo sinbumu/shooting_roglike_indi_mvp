@@ -10,7 +10,7 @@ import {
   ARSENAL, AFFIX_SYNERGY, MUTATIONS, SHIELDER, TELEPORTER,
   SHIP_SKINS, PROJ_SKINS, MIRAGE, GUARDIAN, DROPS, HOMING,
   LEGION, LEVEL_AEGIS, TRAPPER, VORTEX, DRONE_FX,
-  VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX,
+  VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX, TERRAIN,
   compatibleAffixes, ampCooldownMul,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
@@ -64,6 +64,8 @@ export interface Projectile {
   orbitOmega?: number;
   originX?: number;
   originY?: number;
+  /** 단방향 쉴드 통과 강화 */
+  boosted?: boolean;
 }
 
 export interface Beam {
@@ -231,6 +233,56 @@ export interface EnvHazard {
   burnAcc: number;
 }
 
+/** 단방향 홀로그램 장벽 (적탄만 차단) */
+export interface OneWayShield {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  life: number;
+}
+
+/** 파괴 가능 퀀텀 코어 */
+export interface QuantumCore {
+  id: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  radius: number;
+  hitFlash: number;
+}
+
+/** 둔화 성운 지대 */
+export interface NebulaZone {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+  vx: number;
+  vy: number;
+}
+
+/** 태양풍 대피소 — 버려진 모선 잔해 */
+export interface DerelictWreck {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  breaking: boolean;
+  breakLeft: number;
+  glow: number;
+}
+
+export interface CreditOrb {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  value: number;
+  life: number;
+}
+
 export interface PassiveSlot {
   passiveId: PassiveId;
   level: number;
@@ -311,7 +363,12 @@ export type FxEvent =
   | { type: 'solarFlare' }
   | { type: 'asteroid' }
   | { type: 'empStart' }
-  | { type: 'execProc'; x: number; y: number };
+  | { type: 'execProc'; x: number; y: number }
+  | { type: 'terrainShieldBlock'; x: number; y: number }
+  | { type: 'terrainBoost'; x: number; y: number }
+  | { type: 'coreBurst'; x: number; y: number; radius: number }
+  | { type: 'derelictBreak'; x: number; y: number; w: number; h: number }
+  | { type: 'creditPickup'; x: number; y: number };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -387,6 +444,12 @@ export class GameState {
   empLeft = 0;
   altar: VoidAltar | null = null;
   envHazard: EnvHazard | null = null;
+  oneWayShield: OneWayShield | null = null;
+  quantumCores: QuantumCore[] = [];
+  nebulaZones: NebulaZone[] = [];
+  derelict: DerelictWreck | null = null;
+  creditOrbs: CreditOrb[] = [];
+  runCreditBonus = 0;
 
   runStats: RunStats = {
     projSpeedMul: 1,
@@ -469,6 +532,11 @@ export class GameState {
   private altarTickAcc = 0;
   private nextHazardAt: number = HAZARDS.firstAt;
   private needAltarHint = false;
+  private nextShieldAt: number = TERRAIN.shield.firstAt;
+  private nextCoreAt: number = TERRAIN.core.firstAt;
+  private nextNebulaAt: number = TERRAIN.nebula.firstAt;
+  private nextCoreId = 100000;
+  private derelictGoldDropped = false;
 
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
   start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
@@ -540,6 +608,17 @@ export class GameState {
     this.empLeft = 0;
     this.altar = null;
     this.envHazard = null;
+    this.oneWayShield = null;
+    this.quantumCores = [];
+    this.nebulaZones = [];
+    this.derelict = null;
+    this.creditOrbs = [];
+    this.runCreditBonus = 0;
+    this.derelictGoldDropped = false;
+    this.nextShieldAt = TERRAIN.shield.firstAt;
+    this.nextCoreAt = TERRAIN.core.firstAt;
+    this.nextNebulaAt = TERRAIN.nebula.firstAt;
+    this.nextCoreId = 100000;
     this.altarTickAcc = 0;
     this.nextHazardAt = HAZARDS.firstAt;
     this.needAltarHint = !meta.seenAltarHint;
@@ -828,6 +907,7 @@ export class GameState {
     this.updateDrones(dt);
     this.updateAltar(dt);
     this.updateHazard(dt);
+    this.updateTerrain(dt);
     this.updateSpawns(dt);
     this.updateBossSchedule();
     this.updateCommanderSchedule();
@@ -1039,8 +1119,9 @@ export class GameState {
       const k = 1 - Math.exp(-rate * dt);
       this.velX += (targetVx - this.velX) * k;
       this.velY += (targetVy - this.velY) * k;
-      this.playerX += this.velX * dt;
-      this.playerY += this.velY * dt;
+      const neb = this.nebulaMulAt(this.playerX, this.playerY);
+      this.playerX += this.velX * dt * neb;
+      this.playerY += this.velY * dt * neb;
       const r = PLAYER.radius;
       this.playerX = Math.max(r, Math.min(CANVAS.width - r, this.playerX));
       this.playerY = Math.max(r, Math.min(CANVAS.height - r, this.playerY));
@@ -1505,6 +1586,7 @@ export class GameState {
         this.empLeft = 0;
         this.applyPassiveEffects();
       }
+      if (this.envHazard.kind === 'solar') this.beginDerelictBreak();
       this.envHazard = null;
       return;
     }
@@ -1529,11 +1611,12 @@ export class GameState {
     const warn = kind === 'solar' ? HAZARDS.solar.warnSec
       : kind === 'asteroid' ? HAZARDS.asteroid.warnSec
       : 0;
+    if (kind === 'solar') this.spawnDerelict();
     this.envHazard = {
       kind,
       phase: warn > 0 ? 'warn' : 'active',
       left: warn > 0 ? warn : HAZARDS.emp.duration,
-      shades: kind === 'solar' ? this.rollShades() : [],
+      shades: kind === 'solar' ? this.derelictShade() : [],
       beams: kind === 'asteroid' ? this.rollBeams() : [],
       burnAcc: 0,
     };
@@ -1546,20 +1629,65 @@ export class GameState {
     if (kind === 'emp') this.triggerHazard();
   }
 
-  private rollShades(): EnvShade[] {
-    const n = HAZARDS.solar.shadeMin
-      + Math.floor(Math.random() * (HAZARDS.solar.shadeMax - HAZARDS.solar.shadeMin + 1));
-    const out: EnvShade[] = [];
-    const w = HAZARDS.solar.shadeW;
-    const h = HAZARDS.solar.shadeH;
+  private derelictShade(): EnvShade[] {
+    if (!this.derelict) return [];
+    const d = this.derelict;
+    const w = d.w * TERRAIN.derelict.shadeWMul;
+    return [{
+      x: d.x - w / 2,
+      y: d.y + d.h / 2,
+      w,
+      h: TERRAIN.derelict.shadeH,
+    }];
+  }
+
+  private spawnDerelict(): void {
+    const w = TERRAIN.derelict.w;
+    const h = TERRAIN.derelict.h;
+    this.derelict = {
+      x: 80 + Math.random() * (CANVAS.width - 160),
+      y: TERRAIN.derelict.y,
+      w,
+      h,
+      breaking: false,
+      breakLeft: 0,
+      glow: 0,
+    };
+    if (this.envHazard) this.envHazard.shades = this.derelictShade();
+  }
+
+  private beginDerelictBreak(): void {
+    if (!this.derelict || this.derelict.breaking) return;
+    this.derelict.breaking = true;
+    this.derelict.breakLeft = TERRAIN.derelict.glowSec;
+    this.derelict.glow = 0;
+    this.events.push({ type: 'banner', text: '🛸 잔해 과열' });
+  }
+
+  private finishDerelictBreak(): void {
+    const d = this.derelict;
+    if (!d) return;
+    this.events.push({ type: 'derelictBreak', x: d.x, y: d.y, w: d.w, h: d.h });
+    if (!this.derelictGoldDropped) {
+      this.derelictGoldDropped = true;
+      this.pickups.push({ kind: 'goldCube', x: d.x, y: d.y, life: PICKUPS.lifetime * 2 });
+    } else {
+      this.pickups.push({ kind: 'heal', x: d.x, y: d.y - 10, life: PICKUPS.lifetime });
+    }
+    const n = TERRAIN.derelict.creditOrbs;
     for (let i = 0; i < n; i++) {
-      out.push({
-        x: 16 + Math.random() * (CANVAS.width - w - 32),
-        y: 70 + Math.random() * (CANVAS.height - h - 140),
-        w, h,
+      const a = (Math.PI * 2 * i) / n + Math.random() * 0.3;
+      const spd = 90 + Math.random() * 140;
+      this.creditOrbs.push({
+        x: d.x,
+        y: d.y,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd,
+        value: TERRAIN.derelict.creditEach,
+        life: 8,
       });
     }
-    return out;
+    this.derelict = null;
   }
 
   private rollBeams(): number[] {
@@ -1628,6 +1756,182 @@ export class GameState {
     }
   }
 
+  // ---------- 지형 기믹 ----------
+
+  inNebula(x: number, y: number): boolean {
+    return this.nebulaMulAt(x, y) < 0.999;
+  }
+
+  private nebulaMulAt(x: number, y: number): number {
+    for (const z of this.nebulaZones) {
+      if ((x - z.x) ** 2 + (y - z.y) ** 2 <= z.r * z.r) return TERRAIN.nebula.slowMul;
+    }
+    return 1;
+  }
+
+  private inShieldAabb(x: number, y: number, pad = 0): boolean {
+    const s = this.oneWayShield;
+    if (!s) return false;
+    return x >= s.x - pad && x <= s.x + s.w + pad && y >= s.y - pad && y <= s.y + s.h + pad;
+  }
+
+  private updateTerrain(dt: number): void {
+    this.updateShieldTerrain(dt);
+    this.updateCoreTerrain(dt);
+    this.updateNebulaTerrain(dt);
+    this.updateDerelictTerrain(dt);
+    this.updateCreditOrbs(dt);
+  }
+
+  private updateShieldTerrain(dt: number): void {
+    if (this.oneWayShield) {
+      this.oneWayShield.life -= dt;
+      if (this.oneWayShield.life <= 0) this.oneWayShield = null;
+    }
+    if (this.oneWayShield || this.time < this.nextShieldAt) return;
+    const cfg = TERRAIN.shield;
+    const left = Math.random() < 0.5;
+    this.oneWayShield = {
+      x: left ? cfg.sidePad : CANVAS.width - cfg.sidePad - cfg.w,
+      y: cfg.yMin + Math.random() * (cfg.yMax - cfg.yMin),
+      w: cfg.w,
+      h: cfg.h,
+      life: cfg.life,
+    };
+    this.nextShieldAt = this.time + cfg.cooldown;
+  }
+
+  private updateCoreTerrain(dt: number): void {
+    for (const c of this.quantumCores) {
+      if (c.hitFlash > 0) c.hitFlash = Math.max(0, c.hitFlash - dt);
+    }
+    if (this.quantumCores.length > 0 || this.time < this.nextCoreAt) return;
+    const cfg = TERRAIN.core;
+    const hp = Math.round(cfg.hp * enemyHpScale(this.time));
+    this.quantumCores.push({
+      id: this.nextCoreId++,
+      x: 70 + Math.random() * (CANVAS.width - 140),
+      y: 160 + Math.random() * 280,
+      hp,
+      maxHp: hp,
+      radius: cfg.radius,
+      hitFlash: 0,
+    });
+    this.nextCoreAt = this.time + cfg.cooldown;
+  }
+
+  private updateNebulaTerrain(dt: number): void {
+    for (let i = this.nebulaZones.length - 1; i >= 0; i--) {
+      const z = this.nebulaZones[i];
+      z.life -= dt;
+      z.x += z.vx * dt;
+      z.y += z.vy * dt;
+      const pad = z.r * 0.4;
+      if (z.x < pad || z.x > CANVAS.width - pad) z.vx *= -1;
+      if (z.y < 80 + pad || z.y > CANVAS.height - 100 - pad) z.vy *= -1;
+      z.x = Math.max(pad, Math.min(CANVAS.width - pad, z.x));
+      z.y = Math.max(80 + pad, Math.min(CANVAS.height - 100 - pad, z.y));
+      if (z.life <= 0) this.nebulaZones.splice(i, 1);
+    }
+    if (this.nebulaZones.length > 0 || this.time < this.nextNebulaAt) return;
+    const cfg = TERRAIN.nebula;
+    const ang = Math.random() * Math.PI * 2;
+    this.nebulaZones.push({
+      x: 90 + Math.random() * (CANVAS.width - 180),
+      y: 180 + Math.random() * 320,
+      r: cfg.radius,
+      life: cfg.life,
+      vx: Math.cos(ang) * cfg.drift,
+      vy: Math.sin(ang) * cfg.drift,
+    });
+    this.nextNebulaAt = this.time + cfg.cooldown;
+  }
+
+  private updateDerelictTerrain(dt: number): void {
+    const d = this.derelict;
+    if (!d) return;
+    if (this.envHazard?.kind === 'solar') {
+      this.envHazard.shades = this.derelictShade();
+    }
+    if (!d.breaking) return;
+    d.breakLeft -= dt;
+    const max = TERRAIN.derelict.glowSec;
+    d.glow = 1 - Math.max(0, d.breakLeft) / max;
+    if (d.breakLeft <= 0) this.finishDerelictBreak();
+  }
+
+  private updateCreditOrbs(dt: number): void {
+    for (let i = this.creditOrbs.length - 1; i >= 0; i--) {
+      const o = this.creditOrbs[i];
+      o.life -= dt;
+      if (o.life <= 0) {
+        this.creditOrbs.splice(i, 1);
+        continue;
+      }
+      o.vy += 40 * dt;
+      const dx = this.playerX - o.x;
+      const dy = this.playerY - o.y;
+      const dist = Math.hypot(dx, dy);
+      if (this.vacuumLeft > 0 || dist < this.magnetRadius + 20) {
+        const step = GEM.magnetSpeed * dt;
+        o.x += (dx / Math.max(dist, 1)) * step;
+        o.y += (dy / Math.max(dist, 1)) * step;
+      } else {
+        o.x += o.vx * dt;
+        o.y += o.vy * dt;
+        o.vx *= 0.96;
+        o.vy *= 0.96;
+      }
+      if (dist < PLAYER.radius + 10) {
+        this.runCreditBonus += o.value;
+        this.events.push({ type: 'creditPickup', x: o.x, y: o.y });
+        this.creditOrbs.splice(i, 1);
+      }
+    }
+  }
+
+  private tryBoostProjectile(p: Projectile): void {
+    if (p.boosted || !this.inShieldAabb(p.x, p.y, p.radius)) return;
+    p.boosted = true;
+    p.radius *= TERRAIN.shield.boostRadius;
+    this.events.push({ type: 'terrainBoost', x: p.x, y: p.y });
+  }
+
+  private tryBlockEnemyBullet(p: EnemyProjectile): boolean {
+    if (!this.inShieldAabb(p.x, p.y, p.radius)) return false;
+    this.events.push({ type: 'terrainShieldBlock', x: p.x, y: p.y });
+    return true;
+  }
+
+  private damageCore(c: QuantumCore, dmg: number): void {
+    c.hp -= dmg;
+    c.hitFlash = 0.1;
+    this.events.push({ type: 'enemyHit', x: c.x, y: c.y, color: '#f97316', damage: Math.round(dmg) });
+    if (c.hp > 0) return;
+    this.burstCore(c);
+  }
+
+  private burstCore(c: QuantumCore): void {
+    const r = TERRAIN.core.explodeRadius;
+    const dmg = TERRAIN.core.damage;
+    this.events.push({ type: 'coreBurst', x: c.x, y: c.y, radius: r });
+    for (const e of [...this.enemies]) {
+      if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 > (r + e.def.radius) ** 2) continue;
+      if (this.tryAbsorbShield(e, true)) continue;
+      this.damageEnemy(e, dmg);
+    }
+    this.quantumCores = this.quantumCores.filter((q) => q.id !== c.id);
+  }
+
+  private hitCoresCircle(x: number, y: number, radius: number, dmg: number, hitIds?: Set<number>): void {
+    for (const c of [...this.quantumCores]) {
+      if (hitIds?.has(c.id)) continue;
+      if ((c.x - x) ** 2 + (c.y - y) ** 2 > (c.radius + radius) ** 2) continue;
+      hitIds?.add(c.id);
+      this.damageCore(c, dmg);
+    }
+  }
+
   private updateWarnings(dt: number): void {
     for (let i = this.warnings.length - 1; i >= 0; i--) {
       const w = this.warnings[i];
@@ -1692,7 +1996,7 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
-      const moveMul = this.enemyMoveMul();
+      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y);
       const eliteMul = e.elite ? ELITE.speedMul : 1;
 
       switch (e.def.movePattern) {
@@ -1946,6 +2250,7 @@ export class GameState {
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, o.damage, o.weaponId);
       }
+      this.hitCoresCircle(px, py, o.hitRadius, o.damage);
     }
   }
 
@@ -1973,6 +2278,7 @@ export class GameState {
         this.damageEnemy(e, s.damage, s.weaponId);
         this.procMeleeAffix(s, e);
       }
+      this.hitCoresCircle(s.x, s.y, s.range * 0.55, s.damage, s.hitIds);
       if (s.deflect) {
         for (let k = this.enemyProjectiles.length - 1; k >= 0; k--) {
           const p = this.enemyProjectiles[k];
@@ -2109,6 +2415,7 @@ export class GameState {
         this.damageEnemy(e, m.damage, m.weaponId);
       }
     }
+    this.hitCoresCircle(m.x, m.y, m.explodeRadius, m.damage);
     this.events.push({ type: 'blast', x: m.x, y: m.y, color: m.color, radius: m.explodeRadius * 0.45 });
     if (m.split > 0) {
       for (let k = 0; k < m.split; k++) {
@@ -2366,9 +2673,13 @@ export class GameState {
     const H = CANVAS.height;
     for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
       const p = this.enemyProjectiles[i];
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      p.x += p.vx * dt * this.nebulaMulAt(p.x, p.y);
+      p.y += p.vy * dt * this.nebulaMulAt(p.x, p.y);
       if (p.x < -40 || p.x > W + 40 || p.y < -40 || p.y > H + 40) {
+        this.enemyProjectiles.splice(i, 1);
+        continue;
+      }
+      if (this.tryBlockEnemyBullet(p)) {
         this.enemyProjectiles.splice(i, 1);
         continue;
       }
@@ -2419,16 +2730,19 @@ export class GameState {
       }
 
       const techSlow = this.architectAlive() ? LEGION.techSpeedMul : 1;
+      const neb = this.nebulaMulAt(p.x, p.y);
       this.applyVortexToProjectile(p, dt);
       if (p.originX != null && p.originY != null && p.orbitAngle != null && p.orbitRadius != null) {
-        p.orbitAngle += (p.orbitOmega ?? 2.8) * dt * techSlow;
-        p.orbitRadius += p.speed * dt * techSlow;
+        p.orbitAngle += (p.orbitOmega ?? 2.8) * dt * techSlow * neb;
+        p.orbitRadius += p.speed * dt * techSlow * neb;
         p.x = p.originX + Math.cos(p.orbitAngle) * p.orbitRadius;
         p.y = p.originY + Math.sin(p.orbitAngle) * p.orbitRadius;
       } else {
-        p.x += p.vx * dt * techSlow;
-        p.y += p.vy * dt * techSlow;
+        p.x += p.vx * dt * techSlow * neb;
+        p.y += p.vy * dt * techSlow * neb;
       }
+
+      this.tryBoostProjectile(p);
 
       // 적과 충돌
       let removed = false;
@@ -2470,6 +2784,23 @@ export class GameState {
       }
       if (removed) continue;
 
+      let coreRemoved = false;
+      for (const c of [...this.quantumCores]) {
+        if (p.hitIds.has(c.id)) continue;
+        const rr = p.radius + c.radius;
+        if ((p.x - c.x) ** 2 + (p.y - c.y) ** 2 > rr * rr) continue;
+        p.hitIds.add(c.id);
+        this.damageCore(c, p.damage);
+        if (p.explodeRadius) this.explodeProjectile(p, { id: c.id } as Enemy);
+        if (p.pierceLeft <= 0) {
+          this.projectiles.splice(i, 1);
+          coreRemoved = true;
+          break;
+        }
+        p.pierceLeft--;
+      }
+      if (coreRemoved) continue;
+
       // 화면 밖
       if (p.x < -60 || p.x > CANVAS.width + 60 || p.y < -60 || p.y > CANVAS.height + 60) {
         this.projectiles.splice(i, 1);
@@ -2506,6 +2837,7 @@ export class GameState {
       if (this.rollCrit()) dmg *= this.runStats.critMul;
       this.damageEnemy(e, dmg, b.weaponId);
     }
+    this.hitCoresCircle(b.x, b.y, b.width, b.damage);
   }
 
   private isCloaked(e: Enemy): boolean {

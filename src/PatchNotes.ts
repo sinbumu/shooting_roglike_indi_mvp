@@ -7,6 +7,16 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.7.5',
+    date: '2026-08-19',
+    changes: [
+      '방패 홀로그램 장벽: 적탄 소멸 · 아군탄 강화 궤적',
+      '불안정 퀀텀 코어: 타격 시 균열 · 3중 충격파 폭파',
+      '성운 가스 지대: 둔화 · 서리 틴트/잔상',
+      '궤도 태양풍 대피소: 모선 잔해 그림자 · 파괴 시 보상 버스트',
+    ],
+  },
+  {
     version: 'v1.7.4',
     date: '2026-08-19',
     changes: [
