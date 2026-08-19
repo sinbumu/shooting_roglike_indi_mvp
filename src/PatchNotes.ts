@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.8.3',
+    date: '2026-08-19',
+    changes: [
+      '🔫 탄막 트리 전 무기 전용 스프라이트: 벌컨·스프레드·호밍부터 T3 종결까지',
+      '솔라 랜스는 태양 빔 시트, 모선/파열핵/해머딘은 폭탄형 오브로 구분',
+    ],
+  },
+  {
     version: 'v1.8.2',
     date: '2026-08-19',
     changes: [

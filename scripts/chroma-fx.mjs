@@ -1,8 +1,9 @@
 /**
  * Magenta chroma-key for 2x2 FX sheets. Does NOT trim — cell alignment must stay.
- * Energy sheets (slash/beam/halo) are converted to greyscale so weapon tint works.
+ * Energy sheets are converted to greyscale so weapon tint works.
+ * Missing raw files are skipped so old/new sheets can be processed independently.
  */
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
@@ -22,6 +23,21 @@ const SHEETS = [
   { name: 'fx_singularity', tintable: false },
   { name: 'fx_predator', tintable: false },
   { name: 'fx_swarm', tintable: false },
+  { name: 'fx_vulcan', tintable: false },
+  { name: 'fx_spread', tintable: true },
+  { name: 'fx_homing', tintable: false },
+  { name: 'fx_laser', tintable: true },
+  { name: 'fx_railgun', tintable: false },
+  { name: 'fx_gatling', tintable: false },
+  { name: 'fx_nova', tintable: true },
+  { name: 'fx_mothership', tintable: false },
+  { name: 'fx_omega', tintable: true },
+  { name: 'fx_starfall', tintable: true },
+  { name: 'fx_genesis', tintable: true },
+  { name: 'fx_tempest', tintable: true },
+  { name: 'fx_rupture', tintable: false },
+  { name: 'fx_solance', tintable: true },
+  { name: 'fx_helix', tintable: false },
 ];
 
 function magentaAlpha(r, g, b) {
@@ -38,6 +54,10 @@ function magentaAlpha(r, g, b) {
 
 function processOne(name, tintable) {
   const input = path.join(rawDir, `${name}_raw.png`);
+  if (!existsSync(input)) {
+    console.log('skip missing', name);
+    return;
+  }
   const png = PNG.sync.read(readFileSync(input));
   const { width, height, data } = png;
 
@@ -65,7 +85,7 @@ mkdirSync(rawDir, { recursive: true });
 if (srcOverride) {
   for (const { name } of SHEETS) {
     const from = path.join(srcOverride, `${name}_raw.png`);
-    copyFileSync(from, path.join(rawDir, `${name}_raw.png`));
+    if (existsSync(from)) copyFileSync(from, path.join(rawDir, `${name}_raw.png`));
   }
 }
 

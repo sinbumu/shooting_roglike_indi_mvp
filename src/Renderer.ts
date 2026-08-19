@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
 import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN } from './GameConfig';
-import { fxFrame, fxFrameOnce, loadSpriteAtlas, type FxId, type SpriteAtlas } from './assets';
+import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
 // ============================================================
@@ -1373,19 +1373,32 @@ export class Renderer {
     for (const p of state.projectiles) {
       const color = hex(p.color);
       const angle = Math.atan2(p.vy, p.vx);
+      const spec = p.weaponId ? PROJ_FX[p.weaponId] : undefined;
+      const tex = spec ? fxFrame(this.atlas.fx[spec.fx], this.elapsed + p.x * 0.01, spec.fps ?? 12) : undefined;
 
-      if (p.weaponId === 'swarm' || p.weaponId === 'predator') {
-        const tex = fxFrame(this.atlas.fx.swarm, this.elapsed + p.x * 0.01, 12);
-        if (tex) {
-          const size = p.radius * (p.weaponId === 'predator' ? 5.8 : 6.4);
-          this.blitFx(tex, p.x, p.y, { rotation: angle, width: size, height: size });
-          const glow = this.glowPool.get();
-          glow.tint = color;
-          glow.position.set(p.x, p.y);
-          glow.width = glow.height = p.radius * 5;
-          glow.alpha = 0.7;
-          continue;
+      if (spec && tex) {
+        const h = p.radius * spec.sizeMul;
+        const w = h * (spec.elong ?? 1);
+        this.blitFx(tex, p.x, p.y, {
+          rotation: angle,
+          width: w,
+          height: h,
+          tint: spec.tint ? color : 0xffffff,
+          add: spec.add,
+          anchorX: spec.anchorX,
+        });
+        const glow = this.glowPool.get();
+        glow.tint = color;
+        glow.position.set(p.x, p.y);
+        glow.width = glow.height = p.radius * (spec.elong ? 5 : 6);
+        glow.alpha = spec.add ? 0.55 : 0.7;
+        if (spec.trail) {
+          const tail = p.radius * (p.boosted ? 5 : 3.2);
+          g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
+            .lineTo(p.x, p.y)
+            .stroke({ width: p.radius * (p.boosted ? 1.4 : 0.9), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.7 : 0.28 });
         }
+        continue;
       }
 
       const tail = p.radius * (p.boosted ? 6.5 : 4);
@@ -1857,15 +1870,31 @@ export class Renderer {
       const y2 = b.y + Math.sin(b.angle) * b.length;
       const color = hex(b.color);
       const pulse = 0.55 + Math.sin(this.elapsed * 28) * 0.15;
-      g.moveTo(b.x, b.y);
-      g.lineTo(x2, y2);
-      g.stroke({ width: b.width * 1.8, color, alpha: 0.22 * pulse });
-      g.moveTo(b.x, b.y);
-      g.lineTo(x2, y2);
-      g.stroke({ width: b.width, color, alpha: 0.55 });
-      g.moveTo(b.x, b.y);
-      g.lineTo(x2, y2);
-      g.stroke({ width: Math.max(3, b.width * 0.28), color: 0xffffff, alpha: 0.9 });
+      const tex = fxFrame(this.atlas.fx.solance, this.elapsed, 14);
+      if (tex) {
+        this.blitFx(tex, b.x, b.y, {
+          rotation: b.angle,
+          width: b.length * 1.04,
+          height: Math.max(40, b.width * 2.6),
+          tint: color,
+          alpha: 0.55 + pulse * 0.55,
+          add: true,
+          anchorX: 0.07,
+          anchorY: 0.5,
+        });
+        g.moveTo(b.x, b.y).lineTo(x2, y2)
+          .stroke({ width: Math.max(3, b.width * 0.22), color: 0xffffff, alpha: 0.55 + pulse * 0.25 });
+      } else {
+        g.moveTo(b.x, b.y);
+        g.lineTo(x2, y2);
+        g.stroke({ width: b.width * 1.8, color, alpha: 0.22 * pulse });
+        g.moveTo(b.x, b.y);
+        g.lineTo(x2, y2);
+        g.stroke({ width: b.width, color, alpha: 0.55 });
+        g.moveTo(b.x, b.y);
+        g.lineTo(x2, y2);
+        g.stroke({ width: Math.max(3, b.width * 0.28), color: 0xffffff, alpha: 0.9 });
+      }
       const glow = this.glowPool.get();
       glow.tint = color;
       glow.position.set(b.x, b.y);

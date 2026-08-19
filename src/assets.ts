@@ -1,5 +1,5 @@
 import { Assets, Rectangle, Texture } from 'pixi.js';
-import type { EnemyId, PickupKind, ShipId } from './types';
+import type { EnemyId, PickupKind, ShipId, WeaponId } from './types';
 
 /** Vite base('./') 대비 — public/ 하위는 상대 경로로 로드 */
 const base = `${import.meta.env.BASE_URL}assets/sprites`;
@@ -13,7 +13,22 @@ export type FxId =
   | 'seeker'
   | 'singularity'
   | 'predator'
-  | 'swarm';
+  | 'swarm'
+  | 'vulcan'
+  | 'spread'
+  | 'homing'
+  | 'laser'
+  | 'railgun'
+  | 'gatling'
+  | 'nova'
+  | 'mothership'
+  | 'omega'
+  | 'starfall'
+  | 'genesis'
+  | 'tempest'
+  | 'rupture'
+  | 'solance'
+  | 'helix';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -61,8 +76,54 @@ export const SPRITE_PATHS = {
     singularity: `${base}/fx_singularity.png`,
     predator: `${base}/fx_predator.png`,
     swarm: `${base}/fx_swarm.png`,
+    vulcan: `${base}/fx_vulcan.png`,
+    spread: `${base}/fx_spread.png`,
+    homing: `${base}/fx_homing.png`,
+    laser: `${base}/fx_laser.png`,
+    railgun: `${base}/fx_railgun.png`,
+    gatling: `${base}/fx_gatling.png`,
+    nova: `${base}/fx_nova.png`,
+    mothership: `${base}/fx_mothership.png`,
+    omega: `${base}/fx_omega.png`,
+    starfall: `${base}/fx_starfall.png`,
+    genesis: `${base}/fx_genesis.png`,
+    tempest: `${base}/fx_tempest.png`,
+    rupture: `${base}/fx_rupture.png`,
+    solance: `${base}/fx_solance.png`,
+    helix: `${base}/fx_helix.png`,
   } satisfies Record<FxId, string>,
 } as const;
+
+export interface ProjFxDraw {
+  fx: FxId;
+  sizeMul: number;
+  elong?: number;
+  fps?: number;
+  add?: boolean;
+  tint?: boolean;
+  trail?: boolean;
+  anchorX?: number;
+}
+
+/** 무기 ID → 투사체 스프라이트. 없으면 Graphics 폴백 */
+export const PROJ_FX: Partial<Record<WeaponId, ProjFxDraw>> = {
+  vulcan: { fx: 'vulcan', sizeMul: 7.4, elong: 1.9, fps: 14, trail: true },
+  spread: { fx: 'spread', sizeMul: 5.2, fps: 12, tint: true },
+  homing: { fx: 'homing', sizeMul: 6.4, elong: 1.65, fps: 12, trail: true },
+  laser: { fx: 'laser', sizeMul: 5.8, elong: 2.55, fps: 16, add: true, tint: true },
+  railgun: { fx: 'railgun', sizeMul: 6.2, elong: 2.75, fps: 14, trail: true },
+  swarm: { fx: 'swarm', sizeMul: 6.4, fps: 12 },
+  gatling: { fx: 'gatling', sizeMul: 8.2, elong: 2.2, fps: 18, trail: true },
+  nova: { fx: 'nova', sizeMul: 5.4, fps: 14, add: true, tint: true },
+  mothership: { fx: 'mothership', sizeMul: 4.3, elong: 1.12, fps: 8 },
+  omega: { fx: 'omega', sizeMul: 5.1, elong: 2.65, fps: 16, add: true, tint: true },
+  starfall: { fx: 'starfall', sizeMul: 5.6, fps: 12, add: true, tint: true },
+  genesis: { fx: 'genesis', sizeMul: 6.0, elong: 2.9, fps: 14, add: true, tint: true, trail: true },
+  tempest: { fx: 'tempest', sizeMul: 6.2, fps: 18, add: true, tint: true },
+  rupture: { fx: 'rupture', sizeMul: 4.9, elong: 1.4, fps: 10, trail: true },
+  helix: { fx: 'helix', sizeMul: 5.4, fps: 10 },
+  predator: { fx: 'swarm', sizeMul: 5.8, fps: 12 },
+};
 
 export interface SpriteAtlas {
   ships: Partial<Record<ShipId, Texture>>;
