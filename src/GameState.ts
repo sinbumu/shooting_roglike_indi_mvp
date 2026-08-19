@@ -13,7 +13,7 @@ import {
   VOID_ALTAR, HAZARDS, AWAKEN, PILOT_FX, AFFIX_FX, TERRAIN,
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
-  isMeleeFamily, isSummonFamily, isRangedFamily,
+  isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -138,6 +138,8 @@ export interface Slash {
   leaveZone?: { duration: number; tick: number; radius: number };
   fromAfterimage?: boolean;
   afterimageQueued?: boolean;
+  /** 채찍: 호 전체를 즉발하지 않고 시간에 따라 스윕 */
+  sweep?: boolean;
 }
 
 export interface Orbiter {
@@ -395,7 +397,7 @@ export type FxEvent =
   | { type: 'derelictBreak'; x: number; y: number; w: number; h: number }
   | { type: 'creditPickup'; x: number; y: number }
   | { type: 'bloodBurst'; x: number; y: number; radius: number }
-  | { type: 'iaidoSlash'; x: number; y: number; w: number; h: number };
+  | { type: 'iaidoSlash'; x: number; y: number; w: number; h: number; hits: { x: number; y: number }[] };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -1433,13 +1435,15 @@ export class GameState {
     const y = this.playerY - h * 0.85;
     const skill = SHIPS[this.shipId].activeSkill;
     const damage = (skill.pulseDamage ?? 85) * mul * this.meleeWeaponLevelSum() * this.damageMul;
+    const hits: { x: number; y: number }[] = [];
     for (const e of [...this.enemies]) {
       if (e.y < y || e.y > y + h) continue;
       if (this.isCloaked(e)) continue;
       if (this.tryAbsorbShield(e, true)) continue;
       this.damageEnemy(e, damage);
+      hits.push({ x: e.x, y: e.y });
     }
-    this.events.push({ type: 'iaidoSlash', x: 0, y, w: CANVAS.width, h });
+    this.events.push({ type: 'iaidoSlash', x: 0, y, w: CANVAS.width, h, hits });
   }
 
   private commandOverloadDetonate(skill: typeof SHIPS[ShipId]['activeSkill']): void {
@@ -1805,6 +1809,7 @@ export class GameState {
         leaveZone: p.drop?.zoneDuration
           ? { duration: p.drop.zoneDuration, tick: p.drop.zoneTick ?? 0.12, radius: 18 * sizeMul }
           : undefined,
+        sweep: isWhipWeapon(slot.weaponId),
       });
       this.events.push({
         type: 'fired',
@@ -2949,23 +2954,26 @@ export class GameState {
       const s = this.slashes[i];
       s.life -= dt;
       const half = (s.arcDeg * Math.PI) / 360;
+      const progress = 1 - s.life / s.maxLife;
+      const sweepAng = s.sweep ? slashSweepAngle(s.angle, s.arcDeg, progress) : s.angle;
+      const sweepHalf = s.sweep ? 0.2 : half + 0.12;
       for (const e of [...this.enemies]) {
         if (s.hitIds.has(e.id) || this.isCloaked(e)) continue;
         const dx = e.x - s.x;
         const dy = e.y - s.y;
         const dist = Math.hypot(dx, dy);
         if (dist > s.range + e.def.radius) continue;
-        let ang = Math.atan2(dy, dx) - s.angle;
+        let ang = Math.atan2(dy, dx) - (s.sweep ? sweepAng : s.angle);
         while (ang > Math.PI) ang -= Math.PI * 2;
         while (ang < -Math.PI) ang += Math.PI * 2;
-        if (Math.abs(ang) > half + 0.12) continue;
+        if (Math.abs(ang) > sweepHalf) continue;
         s.hitIds.add(e.id);
         if (this.tryAbsorbShield(e, true)) continue;
         this.damageEnemy(e, s.damage, s.weaponId);
         this.onWeaponHit(s.weaponId, e);
         this.procMeleeAffix(s, e);
       }
-      this.hitCoresCircle(s.x, s.y, s.range * 0.55, s.damage, s.hitIds);
+      if (!s.sweep) this.hitCoresCircle(s.x, s.y, s.range * 0.55, s.damage, s.hitIds);
       if (s.deflect) {
         for (let k = this.enemyProjectiles.length - 1; k >= 0; k--) {
           const p = this.enemyProjectiles[k];
@@ -2973,10 +2981,10 @@ export class GameState {
           const dy = p.y - s.y;
           const dist = Math.hypot(dx, dy);
           if (dist > s.range) continue;
-          let ang = Math.atan2(dy, dx) - s.angle;
+          let ang = Math.atan2(dy, dx) - (s.sweep ? sweepAng : s.angle);
           while (ang > Math.PI) ang -= Math.PI * 2;
           while (ang < -Math.PI) ang += Math.PI * 2;
-          if (Math.abs(ang) > half + 0.12) continue;
+          if (Math.abs(ang) > sweepHalf) continue;
           this.enemyProjectiles.splice(k, 1);
         }
       }
@@ -3037,6 +3045,7 @@ export class GameState {
           deflect: false,
           hitIds: new Set(),
           fromAfterimage: true,
+          sweep: s.sweep,
         },
       });
     }

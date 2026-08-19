@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, isWhipWeapon, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
@@ -229,6 +229,10 @@ export class Renderer {
   private shakeMag = 0;
   private flashAlpha = 0;
   private flashColor = 0xef4444;
+  private dimLeft = 0;
+  private iaidoFx: { x: number; y: number; w: number; h: number; life: number; hits: { x: number; y: number }[] } | null = null;
+  private iaidoSlashSpr: Sprite | null = null;
+  private iaidoSlashSpr2: Sprite | null = null;
   private empSprites: Sprite[] = [];
   private hitFxLeft = 0;
 
@@ -257,6 +261,15 @@ export class Renderer {
       this.playerG, this.glowLayer, this.coreG, this.fxLayer, this.textLayer, this.warnG,
     );
     this.app.stage.addChild(this.world, this.flashG);
+    this.iaidoSlashSpr = new Sprite();
+    this.iaidoSlashSpr.anchor.set(0.5);
+    this.iaidoSlashSpr.blendMode = 'add';
+    this.iaidoSlashSpr.visible = false;
+    this.iaidoSlashSpr2 = new Sprite();
+    this.iaidoSlashSpr2.anchor.set(0.5);
+    this.iaidoSlashSpr2.blendMode = 'add';
+    this.iaidoSlashSpr2.visible = false;
+    this.app.stage.addChild(this.iaidoSlashSpr, this.iaidoSlashSpr2);
 
     for (let i = 0; i < 12; i++) {
       const s = new Sprite(this.glowTex);
@@ -538,14 +551,28 @@ export class Renderer {
           this.shake(8, 0.28);
           break;
         case 'iaidoSlash':
-          this.flashAlpha = 0.35;
-          this.flashColor = 0xef4444;
-          this.shake(10, 0.28);
-          this.spawnParticle({
-            x: ev.x + ev.w * 0.5, y: ev.y + ev.h * 0.5,
-            life: 0.28, sizeFrom: 40, sizeTo: Math.max(ev.w, ev.h) * 0.35,
-            tint: 0xf87171, alphaFrom: 0.85, ring: true,
-          });
+          this.flashAlpha = 0;
+          this.dimLeft = 0.22;
+          this.iaidoFx = { x: ev.x, y: ev.y, w: ev.w, h: ev.h, life: 0.2, hits: ev.hits };
+          this.shake(12, 0.32);
+          const hud = document.getElementById('hud');
+          hud?.classList.add('iaido-dim');
+          window.setTimeout(() => hud?.classList.remove('iaido-dim'), 220);
+          for (const h of ev.hits) {
+            this.spawnParticle({ x: h.x, y: h.y, life: 0.22, sizeFrom: 28, sizeTo: 8, tint: 0xf8fafc, alphaFrom: 0.95 });
+            this.spawnParticle({ x: h.x, y: h.y, life: 0.28, sizeFrom: 18, sizeTo: 36, tint: 0xef4444, alphaFrom: 0.9, ring: true });
+            for (let k = 0; k < 4; k++) {
+              const a = Math.PI * 0.25 + k * Math.PI * 0.5;
+              this.spawnParticle({
+                x: h.x, y: h.y,
+                vx: Math.cos(a) * 140,
+                vy: Math.sin(a) * 140,
+                life: 0.2, sizeFrom: 10, sizeTo: 2,
+                tint: k % 2 === 0 ? 0xf8fafc : 0xf43f5e,
+                alphaFrom: 0.95, drag: 3,
+              });
+            }
+          }
           break;
         case 'altarSpawn':
           this.altarSpawnFx(ev.x, ev.y);
@@ -889,8 +916,66 @@ export class Renderer {
     }
   }
 
+  private drawIaidoSlashFx(fx: NonNullable<Renderer['iaidoFx']>): void {
+    const t = 1 - Math.max(0, fx.life) / 0.2;
+    const a = Math.max(0, fx.life / 0.2);
+    const cx = fx.x + fx.w * 0.5;
+    const cy = fx.y + fx.h * 0.5;
+    const thick = fx.h * (0.58 - t * 0.2);
+    this.flashG.moveTo(fx.x - 24, cy).lineTo(fx.x + fx.w + 24, cy)
+      .stroke({ width: thick, color: 0xffffff, alpha: 0.5 * a });
+    this.flashG.moveTo(fx.x, cy).lineTo(fx.x + fx.w, cy)
+      .stroke({ width: Math.max(5, thick * 0.22), color: 0xf8fafc, alpha: 0.95 * a });
+    this.flashG.moveTo(fx.x, cy - fx.h * 0.12).lineTo(fx.x + fx.w, cy + fx.h * 0.1)
+      .stroke({ width: 6, color: 0xef4444, alpha: 0.8 * a });
+    this.flashG.rect(fx.x, fx.y, fx.w, fx.h)
+      .stroke({ width: 2, color: 0xf87171, alpha: 0.4 * a });
+
+    const tex = fxFrameOnce(this.atlas.fx.slash, Math.min(0.95, t));
+    if (tex && this.iaidoSlashSpr && this.iaidoSlashSpr2) {
+      this.iaidoSlashSpr.texture = tex;
+      this.iaidoSlashSpr.visible = true;
+      this.iaidoSlashSpr.position.set(cx, cy);
+      this.iaidoSlashSpr.rotation = 0;
+      this.iaidoSlashSpr.width = fx.w * 1.08;
+      this.iaidoSlashSpr.height = fx.h * 1.35;
+      this.iaidoSlashSpr.tint = 0xffffff;
+      this.iaidoSlashSpr.alpha = 0.92 * a;
+      this.iaidoSlashSpr2.texture = tex;
+      this.iaidoSlashSpr2.visible = true;
+      this.iaidoSlashSpr2.position.set(cx, cy);
+      this.iaidoSlashSpr2.rotation = 0.1;
+      this.iaidoSlashSpr2.width = fx.w * 0.95;
+      this.iaidoSlashSpr2.height = fx.h * 0.72;
+      this.iaidoSlashSpr2.tint = 0xef4444;
+      this.iaidoSlashSpr2.alpha = 0.75 * a;
+    }
+
+    for (const h of fx.hits) {
+      const s = 14 + t * 10;
+      this.flashG.moveTo(h.x - s, h.y - s).lineTo(h.x + s, h.y + s)
+        .stroke({ width: 3.2, color: 0xffffff, alpha: 0.95 * a });
+      this.flashG.moveTo(h.x + s, h.y - s).lineTo(h.x - s, h.y + s)
+        .stroke({ width: 2.6, color: 0xf43f5e, alpha: 0.92 * a });
+    }
+  }
+
   private updateFlash(dt: number, state: GameState): void {
     this.flashG.clear();
+    if (this.dimLeft > 0) {
+      this.dimLeft = Math.max(0, this.dimLeft - dt);
+      const hold = this.dimLeft > 0.06 ? 1 : this.dimLeft / 0.06;
+      this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: 0x020617, alpha: 0.7 * hold });
+    }
+    if (this.iaidoFx) {
+      this.iaidoFx.life -= dt;
+      this.drawIaidoSlashFx(this.iaidoFx);
+      if (this.iaidoFx.life <= 0) {
+        this.iaidoFx = null;
+        if (this.iaidoSlashSpr) this.iaidoSlashSpr.visible = false;
+        if (this.iaidoSlashSpr2) this.iaidoSlashSpr2.visible = false;
+      }
+    }
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 1.8);
       this.flashG.rect(0, 0, CANVAS.width, CANVAS.height).fill({ color: this.flashColor, alpha: this.flashAlpha });
@@ -1581,8 +1666,49 @@ export class Renderer {
       const alpha = Math.max(0.28, s.life / s.maxLife);
       const progress = 1 - s.life / s.maxLife;
       const wide = s.arcDeg > 40;
-      const whip = s.weaponId === 'plasmaWhip' || s.weaponId === 'quakeWhip' || s.weaponId === 'tectonicCutter';
+      const whip = isWhipWeapon(s.weaponId);
+      const sweepAng = whip ? slashSweepAngle(s.angle, s.arcDeg, progress) : s.angle;
       const tex = fxFrameOnce(this.atlas.fx[whip ? 'whip' : wide ? 'slash' : 'beam'], progress);
+      if (whip) {
+        const tipX = s.x + Math.cos(sweepAng) * s.range;
+        const tipY = s.y + Math.sin(sweepAng) * s.range;
+        g.moveTo(s.x, s.y).lineTo(tipX, tipY)
+          .stroke({ width: 10, color, alpha: 0.28 * alpha });
+        g.moveTo(s.x, s.y).lineTo(tipX, tipY)
+          .stroke({ width: 3.2, color: 0xffffff, alpha: 0.7 * alpha });
+        if (tex) {
+          this.blitFx(tex, s.x, s.y, {
+            rotation: sweepAng,
+            width: s.range * 1.08,
+            height: Math.max(36, s.range * 0.22),
+            tint: color, alpha, add: true,
+            anchorX: 0.12, anchorY: 0.5,
+          });
+        }
+        const glow = this.glowPool.get();
+        glow.tint = color;
+        glow.position.set(tipX, tipY);
+        glow.width = glow.height = 28 + progress * 10;
+        glow.alpha = 0.85 * alpha;
+        this.spawnParticle({
+          x: tipX + (Math.random() - 0.5) * 6,
+          y: tipY + (Math.random() - 0.5) * 6,
+          vx: Math.cos(sweepAng) * 40 + (Math.random() - 0.5) * 30,
+          vy: Math.sin(sweepAng) * 40 + (Math.random() - 0.5) * 30,
+          life: 0.16 + Math.random() * 0.08,
+          sizeFrom: 14 + Math.random() * 8,
+          sizeTo: 3,
+          tint: 0xf5d0fe,
+          alphaFrom: 0.9,
+          drag: 2.4,
+        });
+        this.spawnParticle({
+          x: tipX, y: tipY,
+          life: 0.12, sizeFrom: 10, sizeTo: 4,
+          tint: 0xffffff, alphaFrom: 0.8,
+        });
+        continue;
+      }
       if (tex) {
         if (wide) {
           const size = s.range * 2.4;

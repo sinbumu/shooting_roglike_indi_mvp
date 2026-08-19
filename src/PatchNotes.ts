@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.1',
+    date: '2026-08-20',
+    changes: [
+      '🌀 플라즈마 채찍: 부채 즉발 대신 휘두르는 궤적을 따라 판정이 스윕되고, 끝단에 플라즈마 잔상이 남습니다',
+      '🗡️ 야차 거합도: 카운터 시 화면 암전 + 가로 섬광 참격, 맞은 적마다 십자 베기/혈흔이 터집니다',
+    ],
+  },
+  {
     version: 'v1.9.0',
     date: '2026-08-20',
     changes: [

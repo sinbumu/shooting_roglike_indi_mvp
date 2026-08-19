@@ -319,7 +319,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldownMs: 480,
     projectile: {
       damage: 16, speed: 0, radius: 8, count: 1, spreadDeg: 70, homingTurnRate: 0, pierce: 99, lifetime: 0.14,
-      melee: { arcDeg: 70, range: 118, duration: 0.14, deflect: true },
+      melee: { arcDeg: 70, range: 118, duration: 0.22, deflect: true },
     },
   },
   spiderMine: {
@@ -367,7 +367,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldownMs: 620,
     projectile: {
       damage: 18, speed: 0, radius: 9, count: 1, spreadDeg: 80, homingTurnRate: 0, pierce: 99, lifetime: 0.16,
-      melee: { arcDeg: 80, range: 130, duration: 0.16, deflect: true },
+      melee: { arcDeg: 80, range: 130, duration: 0.24, deflect: true },
       drop: { fuse: 0, persist: 1.4, zoneDuration: 1.4, zoneTick: 0.14 },
     },
   },
@@ -398,7 +398,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldownMs: 720,
     projectile: {
       damage: 40, speed: 0, radius: 12, count: 1, spreadDeg: 100, homingTurnRate: 0, pierce: 99, lifetime: 0.18,
-      melee: { arcDeg: 100, range: 160, duration: 0.18, deflect: true },
+      melee: { arcDeg: 100, range: 160, duration: 0.28, deflect: true },
       explodeRadius: 88,
       drop: { fuse: 0, persist: 2.0, zoneDuration: 2.0, zoneTick: 0.12 },
     },
@@ -1414,6 +1414,18 @@ export function weaponTags(def: WeaponDef): WeaponTag[] {
 
 export function isMeleeFamily(id: WeaponId): boolean {
   return weaponTags(WEAPONS[id]).includes('melee');
+}
+
+/** 채찍 계열 — 부채 즉발이 아니라 좌→우 스윕 판정 */
+export function isWhipWeapon(id: WeaponId): boolean {
+  return id === 'plasmaWhip' || id === 'quakeWhip' || id === 'tectonicCutter';
+}
+
+/** progress 0=호 시작, 1=호 끝. 채찍 끝단 각도 */
+export function slashSweepAngle(angle: number, arcDeg: number, progress01: number): number {
+  const half = (arcDeg * Math.PI) / 360;
+  const p = Math.min(1, Math.max(0, progress01));
+  return angle - half + p * 2 * half;
 }
 
 export function isSummonFamily(id: WeaponId): boolean {

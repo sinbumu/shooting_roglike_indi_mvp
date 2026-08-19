@@ -506,6 +506,12 @@ export class AudioManager {
         this.tone(90, 0.28, { type: 'sawtooth', slideTo: 36, gain: 0.08 });
         break;
 
+      case 'iaidoSlash':
+        this.noise(0.12, { gain: 0.1, freq: 2200, highpass: 900 });
+        this.tone(1400, 0.08, { type: 'sine', slideTo: 280, gain: 0.07 });
+        this.tone(90, 0.18, { type: 'sawtooth', slideTo: 40, gain: 0.05, delay: 0.02 });
+        break;
+
       case 'bomb':
         this.noise(0.65, { gain: 0.28, freq: 160 });
         this.noise(0.35, { gain: 0.1, freq: 1100, highpass: 700, delay: 0.03 });

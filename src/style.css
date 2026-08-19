@@ -70,6 +70,10 @@ html, body {
   justify-content: space-between;
 }
 
+#hud.iaido-dim {
+  filter: brightness(0.3);
+}
+
 #hud-top {
   padding: 10px 12px 0;
   display: flex;
