@@ -7,6 +7,16 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.6.1',
+    date: '2026-08-19',
+    changes: [
+      '🕸️ 트래퍼 레이저 펜스가 기체 위치를 중심으로 투기장을 형성',
+      '⚔️ 근접 참격이 이동 방향을 향함 · 수집 드론이 픽업도 즉시 수집',
+      '🛸 HUD에 장착 드론 표시 · 격납고 드론 강화를 키보드로 선택 가능',
+      '🎨 블랙마켓: 블레이드·지뢰 스킨 추가 · 성운 업적 제거',
+    ],
+  },
+  {
     version: 'v1.6.0',
     date: '2026-08-19',
     changes: [

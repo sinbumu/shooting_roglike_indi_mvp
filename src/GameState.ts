@@ -244,7 +244,7 @@ export type GameStatus = 'ready' | 'playing' | 'paused' | 'levelup' | 'gameover'
 export type FxEvent =
   | { type: 'enemyDied'; x: number; y: number; color: string; radius: number }
   | { type: 'enemyHit'; x: number; y: number; color: string; damage: number }
-  | { type: 'fired'; x: number; y: number; color: string; weaponId?: WeaponId }
+  | { type: 'fired'; x: number; y: number; color: string; weaponId?: WeaponId; angle?: number }
   | { type: 'gemPickup'; x: number; y: number }
   | { type: 'playerHit' }
   | { type: 'levelUp'; x: number; y: number }
@@ -903,7 +903,9 @@ export class GameState {
     if (slot.affix === 'pierce') pierce += AFFIX_SYNERGY.pierce.affixBonus;
     const color = this.projSkinColors[slot.weaponId] ?? def.color;
     let baseAngle = -Math.PI / 2; // 위쪽
-    if (p.targeted) {
+    if (p.melee) {
+      baseAngle = Math.atan2(this.lastAimY, this.lastAimX);
+    } else if (p.targeted) {
       const target = this.nearestEnemy(this.playerX, this.playerY, new Set());
       if (target) baseAngle = Math.atan2(target.y - this.playerY, target.x - this.playerX);
     }
@@ -930,7 +932,7 @@ export class GameState {
       this.events.push({
         type: 'fired',
         x: this.playerX, y: this.playerY - PLAYER.radius,
-        color, weaponId: slot.weaponId,
+        color, weaponId: slot.weaponId, angle: baseAngle,
       });
       return;
     }
@@ -1349,12 +1351,14 @@ export class GameState {
         e.y = targetY;
         e.anchored = true;
         const d = TRAPPER.pylonDist;
+        const cx = Math.max(d, Math.min(CANVAS.width - d, this.playerX));
+        const cy = Math.max(d, Math.min(CANVAS.height - d, this.playerY));
         const dirs: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
         for (const [dx, dy] of dirs) {
           this.pylons.push({
             x: e.x, y: e.y,
-            tx: e.x + dx * d,
-            ty: e.y + dy * d,
+            tx: cx + dx * d,
+            ty: cy + dy * d,
             planted: false,
             ownerId: e.id,
           });
@@ -1731,6 +1735,13 @@ export class GameState {
             this.events.push({ type: 'gemPickup', x: g.x, y: g.y });
             this.gainExp(g.exp);
             this.gems.splice(i, 1);
+          }
+        }
+        for (let i = this.pickups.length - 1; i >= 0; i--) {
+          const p = this.pickups[i];
+          if (Math.hypot(p.x - this.playerX, p.y - this.playerY) <= r) {
+            this.pickups.splice(i, 1);
+            this.applyPickup(p);
           }
         }
       }

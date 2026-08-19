@@ -102,7 +102,9 @@ export function loadMeta(): MetaSave {
       unlockedShips: parsed.unlockedShips?.length ? parsed.unlockedShips : base.unlockedShips,
       unlockedStages,
       clearedStages,
-      achievements: parsed.achievements ?? [],
+      achievements: (parsed.achievements ?? []).filter(
+        (id): id is AchievementId => typeof id === 'string' && id in ACHIEVEMENTS,
+      ),
       selectedShip: parsed.selectedShip && (parsed.unlockedShips ?? base.unlockedShips).includes(parsed.selectedShip)
         ? parsed.selectedShip
         : DEFAULT_SHIP,

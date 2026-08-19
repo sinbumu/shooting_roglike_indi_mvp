@@ -14,7 +14,7 @@ import { PATCH_NOTES, LATEST_VERSION } from './PatchNotes';
 function droneStatLine(id: DroneId, lv: number): string {
   if (id === 'retriever') {
     const t = (DRONE_FX.retrieverInterval - DRONE_FX.retrieverPerLv * (lv - 1)).toFixed(1);
-    return `${t}초마다 기체 반경 ${DRONE_FX.retrieverRadius}px 내의 경험치를 즉시 수집.`;
+    return `${t}초마다 기체 반경 ${DRONE_FX.retrieverRadius}px 내의 경험치와 드롭 아이템을 즉시 수집.`;
   }
   if (id === 'defender') {
     return `5초마다 날아오는 투사체 최대 ${DRONE_FX.defenderBase + (lv - 1)}개 요격.`;
@@ -72,6 +72,7 @@ export class UI {
 
   private shipSelect = document.getElementById('ship-select') as HTMLDivElement;
   private droneSelect = document.getElementById('drone-select') as HTMLDivElement;
+  private hudDrone = document.getElementById('hud-drone') as HTMLDivElement;
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
   private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
   private metaCredits = document.getElementById('meta-credits') as HTMLSpanElement;
@@ -269,6 +270,8 @@ export class UI {
       const lv = this.meta.droneLevels[drone.id] ?? 1;
       const upCost = droneUpgradeCost(drone.id, lv);
       const maxed = lv >= drone.maxLevel;
+      const row = document.createElement('div');
+      row.className = 'drone-row';
       const card = document.createElement('button');
       card.className = 'ship-card drone-card' + (selected ? ' selected' : '') + (unlocked ? '' : ' locked');
       card.style.setProperty('--ship-color', drone.color);
@@ -278,33 +281,29 @@ export class UI {
         <div class="ship-desc">${detail}</div>
         <div class="ship-meta">Lv.${lv}/${drone.maxLevel}</div>
         ${unlocked
-          ? `<div class="ship-status">${selected ? '장착됨 · 다시 누르면 해제' : '선택'}${maxed ? '' : ` · 강화 💰 ${fmtCredits(upCost)}`}</div>`
+          ? `<div class="ship-status">${selected ? '장착됨 · 다시 누르면 해제' : '선택'}</div>`
           : `<div class="ship-status">🔒 ${fmtCredits(drone.unlockCost)} 크레딧</div>`}
       `;
-      card.addEventListener('click', (ev) => {
+      card.addEventListener('click', () => {
         if (!this.meta) return;
         if (!unlocked) {
           card.dispatchEvent(new CustomEvent('unlock-drone', { bubbles: true, detail: drone.id }));
           return;
         }
-        const target = ev.target as HTMLElement;
-        if (target.closest('.drone-up') || (ev.shiftKey && !maxed)) {
-          card.dispatchEvent(new CustomEvent('upgrade-drone', { bubbles: true, detail: drone.id }));
-          return;
-        }
         card.dispatchEvent(new CustomEvent('select-drone', { bubbles: true, detail: drone.id }));
       });
+      row.appendChild(card);
       if (unlocked && !maxed) {
-        const up = document.createElement('span');
+        const up = document.createElement('button');
+        up.type = 'button';
         up.className = 'drone-up';
         up.textContent = `강화 💰${fmtCredits(upCost)}`;
-        up.addEventListener('click', (e) => {
-          e.stopPropagation();
+        up.addEventListener('click', () => {
           card.dispatchEvent(new CustomEvent('upgrade-drone', { bubbles: true, detail: drone.id }));
         });
-        card.appendChild(up);
+        row.appendChild(up);
       }
-      this.droneSelect.appendChild(card);
+      this.droneSelect.appendChild(row);
     }
 
     const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
@@ -524,6 +523,15 @@ export class UI {
       state.hp / state.maxHp < 0.3
         ? 'linear-gradient(90deg, #ef4444, #f87171)'
         : 'linear-gradient(90deg, #22c55e, #86efac)';
+
+    if (state.droneId) {
+      const d = DRONES[state.droneId];
+      this.hudDrone.textContent = `${d.icon} ${d.name} Lv.${state.droneLevel}`;
+      this.hudDrone.classList.remove('hidden');
+    } else {
+      this.hudDrone.textContent = '';
+      this.hudDrone.classList.add('hidden');
+    }
 
     const m = Math.floor(state.time / 60).toString().padStart(2, '0');
     const s = Math.floor(state.time % 60).toString().padStart(2, '0');

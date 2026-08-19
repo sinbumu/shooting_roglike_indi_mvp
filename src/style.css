@@ -89,6 +89,13 @@ html, body {
 #exp-bar { height: 16px; }
 #hp-bar { height: 14px; width: 60%; }
 
+#hud-drone {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
 #exp-fill {
   height: 100%;
   width: 0%;
@@ -436,12 +443,30 @@ button.secondary {
   font-weight: 600;
 }
 
+.drone-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
 .drone-up {
-  display: inline-block;
-  margin-top: 6px;
+  align-self: flex-end;
+  margin: 0;
+  padding: 6px 10px;
   font-size: 12px;
+  font-weight: 700;
   color: #fde68a;
-  text-decoration: underline;
+  background: rgba(253, 230, 138, 0.12);
+  border: 1px solid rgba(253, 230, 138, 0.35);
+  border-radius: 8px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.drone-up.focused,
+.drone-up:focus {
+  outline: 2px solid #fde68a;
 }
 
 .ship-icon { font-size: 22px; line-height: 0; }

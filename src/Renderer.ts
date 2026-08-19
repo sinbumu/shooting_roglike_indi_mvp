@@ -283,7 +283,10 @@ export class Renderer {
         case 'fired': {
           const spec = ev.weaponId ? WEAPONS[ev.weaponId].projectile : undefined;
           if (spec?.melee) {
-            this.slashFlash(ev.x, ev.y, hex(ev.color), spec.melee.arcDeg, spec.melee.range);
+            this.slashFlash(
+              ev.x, ev.y, hex(ev.color), spec.melee.arcDeg, spec.melee.range,
+              ev.angle ?? Math.atan2(state.lastAimY, state.lastAimX),
+            );
           } else if (spec?.orbit) {
             this.spawnParticle({
               x: ev.x, y: ev.y, life: 0.35, sizeFrom: 28, sizeTo: spec.orbit.radius * 2.2,
@@ -559,8 +562,8 @@ export class Renderer {
     });
   }
 
-  private slashFlash(x: number, y: number, tint: number, arcDeg: number, range: number): void {
-    const base = -Math.PI / 2;
+  private slashFlash(x: number, y: number, tint: number, arcDeg: number, range: number, angle = -Math.PI / 2): void {
+    const base = angle;
     const half = (arcDeg * Math.PI) / 360;
     const n = arcDeg > 40 ? 10 : 7;
     for (let i = 0; i < n; i++) {

@@ -194,7 +194,7 @@ export interface MetaUpgradeDef {
 }
 
 export type ShipSkinId = 'darkScout' | 'gildedFortress' | 'voidHunter';
-export type ProjSkinId = 'vulcanCrimson' | 'spreadIon' | 'homingNova';
+export type ProjSkinId = 'vulcanCrimson' | 'spreadIon' | 'homingNova' | 'bladeCrimson' | 'mineToxic';
 
 export type AchievementId =
   | 'first_blood'
@@ -207,7 +207,6 @@ export type AchievementId =
   | 'combo_20'
   | 'score_10k'
   | 'elite_hunter'
-  | 'nebula_clear'
   | 'rift_clear'
   | 'legion_clear'
   | 'challenge_clear';

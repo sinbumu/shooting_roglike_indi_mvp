@@ -543,6 +543,8 @@ export const PROJ_SKINS: Record<ProjSkinId, {
   vulcanCrimson: { id: 'vulcanCrimson', weaponId: 'vulcan', name: '크림슨 레이저', color: '#ef4444' },
   spreadIon: { id: 'spreadIon', weaponId: 'spread', name: '이온 스프레드', color: '#a3e635' },
   homingNova: { id: 'homingNova', weaponId: 'homing', name: '노바 호밍', color: '#f472b6' },
+  bladeCrimson: { id: 'bladeCrimson', weaponId: 'blade', name: '크림슨 블레이드', color: '#ef4444' },
+  mineToxic: { id: 'mineToxic', weaponId: 'mine', name: '맹독 지뢰', color: '#a3e635' },
 };
 
 export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
@@ -556,7 +558,6 @@ export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
   combo_20: { id: 'combo_20', name: '광란', desc: '콤보 20 달성', icon: '🔥', reward: 200 },
   score_10k: { id: 'score_10k', name: '만점 비행사', desc: '한 판 10,000점', icon: '🎯', reward: 400 },
   elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 200 },
-  nebula_clear: { id: 'nebula_clear', name: '성운 돌파', desc: '성운 전선 클리어', icon: '🌌', reward: 500 },
   rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 700 },
   legion_clear: { id: 'legion_clear', name: '군단 격파', desc: '군단장의 성역 클리어', icon: '👑', reward: 900 },
   challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 450 },
@@ -659,7 +660,7 @@ export const DRONES: Record<DroneId, DroneDef> = {
   retriever: {
     id: 'retriever', name: '수집 드론', icon: '🧲', color: '#38bdf8',
     tag: '[자동 파밍]',
-    desc: '3초(레벨업 시 -0.2초)마다 기체 반경 400px 내의 경험치를 즉시 수집.',
+    desc: '3초(레벨업 시 -0.2초)마다 기체 반경 400px 내의 경험치와 드롭 아이템을 즉시 수집.',
     unlockCost: 800, maxLevel: 5, baseCost: 600, costMul: 1.5,
   },
   defender: {
