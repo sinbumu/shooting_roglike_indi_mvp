@@ -236,6 +236,13 @@ export class Renderer {
   private empSprites: Sprite[] = [];
   private hitFxLeft = 0;
   private muzzleFxLeft = 0;
+  private deathFxLeft = 0;
+  private deathFxBigUsed = false;
+  private lastBgTop = -1;
+  private lastBgBottom = -1;
+  private starGfxCleared = false;
+  private gemGfxCleared = false;
+  private enginePuffAcc = 0;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     this.app = new Application();
@@ -345,11 +352,23 @@ export class Renderer {
   private consumeEvents(state: GameState): void {
     this.hitFxLeft = PERF.hitFxPerFrame;
     this.muzzleFxLeft = PERF.muzzleFxPerFrame;
+    this.deathFxLeft = PERF.deathFxPerFrame;
+    this.deathFxBigUsed = false;
     for (const ev of state.events) {
       switch (ev.type) {
-        case 'enemyDied':
-          this.explode(ev.x, ev.y, hex(ev.color), ev.radius);
+        case 'enemyDied': {
+          const big = ev.radius >= 20;
+          if (big) {
+            if (this.deathFxLeft <= 0 && this.deathFxBigUsed) break;
+            if (this.deathFxLeft <= 0) this.deathFxBigUsed = true;
+            else this.deathFxLeft--;
+            this.explode(ev.x, ev.y, hex(ev.color), ev.radius);
+          } else if (this.deathFxLeft > 0) {
+            this.deathFxLeft--;
+            this.explode(ev.x, ev.y, hex(ev.color), ev.radius);
+          }
           break;
+        }
         case 'enemyHit':
           if (this.hitFxLeft <= 0) break;
           this.hitFxLeft--;
@@ -698,7 +717,8 @@ export class Renderer {
   /** 적 사망: 색상 파편 + 흰 스파크 + 충격파 링 (+큰 적이면 화면 흔들림) */
   private explode(x: number, y: number, tint: number, radius: number): void {
     const power = radius / 14;
-    const n = 10 + Math.floor(radius * 0.7);
+    const starved = this.particles.length > PERF.particleCap * 0.7;
+    const n = Math.max(2, Math.floor((10 + Math.floor(radius * 0.7)) * (starved ? 1 / 3 : 1)));
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const speed = (60 + Math.random() * 260) * power;
@@ -714,7 +734,8 @@ export class Renderer {
         gravity: 60,
       });
     }
-    for (let i = 0; i < 6; i++) {
+    const sparks = starved ? 2 : 6;
+    for (let i = 0; i < sparks; i++) {
       const a = Math.random() * Math.PI * 2;
       const speed = 180 + Math.random() * 320;
       this.spawnParticle({
@@ -1036,6 +1057,9 @@ export class Renderer {
 
   private drawBackground(state: GameState): void {
     const g = this.bgG;
+    if (this.lastBgTop === state.bgTop && this.lastBgBottom === state.bgBottom) return;
+    this.lastBgTop = state.bgTop;
+    this.lastBgBottom = state.bgBottom;
     g.clear();
     // Pixi Graphics fill gradient: two stacked rects with alpha blend approximation
     g.rect(0, 0, CANVAS.width, CANVAS.height).fill(state.bgBottom);
@@ -1043,8 +1067,10 @@ export class Renderer {
   }
 
   private drawStars(dt: number, state: GameState): void {
-    const g = this.starG;
-    g.clear();
+    if (!this.starGfxCleared) {
+      this.starG.clear();
+      this.starGfxCleared = true;
+    }
     const scrolling = state.status !== 'gameover';
     for (const s of this.stars) {
       if (scrolling) {
@@ -1054,7 +1080,12 @@ export class Renderer {
           s.x = Math.random() * CANVAS.width;
         }
       }
-      g.rect(s.x, s.y, s.size, s.size * 2.2).fill({ color: 0xffffff, alpha: 0.25 + s.size * 0.3 });
+      const spr = this.glowPool.get();
+      spr.tint = 0xffffff;
+      spr.position.set(s.x, s.y);
+      spr.width = s.size * 2.2;
+      spr.height = s.size * 4.4;
+      spr.alpha = 0.25 + s.size * 0.3;
     }
 
     for (const d of this.drifts) {
@@ -1066,15 +1097,29 @@ export class Renderer {
         }
       }
       const flicker = 0.08 + 0.05 * Math.sin(this.elapsed * 2.2 + d.phase);
+      const spr = this.glowPool.get();
+      spr.position.set(d.x + d.w * 0.5, d.y);
       if (state.stageId === 'orbit') {
-        g.rect(d.x, d.y, d.w, d.h).fill({ color: 0x94a3b8, alpha: 0.1 + flicker });
-        g.circle(d.x + d.w * 0.5, d.y, 1.4).fill({ color: 0x7dd3fc, alpha: 0.22 });
+        spr.tint = 0x7dd3fc;
+        spr.width = Math.max(8, d.w * 2);
+        spr.height = Math.max(6, d.h * 3);
+        spr.alpha = 0.12 + flicker;
       } else if (state.stageId === 'rift') {
-        g.moveTo(d.x, d.y).lineTo(d.x + d.w * 2.4, d.y + d.h * 6)
-          .stroke({ width: 1.2, color: 0xfb7185, alpha: 0.12 + flicker });
+        spr.tint = 0xfb7185;
+        spr.width = d.w * 3;
+        spr.height = d.h * 8;
+        spr.alpha = 0.12 + flicker;
+      } else {
+        spr.tint = 0xf8fafc;
+        spr.width = d.w * 2;
+        spr.height = d.h * 3;
+        spr.alpha = 0.1 + flicker;
       }
     }
     if (state.stageId === 'legion') {
+      const g = this.starG;
+      g.clear();
+      this.starGfxCleared = false;
       const off = (this.elapsed * 22) % 48;
       for (let x = -off; x < CANVAS.width + 48; x += 48) {
         g.moveTo(x, 0).lineTo(x, CANVAS.height).stroke({ width: 1, color: 0xfbbf24, alpha: 0.045 });
@@ -1099,19 +1144,25 @@ export class Renderer {
       const backX = -state.lastAimX;
       const backY = -state.lastAimY;
       const spd = Math.hypot(state.velX, state.velY);
-      const trail = Math.min(1, spd / Math.max(80, state.moveSpeed));
-      const puff = focus ? 0.45 : 0.55 + trail * 0.7;
-      this.spawnParticle({
-        x: x + backX * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
-        y: y + backY * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
-        vx: backX * (30 + trail * 90) + (Math.random() - 0.5) * 20,
-        vy: backY * (30 + trail * 90) + (Math.random() - 0.5) * 20,
-        life: 0.2 + Math.random() * 0.12 + trail * 0.08,
-        sizeFrom: (focus ? 4 : 8) + Math.random() * (focus ? 2 : 5) + trail * 4,
-        sizeTo: 2,
-        tint: 0xfb923c,
-        alphaFrom: puff,
-      });
+      if (spd > 40 && this.particles.length < PERF.particleCap * 0.65) {
+        this.enginePuffAcc += dt;
+        if (this.enginePuffAcc >= PERF.enginePuffInterval) {
+          this.enginePuffAcc = 0;
+          const trail = Math.min(1, spd / Math.max(80, state.moveSpeed));
+          const puff = focus ? 0.45 : 0.55 + trail * 0.7;
+          this.spawnParticle({
+            x: x + backX * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
+            y: y + backY * 12 + (Math.random() - 0.5) * (focus ? 3 : 6),
+            vx: backX * (30 + trail * 90) + (Math.random() - 0.5) * 20,
+            vy: backY * (30 + trail * 90) + (Math.random() - 0.5) * 20,
+            life: 0.2 + Math.random() * 0.12 + trail * 0.08,
+            sizeFrom: (focus ? 4 : 8) + Math.random() * (focus ? 2 : 5) + trail * 4,
+            sizeTo: 2,
+            tint: 0xfb923c,
+            alphaFrom: puff,
+          });
+        }
+      }
     }
 
     const iframe = state.invincibleLeft > 0 && state.shieldLeft <= 0;
@@ -1257,6 +1308,7 @@ export class Renderer {
   private drawEnemies(state: GameState): void {
     const g = this.enemyG;
     g.clear();
+    const nebulaOn = state.nebulaZones.length > 0;
     for (const e of state.enemies) {
       const r = e.def.radius * (e.elite ? 1.2 : 1) * (e.enraged ? 1.5 : 1);
       const isTrueBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
@@ -1275,8 +1327,11 @@ export class Renderer {
         } else {
           spr.rotation = 0;
         }
+        const tintNebula = nebulaOn
+          && (isBoss || e.elite || state.enemies.length <= PERF.glowGruntCap)
+          && state.inNebula(e.x, e.y);
         if (e.hitFlash > 0) spr.tint = 0xffffff;
-        else if (state.inNebula(e.x, e.y)) spr.tint = 0x67e8f9;
+        else if (tintNebula) spr.tint = 0x67e8f9;
         else if (e.enraged) spr.tint = 0xf43f5e;
         else if (e.elite) spr.tint = 0xfbbf24;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
@@ -2386,7 +2441,16 @@ export class Renderer {
 
   private drawGems(state: GameState): void {
     const g = this.gemG;
-    g.clear();
+    const gemTex = fxFrame(this.atlas.fx.gem, this.elapsed, 10);
+    if (gemTex) {
+      if (!this.gemGfxCleared) {
+        g.clear();
+        this.gemGfxCleared = true;
+      }
+    } else {
+      g.clear();
+      this.gemGfxCleared = false;
+    }
     for (const gem of state.gems) {
       const pulse = 1 + Math.sin(this.elapsed * 6 + gem.x) * 0.15;
       const tint = gem.homing ? 0xf43f5e : 0x34d399;

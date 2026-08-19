@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.5',
+    date: '2026-08-20',
+    changes: [
+      '⚡ 후반 최적화: 명중/머즐 이벤트 예산, 사망 폭발 상한, 별 스프라이트·배경 재사용',
+      '투사체 객체 풀, 엔진 연기 간격, 잡몹 성운 틴트 생략으로 탄막이 많을 때 할당을 줄입니다',
+    ],
+  },
+  {
     version: 'v1.9.4',
     date: '2026-08-20',
     changes: [

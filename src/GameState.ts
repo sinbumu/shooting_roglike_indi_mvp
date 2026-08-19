@@ -594,6 +594,9 @@ export class GameState {
   orbiters: Orbiter[] = [];
   mines: Mine[] = [];
   summons: Summon[] = [];
+  private projPool: Projectile[] = [];
+  private hitEventLeft = 0;
+  private firedEventLeft = 0;
   detonateBeacon: { x: number; y: number; life: number } | null = null;
   redOutlineLeft = 0;
   private iaidoCountered = false;
@@ -790,6 +793,8 @@ export class GameState {
     this.bloodBursting = false;
     this.carpetQueue = [];
     this.summons = [];
+    for (const p of this.projectiles) this.releaseProjectile(p);
+    this.projectiles.length = 0;
     this.detonateBeacon = null;
     this.redOutlineLeft = 0;
     this.iaidoCountered = false;
@@ -1128,6 +1133,8 @@ export class GameState {
 
     this.fenceSegCache = null;
     this.vortexCache = null;
+    this.hitEventLeft = PERF.hitFxPerFrame;
+    this.firedEventLeft = PERF.muzzleFxPerFrame;
     this.time += dt;
 
     // 승리 조건
@@ -1540,7 +1547,7 @@ export class GameState {
       p.x = bx + (Math.random() - 0.5) * 36;
       p.y = by + (Math.random() - 0.5) * 36;
       this.blastAt(p.x, p.y, p.explodeRadius ?? explodeR * 0.7, p.damage * 3, p.color, p.weaponId);
-      swapPop(this.projectiles, i);
+      this.removeProjectileAt(i);
     }
 
     if (this.hasAwakening('overlordFission')) {
@@ -1600,7 +1607,7 @@ export class GameState {
       const spd = (battery ? 560 : 480) * this.runStats.projSpeedMul * this.passiveProjMul * (1 + this.crimsonBerserk());
       for (let k = 0; k < n; k++) {
         const a = ang + (n === 1 ? 0 : -spread + (spread * 2 * k) / (n - 1));
-        this.projectiles.push({
+        this.acquireProjectile({
           x: s.x, y: s.y,
           vx: Math.cos(a) * spd,
           vy: Math.sin(a) * spd,
@@ -1612,7 +1619,6 @@ export class GameState {
           pierceLeft: battery ? 1 : 0,
           life: 1.5,
           color: s.color,
-          hitIds: new Set(),
           explodeRadius: battery ? 26 : undefined,
           weaponId: s.weaponId,
         });
@@ -1734,6 +1740,76 @@ export class GameState {
     return this.coreAwakened && this.awakeningId === id;
   }
 
+  private emitHitFx(x: number, y: number, color: string, damage: number): void {
+    if (this.hitEventLeft <= 0) return;
+    this.hitEventLeft--;
+    this.events.push({ type: 'enemyHit', x, y, color, damage: Math.round(damage) });
+  }
+
+  private emitMuzzleFired(x: number, y: number, color: string, weaponId?: WeaponId): void {
+    if (this.firedEventLeft <= 0) return;
+    this.firedEventLeft--;
+    this.events.push({ type: 'fired', x, y, color, weaponId });
+  }
+
+  private acquireProjectile(init: {
+    x: number; y: number; vx: number; vy: number;
+    speed: number; baseSpeed: number; damage: number; radius: number;
+    homingTurnRate: number; pierceLeft: number; life: number; color: string;
+    affix?: AffixId; noSplit?: boolean; pierceHits?: number;
+    explodeRadius?: number; shieldPierce?: boolean; ignoreShield?: boolean;
+    weaponId?: WeaponId; orbitAngle?: number; orbitRadius?: number; orbitOmega?: number;
+    originX?: number; originY?: number; boosted?: boolean; pullOnHit?: number;
+    copyHits?: Set<number>;
+  }): Projectile {
+    const p = this.projPool.pop() ?? {
+      x: 0, y: 0, vx: 0, vy: 0, speed: 0, baseSpeed: 0, damage: 0, radius: 0,
+      homingTurnRate: 0, pierceLeft: 0, life: 0, color: '#fff', hitIds: new Set<number>(),
+    };
+    p.x = init.x;
+    p.y = init.y;
+    p.vx = init.vx;
+    p.vy = init.vy;
+    p.speed = init.speed;
+    p.baseSpeed = init.baseSpeed;
+    p.damage = init.damage;
+    p.radius = init.radius;
+    p.homingTurnRate = init.homingTurnRate;
+    p.pierceLeft = init.pierceLeft;
+    p.life = init.life;
+    p.color = init.color;
+    p.hitIds.clear();
+    if (init.copyHits) {
+      for (const id of init.copyHits) p.hitIds.add(id);
+    }
+    p.affix = init.affix;
+    p.noSplit = init.noSplit;
+    p.pierceHits = init.pierceHits ?? 0;
+    p.explodeRadius = init.explodeRadius;
+    p.shieldPierce = init.shieldPierce;
+    p.ignoreShield = init.ignoreShield;
+    p.weaponId = init.weaponId;
+    p.orbitAngle = init.orbitAngle;
+    p.orbitRadius = init.orbitRadius;
+    p.orbitOmega = init.orbitOmega;
+    p.originX = init.originX;
+    p.originY = init.originY;
+    p.boosted = init.boosted;
+    p.pullOnHit = init.pullOnHit;
+    this.projectiles.push(p);
+    return p;
+  }
+
+  private releaseProjectile(p: Projectile): void {
+    p.hitIds.clear();
+    this.projPool.push(p);
+  }
+
+  private removeProjectileAt(i: number): void {
+    this.releaseProjectile(this.projectiles[i]!);
+    swapPop(this.projectiles, i);
+  }
+
   private summonCap(): number {
     return AWAKEN.summonCap + (this.hasAwakening('overlordLegion') ? AWAKEN.legionBonus : 0);
   }
@@ -1774,7 +1850,7 @@ export class GameState {
     const ang = Math.atan2(this.lastAimY, this.lastAimX);
     const spd = AWAKEN.swordAuraSpeed;
     const life = Math.hypot(CANVAS.width, CANVAS.height) / Math.max(1, spd);
-    this.projectiles.push({
+    this.acquireProjectile({
       x: this.playerX,
       y: this.playerY,
       vx: Math.cos(ang) * spd,
@@ -1787,7 +1863,6 @@ export class GameState {
       pierceLeft: 99,
       life,
       color,
-      hitIds: new Set(),
       shieldPierce: true,
     });
   }
@@ -2049,11 +2124,7 @@ export class GameState {
         affix: slot.affix,
         weaponId: slot.weaponId,
       });
-      this.events.push({
-        type: 'fired',
-        x: this.playerX, y: this.playerY - PLAYER.radius,
-        color, weaponId: slot.weaponId,
-      });
+      this.emitMuzzleFired(this.playerX, this.playerY - PLAYER.radius, color, slot.weaponId);
       return;
     }
 
@@ -2071,7 +2142,7 @@ export class GameState {
         const arc = (p.spreadDeg * Math.PI) / 180;
         angle = baseAngle - arc / 2 + (arc * i) / Math.max(1, shotCount - 1);
       }
-      const proj: Projectile = {
+      const proj = this.acquireProjectile({
         x: originX,
         y: originY,
         vx: Math.cos(angle) * speed,
@@ -2084,7 +2155,6 @@ export class GameState {
         pierceLeft: pierce,
         life: p.lifetime,
         color,
-        hitIds: new Set(),
         affix: slot.affix,
         pierceHits: 0,
         explodeRadius: p.explodeRadius ? p.explodeRadius * sizeMul : undefined,
@@ -2092,7 +2162,7 @@ export class GameState {
         ignoreShield: p.ignoreShield,
         weaponId: slot.weaponId,
         pullOnHit: p.pullOnHit,
-      };
+      });
       if (p.spiral) {
         proj.orbitAngle = angle;
         proj.orbitRadius = PLAYER.radius + 8;
@@ -2102,13 +2172,8 @@ export class GameState {
         proj.x = originX + Math.cos(angle) * proj.orbitRadius;
         proj.y = originY + Math.sin(angle) * proj.orbitRadius;
       }
-      this.projectiles.push(proj);
     }
-    this.events.push({
-      type: 'fired',
-      x: this.playerX, y: this.playerY - PLAYER.radius,
-      color, weaponId: slot.weaponId,
-    });
+    this.emitMuzzleFired(this.playerX, this.playerY - PLAYER.radius, color, slot.weaponId);
   }
 
   // ---------- 적 스폰 (웨이브 스케줄) ----------
@@ -2724,7 +2789,7 @@ export class GameState {
   private damageCore(c: QuantumCore, dmg: number): void {
     c.hp -= dmg;
     c.hitFlash = 0.1;
-    this.events.push({ type: 'enemyHit', x: c.x, y: c.y, color: '#f97316', damage: Math.round(dmg) });
+    this.emitHitFx(c.x, c.y, '#f97316', dmg);
     if (c.hp > 0) return;
     this.burstCore(c);
   }
@@ -3268,7 +3333,7 @@ export class GameState {
     if (m.split > 0) {
       for (let k = 0; k < m.split; k++) {
         const a = (Math.PI * 2 * k) / m.split;
-        this.projectiles.push({
+        this.acquireProjectile({
           x: m.x, y: m.y,
           vx: Math.cos(a) * 240,
           vy: Math.sin(a) * 240,
@@ -3280,7 +3345,6 @@ export class GameState {
           pierceLeft: 0,
           life: 1.6,
           color: m.color,
-          hitIds: new Set(),
           explodeRadius: 36,
           weaponId: m.weaponId,
         });
@@ -3564,7 +3628,7 @@ export class GameState {
       const p = this.projectiles[i];
       p.life -= dt;
       if (p.life <= 0) {
-        swapPop(this.projectiles, i);
+        this.removeProjectileAt(i);
         continue;
       }
 
@@ -3613,7 +3677,7 @@ export class GameState {
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           if (this.isCloaked(e)) continue;
           if (!p.ignoreShield && this.tryAbsorbShield(e, this.isShielderFrontHit(p))) {
-            swapPop(this.projectiles, i);
+            this.removeProjectileAt(i);
             removed = true;
             break;
           }
@@ -3637,7 +3701,7 @@ export class GameState {
             if (p.affix === 'split' && !p.noSplit) {
               this.spawnSplitShards(p);
             }
-            swapPop(this.projectiles, i);
+            this.removeProjectileAt(i);
             removed = true;
             break;
           }
@@ -3655,7 +3719,7 @@ export class GameState {
         this.damageCore(c, p.damage);
         if (p.explodeRadius) this.explodeProjectile(p, { id: c.id } as Enemy);
         if (p.pierceLeft <= 0) {
-          swapPop(this.projectiles, i);
+          this.removeProjectileAt(i);
           coreRemoved = true;
           break;
         }
@@ -3665,7 +3729,7 @@ export class GameState {
 
       // 화면 밖
       if (p.x < -60 || p.x > CANVAS.width + 60 || p.y < -60 || p.y > CANVAS.height + 60) {
-        swapPop(this.projectiles, i);
+        this.removeProjectileAt(i);
       }
     }
   }
@@ -3803,7 +3867,7 @@ export class GameState {
       const spd = p.speed * syn.shardSpeedMul;
       let damage = p.damage * syn.damageMul;
       if (Math.random() < shardCrit) damage *= this.runStats.critMul;
-      this.projectiles.push({
+      this.acquireProjectile({
         x: p.x,
         y: p.y,
         vx: Math.cos(a) * spd,
@@ -3816,7 +3880,7 @@ export class GameState {
         pierceLeft: 0,
         life: syn.shardLife,
         color: p.color,
-        hitIds: new Set(p.hitIds),
+        copyHits: p.hitIds,
         noSplit: true,
         weaponId: p.weaponId,
       });
@@ -3980,7 +4044,7 @@ export class GameState {
     if (weaponId && applied > 0) {
       this.damageDealt[weaponId] = (this.damageDealt[weaponId] ?? 0) + applied;
     }
-    this.events.push({ type: 'enemyHit', x: e.x, y: e.y, color: e.def.color, damage: Math.round(dmg) });
+    this.emitHitFx(e.x, e.y, e.def.color, dmg);
 
     if (
       this.pilotTrait === 'executioner'

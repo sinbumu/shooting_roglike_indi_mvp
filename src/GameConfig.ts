@@ -1075,6 +1075,8 @@ export const PERF = {
   maxDpr: 1.5,
   hitFxPerFrame: 8,
   muzzleFxPerFrame: 6,
+  deathFxPerFrame: 4,
+  enginePuffInterval: 0.04,
   particleCap: 180,
   glowProjCap: 70,
   glowEnemyBulletCap: 40,
