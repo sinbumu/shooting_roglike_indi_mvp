@@ -457,6 +457,15 @@ export const SHIPS: Record<ShipId, ShipDef> = {
       cooldown: 15, duration: 4, slowMul: 0.4,
     },
   },
+  bomber: {
+    id: 'bomber', name: '붐바르딜로-크로코딜로', icon: '🐊', color: '#4d7c0f',
+    desc: '중무장 폭격기. 매우 느리지만 압도적인 맷집과 폭발력을 자랑합니다. 중력 지뢰로 시작.',
+    hpMul: 1.5, speedMul: 0.75, startingWeapon: 'mine', unlockCost: 2000,
+    activeSkill: {
+      id: 'carpetBombing', name: '융단 폭격', icon: '💥',
+      cooldown: 20, duration: 1.5, bombCount: 12, explodeRadius: 100,
+    },
+  },
 };
 
 export const DEFAULT_SHIP: ShipId = 'scout';
@@ -1198,6 +1207,9 @@ export const AWAKEN = {
   dashBossHpPct: 0.1,
   aegisPerShot: 45,
   stasisCooldownMul: 0.5,
+  carpetBombMul: 2,
+  carpetRadiusMul: 1.4,
+  carpetDmgMul: 1.5,
 } as const;
 
 export const PILOT_TRAITS: Record<PilotTraitId, {

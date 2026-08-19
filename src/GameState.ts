@@ -554,6 +554,7 @@ export class GameState {
   private wheelAcc = 0;
   private wheelPending = false;
   private bloodBursting = false;
+  private carpetQueue: { x: number; y: number; left: number; radius: number; damage: number }[] = [];
 
   nodeLv(id: ConstellationId): number {
     return this.constellation[id] ?? 0;
@@ -660,6 +661,7 @@ export class GameState {
     this.wheelAcc = 0;
     this.wheelPending = false;
     this.bloodBursting = false;
+    this.carpetQueue = [];
     this.derelictGoldDropped = false;
     this.nextShieldAt = TERRAIN.shield.firstAt;
     this.nextCoreAt = TERRAIN.core.firstAt;
@@ -1118,6 +1120,10 @@ export class GameState {
       this.worldSlow = this.coreAwakened ? 0 : (skill.slowMul ?? 0.4);
       this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
       this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '정지장' : skill.name}` });
+    } else if (skill.id === 'carpetBombing') {
+      this.armCarpetBombing(skill);
+      this.events.push({ type: 'skill', id: skill.id, x: this.playerX, y: this.playerY });
+      this.events.push({ type: 'banner', text: `${skill.icon} ${this.coreAwakened ? '포화 융단' : skill.name}` });
     }
     return true;
   }
@@ -1146,6 +1152,62 @@ export class GameState {
       }
     }
     if (skill.id === 'aegis' && this.skillActiveLeft > 0) this.tickAegis();
+    this.tickCarpetBombing(dt);
+  }
+
+  private armCarpetBombing(skill: typeof SHIPS[ShipId]['activeSkill']): void {
+    const n = Math.max(1, Math.round((skill.bombCount ?? 12) * (this.coreAwakened ? AWAKEN.carpetBombMul : 1)));
+    const radius = (skill.explodeRadius ?? 100) * (this.coreAwakened ? AWAKEN.carpetRadiusMul : 1);
+    const damage = PICKUPS.bombDamage * (this.coreAwakened ? AWAKEN.carpetDmgMul : 1);
+    const dur = skill.duration ?? 1.5;
+    this.carpetQueue = [];
+    for (let i = 0; i < n; i++) {
+      const near = i % 2 === 0;
+      let x: number;
+      let y: number;
+      if (near) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 36 + Math.random() * 110;
+        x = this.playerX + Math.cos(a) * d;
+        y = this.playerY + Math.sin(a) * d;
+      } else {
+        x = 40 + Math.random() * (CANVAS.width - 80);
+        y = 50 + Math.random() * (CANVAS.height - 100);
+      }
+      this.carpetQueue.push({
+        x: Math.max(24, Math.min(CANVAS.width - 24, x)),
+        y: Math.max(24, Math.min(CANVAS.height - 24, y)),
+        left: (i / n) * dur,
+        radius,
+        damage,
+      });
+    }
+  }
+
+  private tickCarpetBombing(dt: number): void {
+    if (this.carpetQueue.length === 0) return;
+    for (let i = this.carpetQueue.length - 1; i >= 0; i--) {
+      const b = this.carpetQueue[i];
+      b.left -= dt;
+      if (b.left > 0) continue;
+      this.detonateCarpet(b.x, b.y, b.radius, b.damage);
+      this.carpetQueue.splice(i, 1);
+    }
+  }
+
+  private detonateCarpet(x: number, y: number, radius: number, damage: number): void {
+    const r2 = radius * radius;
+    for (let i = this.enemyProjectiles.length - 1; i >= 0; i--) {
+      const p = this.enemyProjectiles[i];
+      if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) this.enemyProjectiles.splice(i, 1);
+    }
+    for (const e of [...this.enemies]) {
+      const hitR = e.def.radius * (e.elite ? 1.15 : 1) + radius;
+      if ((e.x - x) ** 2 + (e.y - y) ** 2 > hitR * hitR) continue;
+      if (this.tryAbsorbShield(e, true)) continue;
+      this.damageEnemy(e, damage);
+    }
+    this.events.push({ type: 'blast', x, y, color: '#f97316', radius: radius * 0.55 });
   }
 
   /** 지속 중에는 탄막만 소거. 데미지는 전개/종료 충격파만. */

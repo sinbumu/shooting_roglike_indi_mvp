@@ -401,6 +401,7 @@ export class Renderer {
         case 'skill': {
           const tint = ev.id === 'phaseDash' ? 0x7dd3fc
             : ev.id === 'aegis' ? 0x86efac
+            : ev.id === 'carpetBombing' ? 0xf97316
             : 0xc084fc;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.4, sizeFrom: 20, sizeTo: 140, tint, alphaFrom: 0.9, ring: true });
           if (ev.id === 'aegis') {
@@ -409,6 +410,10 @@ export class Renderer {
           } else if (ev.id === 'timeDilation') {
             this.flashAlpha = 0.22;
             this.flashColor = 0xc084fc;
+          } else if (ev.id === 'carpetBombing') {
+            this.flashAlpha = 0.42;
+            this.flashColor = 0xf97316;
+            this.shake(18, 1.55);
           }
           break;
         }
@@ -946,6 +951,13 @@ export class Renderer {
       glow.width = glow.height = PLAYER.radius * 5 + Math.sin(this.elapsed * 8) * 6;
       glow.alpha = 0.4;
     }
+    if (state.skillActiveLeft > 0 && skill.id === 'carpetBombing') {
+      const glow = this.glowPool.get();
+      glow.tint = 0xf97316;
+      glow.position.set(x, y);
+      glow.width = glow.height = PLAYER.radius * 6 + Math.sin(this.elapsed * 20) * 10;
+      glow.alpha = 0.5;
+    }
     if (state.levelAegisLeft > 0) {
       const glow = this.glowPool.get();
       glow.tint = 0x86efac;
@@ -964,7 +976,7 @@ export class Renderer {
       this.playerSprite.texture = shipTex;
       this.playerSprite.visible = true;
       this.playerSprite.position.set(x, y);
-      const size = PLAYER.radius * 3.2;
+      const size = PLAYER.radius * (state.shipId === 'bomber' ? 3.85 : 3.2);
       this.playerSprite.width = size;
       this.playerSprite.height = size;
       this.playerSprite.tint = frosted

@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.8.0 성좌(Constellation)** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.8.1 붐바르딜로-크로코딜로** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -32,6 +32,7 @@
 | v1.7.4 타겟팅? | **완료** — 파열핵 최원거리 조준 · 제네시스 무작위 관통 ([docs/DESIGN_UPDATE_V1_7_4_TARGETING.md](./docs/DESIGN_UPDATE_V1_7_4_TARGETING.md)) |
 | v1.7.5 지형 기믹? | **완료** — 단방향 쉴드 · 퀀텀 코어 · 성운 가스 · 모선 잔해 대피소 ([docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md)) · EXP 곡선·솔라 랜스 필터·결과창 버전 ([docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md)) |
 | v1.8 성좌? | **완료** — 만렙 이후 판테온 포인트 · 격납고 22노드 성좌 보드 · 다음 런 룰 분기 ([docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md)) |
+| 4번째 기체? | **완료** — 붐바르딜로-크로코딜로 · 융단 폭격 ([docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md](./docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md)) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -51,7 +52,7 @@
 | PC·모바일 조작 (조이스틱 + WASD/방향키) | ✅ |
 | 이펙트·프로시저럴 사운드·일시정지·최고기록 | ✅ |
 | 공개 배포 (GitHub Pages) | ✅ |
-| 시작 기체 3 / 패시브 / 엘리트 / 보스 2종 | ✅ |
+| 시작 기체 4 / 패시브 / 엘리트 / 보스 2종 | ✅ |
 | 런 간 메타 강화 + 업적 (로컬) | ✅ |
 | 스테이지 3 + 도전 모드 4 + 스토리 자막 | ✅ |
 | 로컬 세션 통계 | ✅ |
@@ -89,7 +90,8 @@
 - [x] v1.7.3: 제네시스 단발 융합 · 크래프트 슬롯 번호 · 프레데터/해머딘 상향 · 고관통 어픽스 제외  
 - [x] v1.7.4: 파열핵 최원거리 조준·폭발 상향 · 제네시스 무작위 타겟·탄속 상향 
 - [x] v1.7.5: 단방향 쉴드 · 퀀텀 코어 폭파 · 성운 둔화 · 궤도 모선 잔해 대피소 · EXP 곡선 · 솔라 랜스 필터 
-- [x] v1.8.0: 격납고 성좌 보드 22노드 · 판테온 포인트 · 만렙 스탯 카드 제거 · 런타임 룰 분기 
+- [x] v1.8.0: 격납고 성좌 보드 22노드 · 판테온 포인트 · 만렙 스탯 카드 제거 · 런타임 룰 분기
+- [x] v1.8.1: 4번째 기체 붐바르딜로-크로코딜로 · 융단 폭격 
 
 ---
 
@@ -158,7 +160,7 @@
 |---|---|
 | 스테이지 | `orbit` → `rift` → `legion` (클리어 해금, 군단 7분) |
 | 도전 | 표준 / 제한무장 / 유리장갑 / 맨몸 |
-| 기체 | 스카웃(위상 대시 / 각성 초공간 붕괴) / 포트리스(절대 방벽 / 각성 반사 역장) / 헌터(시간 왜곡 / 각성 정지장) |
+| 기체 | 스카웃(위상 대시 / 각성 초공간 붕괴) / 포트리스(절대 방벽 / 각성 반사 역장) / 헌터(시간 왜곡 / 각성 정지장) / 붐바르딜로-크로코딜로(융단 폭격 / 각성 포화 융단, 해금 2000) |
 | 패시브 | 소형화·구속장·레벨업 쉴드·장갑·수집·과충전·과부하 코어 (런 중 슬롯 4) |
 | 메타 | 선체·화력·엔진·자석·행운 (5캡) + 오버클럭/초경량 장갑 (무한, 비용 ×1.15) · 블랙마켓 스킨 |
 | 드론 베이 | 수집기·요격기·증폭기 (격납고 요약 한 줄 + 전용 모달, 크레딧 해금 후 선택, 없이 출격 가능, 강화 5캡) |
@@ -286,4 +288,5 @@
 | [docs/DESIGN_UPDATE_TERRAIN_VISUALS.md](./docs/DESIGN_UPDATE_TERRAIN_VISUALS.md) | v1.7.5 지형 기믹 4종 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md) | v1.7.5 EXP 곡선 · 솔라 랜스 필터 · 결과창 버전 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md) | v1.8 성좌 22노드 · 판테온 포인트 (구현 완료) |
+| [docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md](./docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md) | 4번째 기체 붐바르딜로-크로코딜로 (구현 완료) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

@@ -110,7 +110,7 @@ export interface Recipe {
 // 시작 기체 / 패시브 / 메타
 // ------------------------------------------------------------
 
-export type ShipId = 'scout' | 'fortress' | 'hunter';
+export type ShipId = 'scout' | 'fortress' | 'hunter' | 'bomber';
 
 export type DroneId = 'retriever' | 'defender' | 'amplifier';
 
@@ -127,7 +127,7 @@ export interface DroneDef {
   costMul: number;
 }
 
-export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation';
+export type ActiveSkillId = 'phaseDash' | 'aegis' | 'timeDilation' | 'carpetBombing';
 
 export interface ActiveSkillDef {
   id: ActiveSkillId;
@@ -143,6 +143,8 @@ export interface ActiveSkillDef {
   pulseInterval?: number;
   /** 적·적탄 속도 배율 (1보다 작으면 슬로우) */
   slowMul?: number;
+  bombCount?: number;
+  explodeRadius?: number;
 }
 
 export interface ShipDef {

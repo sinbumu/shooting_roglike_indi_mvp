@@ -440,6 +440,13 @@ export class AudioManager {
           this.tone(440, 0.38, { type: 'sine', slideTo: 150, gain: 0.07 });
           this.tone(220, 0.42, { type: 'triangle', slideTo: 70, gain: 0.05, delay: 0.04 });
           this.noise(0.22, { gain: 0.05, freq: 180 });
+        } else if (ev.id === 'carpetBombing') {
+          this.noise(0.45, { gain: 0.18, freq: 90 });
+          this.tone(70, 0.5, { type: 'sawtooth', slideTo: 28, gain: 0.1 });
+          for (let i = 0; i < 6; i++) {
+            this.noise(0.22, { gain: 0.1, freq: 140 + i * 40, delay: i * 0.12 });
+            this.tone(110 - i * 8, 0.18, { type: 'sawtooth', slideTo: 36, gain: 0.05, delay: i * 0.12 });
+          }
         }
         break;
 

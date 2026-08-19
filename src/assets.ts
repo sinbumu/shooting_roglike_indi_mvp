@@ -9,6 +9,7 @@ export const SPRITE_PATHS = {
     scout: `${base}/ship_scout.png`,
     fortress: `${base}/ship_fortress.png`,
     hunter: `${base}/ship_hunter.png`,
+    bomber: `${base}/ship_bomber.png`,
   } satisfies Record<ShipId, string>,
   enemies: {
     drone: `${base}/enemy_drone.png`,

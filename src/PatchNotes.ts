@@ -7,6 +7,15 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.8.1',
+    date: '2026-08-19',
+    changes: [
+      '🐊 4번째 기체 붐바르딜로-크로코딜로: 최고 체력·최저 기동 · 중력 지뢰 시작',
+      '💥 고유 스킬 융단 폭격: 1.5초간 12발 연쇄 폭발 · 적탄 소멸',
+      '✨ 코어 각성 시 포화 융단(탄수·반경·피해 증가)',
+    ],
+  },
+  {
     version: 'v1.8.0',
     date: '2026-08-19',
     changes: [

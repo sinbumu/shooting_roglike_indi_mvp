@@ -307,8 +307,13 @@ function awakeningChoice(shipId: ShipId): LevelUpChoice {
     ? '위상 대시가 3회 충전식이 되고, 궤적의 일반 적을 즉사시키며 보스에게 최대 체력 10% 피해를 줍니다.'
     : ship.id === 'fortress'
       ? '방벽이 적 탄막을 흡수하고, 종료 시 흡수 수에 비례한 화면 전체 폭발을 방출합니다.'
-      : '시간 왜곡이 4초간 적과 탄막을 완전 정지시키고, 그 동안 무기 쿨타임이 절반이 됩니다.';
-  const title = ship.id === 'scout' ? '초공간 붕괴' : ship.id === 'fortress' ? '반사 역장' : '정지장';
+      : ship.id === 'bomber'
+        ? '융단 폭격 탄수가 2배가 되고 반경·피해가 증가합니다. 적탄을 더 넓게 소멸시킵니다.'
+        : '시간 왜곡이 4초간 적과 탄막을 완전 정지시키고, 그 동안 무기 쿨타임이 절반이 됩니다.';
+  const title = ship.id === 'scout' ? '초공간 붕괴'
+    : ship.id === 'fortress' ? '반사 역장'
+    : ship.id === 'bomber' ? '포화 융단'
+    : '정지장';
   return {
     kind: 'awakening',
     weight: 0,
