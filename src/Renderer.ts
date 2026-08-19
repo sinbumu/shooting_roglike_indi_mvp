@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS } from './GameConfig';
 import { loadSpriteAtlas, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId } from './types';
 
@@ -280,8 +280,27 @@ export class Renderer {
           this.hitSpark(ev.x, ev.y, hex(ev.color));
           this.spawnDamageText(ev.x, ev.y, ev.damage);
           break;
-        case 'fired':
-          this.muzzleFlash(ev.x, ev.y, hex(ev.color));
+        case 'fired': {
+          const spec = ev.weaponId ? WEAPONS[ev.weaponId].projectile : undefined;
+          if (spec?.melee) {
+            this.slashFlash(ev.x, ev.y, hex(ev.color), spec.melee.arcDeg, spec.melee.range);
+          } else if (spec?.orbit) {
+            this.spawnParticle({
+              x: ev.x, y: ev.y, life: 0.35, sizeFrom: 28, sizeTo: spec.orbit.radius * 2.2,
+              tint: hex(ev.color), alphaFrom: 0.7, ring: true,
+            });
+          } else if (spec?.drop) {
+            this.spawnParticle({
+              x: ev.x, y: ev.y, life: 0.22, sizeFrom: 10, sizeTo: 36,
+              tint: hex(ev.color), alphaFrom: 0.8, ring: true,
+            });
+          } else {
+            this.muzzleFlash(ev.x, ev.y, hex(ev.color));
+          }
+          break;
+        }
+        case 'blast':
+          this.explode(ev.x, ev.y, hex(ev.color), ev.radius);
           break;
         case 'gemPickup':
           this.gemBurst(ev.x, ev.y);
@@ -537,6 +556,32 @@ export class Renderer {
       sizeTo: 6,
       tint,
       alphaFrom: 0.9,
+    });
+  }
+
+  private slashFlash(x: number, y: number, tint: number, arcDeg: number, range: number): void {
+    const base = -Math.PI / 2;
+    const half = (arcDeg * Math.PI) / 360;
+    const n = arcDeg > 40 ? 10 : 7;
+    for (let i = 0; i < n; i++) {
+      const a = base - half + (half * 2 * i) / (n - 1);
+      const spd = 160 + Math.min(range, 400) * 0.35;
+      this.spawnParticle({
+        x: x + Math.cos(a) * 8,
+        y: y + Math.sin(a) * 8,
+        vx: Math.cos(a) * spd,
+        vy: Math.sin(a) * spd,
+        life: 0.12 + Math.random() * 0.08,
+        sizeFrom: 7 + Math.min(12, range * 0.015),
+        sizeTo: 2,
+        tint,
+        alphaFrom: 0.95,
+        drag: 1.1,
+      });
+    }
+    this.spawnParticle({
+      x, y, life: 0.16, sizeFrom: 16, sizeTo: Math.min(80, range * 0.12),
+      tint, alphaFrom: 0.75, ring: true,
     });
   }
 
@@ -803,6 +848,15 @@ export class Renderer {
           swirl.position.set(e.x, e.y);
           swirl.width = swirl.height = VORTEX.pullRadius * 2 + Math.sin(this.elapsed * 2.4) * 18;
           swirl.alpha = 0.32;
+          for (let k = 0; k < 3; k++) {
+            const a = this.elapsed * 1.8 + (k * Math.PI * 2) / 3;
+            const rr = VORTEX.pullRadius * 0.42;
+            const orb = this.glowPool.get();
+            orb.tint = 0x6366f1;
+            orb.position.set(e.x + Math.cos(a) * rr, e.y + Math.sin(a) * rr);
+            orb.width = orb.height = 26;
+            orb.alpha = 0.42;
+          }
         }
         if (isCommander) {
           const aura = this.glowPool.get();
@@ -907,6 +961,13 @@ export class Renderer {
       if (e.def.id === 'guardian') {
         g.circle(e.x, e.y, GUARDIAN.auraRadius)
           .stroke({ width: 2, color: 0xa3e635, alpha: 0.32 + Math.sin(this.elapsed * 3) * 0.1 });
+      }
+      if (e.def.id === 'trapper') {
+        g.moveTo(e.x - r * 0.75, e.y).lineTo(e.x + r * 0.75, e.y)
+          .stroke({ width: 3, color: 0xfca5a5, alpha: 0.95 });
+        g.moveTo(e.x, e.y - r * 0.75).lineTo(e.x, e.y + r * 0.75)
+          .stroke({ width: 3, color: 0xfca5a5, alpha: 0.95 });
+        g.circle(e.x, e.y, 4).fill(0xfef2f2);
       }
       if (e.def.id === 'vortex') {
         g.circle(e.x, e.y, VORTEX.pullRadius)
@@ -1085,7 +1146,15 @@ export class Renderer {
       } else {
         const x = state.playerX + Math.cos(o.angle) * o.radius;
         const y = state.playerY + Math.sin(o.angle) * o.radius;
-        g.circle(x, y, o.hitRadius).fill(color);
+        const tooth = o.hitRadius * 1.35;
+        const c = Math.cos(o.angle + this.elapsed * 10);
+        const s = Math.sin(o.angle + this.elapsed * 10);
+        g.poly([
+          x + c * tooth, y + s * tooth,
+          x - s * tooth * 0.7, y + c * tooth * 0.7,
+          x - c * tooth, y - s * tooth,
+          x + s * tooth * 0.7, y - c * tooth * 0.7,
+        ], true).fill(color);
         const glow = this.glowPool.get();
         glow.tint = color;
         glow.position.set(x, y);
@@ -1098,6 +1167,16 @@ export class Renderer {
       const blink = m.fuse < 0.6 && Math.floor(this.elapsed * 12) % 2 === 0;
       g.circle(m.x, m.y, m.radius).fill(blink ? 0xffffff : color);
       g.circle(m.x, m.y, m.radius + 3).stroke({ width: 1.5, color, alpha: 0.7 });
+      if (m.pullRadius > 0) {
+        g.circle(m.x, m.y, m.pullRadius)
+          .stroke({ width: 1.5, color, alpha: 0.22 + Math.sin(this.elapsed * 6) * 0.08 });
+      }
+      if (m.seekSpeed > 0) {
+        g.moveTo(m.x, m.y - m.radius - 4)
+          .lineTo(m.x + 4, m.y - 1)
+          .lineTo(m.x - 4, m.y - 1)
+          .fill(blink ? 0xffffff : color);
+      }
     }
     for (const z of state.zones) {
       const color = hex(z.color);
@@ -1130,6 +1209,8 @@ export class Renderer {
         : state.droneId === 'defender' ? 0x86efac
         : 0x818cf8;
       g.circle(dx, dy, 6).fill(col);
+      g.moveTo(dx - 10, dy).lineTo(dx - 4, dy - 5).lineTo(dx - 4, dy + 5).fill(col);
+      g.moveTo(dx + 10, dy).lineTo(dx + 4, dy - 5).lineTo(dx + 4, dy + 5).fill(col);
       const glow = this.glowPool.get();
       glow.tint = col;
       glow.position.set(dx, dy);

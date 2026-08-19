@@ -265,7 +265,9 @@ export type FxEvent =
   | { type: 'skill'; id: ActiveSkillId; x: number; y: number }
   | { type: 'teleport'; x: number; y: number }
   | { type: 'shieldBlock'; x: number; y: number }
-  | { type: 'vacuum' };
+  | { type: 'vacuum' }
+  /** 지뢰·장판 폭발 — 적 사망과 분리 (히트스톱 없음) */
+  | { type: 'blast'; x: number; y: number; color: string; radius: number };
 
 export interface RunStats {
   projSpeedMul: number;
@@ -934,12 +936,14 @@ export class GameState {
     }
 
     if (p.orbit) {
-      this.syncOrbiters(slot, damage, color, sizeMul);
-      this.events.push({
-        type: 'fired',
-        x: this.playerX, y: this.playerY,
-        color, weaponId: slot.weaponId,
-      });
+      const spawned = this.syncOrbiters(slot, damage, color, sizeMul);
+      if (spawned) {
+        this.events.push({
+          type: 'fired',
+          x: this.playerX, y: this.playerY,
+          color, weaponId: slot.weaponId,
+        });
+      }
       return;
     }
 
@@ -1461,9 +1465,9 @@ export class GameState {
     }
   }
 
-  private syncOrbiters(slot: WeaponSlot, damage: number, color: string, sizeMul: number): void {
+  private syncOrbiters(slot: WeaponSlot, damage: number, color: string, sizeMul: number): boolean {
     const spec = WEAPONS[slot.weaponId].projectile.orbit;
-    if (!spec) return;
+    if (!spec) return false;
     const existing = this.orbiters.filter((o) => o.weaponId === slot.weaponId);
     const radius = spec.radius * sizeMul;
     const hitR = WEAPONS[slot.weaponId].projectile.radius * sizeMul;
@@ -1475,7 +1479,7 @@ export class GameState {
         o.color = color;
         o.pull = spec.pull ?? 0;
       }
-      return;
+      return false;
     }
     this.orbiters = this.orbiters.filter((o) => o.weaponId !== slot.weaponId);
     for (let i = 0; i < spec.count; i++) {
@@ -1491,6 +1495,7 @@ export class GameState {
         tickLeft: 0,
       });
     }
+    return true;
   }
 
   private updateOrbiters(dt: number): void {
@@ -1625,7 +1630,7 @@ export class GameState {
         this.damageEnemy(e, m.damage, m.weaponId);
       }
     }
-    this.events.push({ type: 'enemyDied', x: m.x, y: m.y, color: m.color, radius: m.explodeRadius * 0.45 });
+    this.events.push({ type: 'blast', x: m.x, y: m.y, color: m.color, radius: m.explodeRadius * 0.45 });
     if (m.split > 0) {
       for (let k = 0; k < m.split; k++) {
         const a = (Math.PI * 2 * k) / m.split;
@@ -1746,6 +1751,9 @@ export class GameState {
           this.enemyProjectiles.splice(i, 1);
           n++;
         }
+        if (n > 0) {
+          this.events.push({ type: 'shieldBlock', x: this.playerX + 18, y: this.playerY - 12 });
+        }
       }
     } else if (this.droneId === 'amplifier') {
       if (this.droneTimer >= DRONE_FX.amplifierInterval) {
@@ -1755,6 +1763,7 @@ export class GameState {
           r: DRONE_FX.amplifierRadius,
           life: DRONE_FX.amplifierDuration,
         };
+        this.events.push({ type: 'vacuum' });
       }
     }
   }

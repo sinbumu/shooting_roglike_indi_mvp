@@ -157,6 +157,42 @@ export class AudioManager {
           this.tone(420, 0.1, { type: 'triangle', slideTo: 180, gain: 0.028, delay: 0.03 });
           break;
         }
+        if (ev.weaponId === 'blade') {
+          this.noise(0.05, { gain: 0.05, freq: 2200, highpass: 1200 });
+          this.tone(980 + bias, 0.08, { type: 'sawtooth', slideTo: 280, gain: 0.04 });
+          this.tone(1480, 0.05, { type: 'triangle', slideTo: 520, gain: 0.02, delay: 0.01 });
+          break;
+        }
+        if (ev.weaponId === 'beamSword' || ev.weaponId === 'cleaver') {
+          this.noise(0.14, { gain: 0.09, freq: 1400, highpass: 700 });
+          this.tone(220, 0.16, { type: 'sawtooth', slideTo: 70, gain: 0.055 });
+          this.tone(880, 0.12, { type: 'triangle', slideTo: 1600, gain: 0.04, delay: 0.02 });
+          this.tone(1600, 0.08, { type: 'sine', slideTo: 400, gain: 0.025, delay: 0.04 });
+          break;
+        }
+        if (ev.weaponId === 'rotor') {
+          this.noise(0.08, { gain: 0.05, freq: 900, highpass: 500 });
+          this.tone(240, 0.14, { type: 'square', slideTo: 520, gain: 0.03 });
+          this.tone(720, 0.1, { type: 'triangle', slideTo: 180, gain: 0.02, delay: 0.03 });
+          break;
+        }
+        if (ev.weaponId === 'halo') {
+          this.tone(330, 0.22, { type: 'sine', slideTo: 660, gain: 0.045 });
+          this.tone(495, 0.28, { type: 'triangle', slideTo: 990, gain: 0.03, delay: 0.04 });
+          this.noise(0.12, { gain: 0.04, freq: 600 });
+          break;
+        }
+        if (ev.weaponId === 'mine' || ev.weaponId === 'seekerMine' || ev.weaponId === 'predator') {
+          this.noise(0.06, { gain: 0.05, freq: 320 });
+          this.tone(140, 0.09, { type: 'square', slideTo: 70, gain: 0.03 });
+          break;
+        }
+        if (ev.weaponId === 'singularity' || ev.weaponId === 'eventHorizon') {
+          this.tone(90, 0.22, { type: 'sawtooth', slideTo: 36, gain: 0.05 });
+          this.tone(180, 0.16, { type: 'sine', slideTo: 70, gain: 0.03, delay: 0.03 });
+          this.noise(0.18, { gain: 0.07, freq: 140 });
+          break;
+        }
         const base = 620 + bias;
         const wave: OscillatorType = bias > 40 ? 'triangle' : bias < -40 ? 'sawtooth' : 'square';
         this.tone(base, 0.055, { type: wave, slideTo: 140 + bias * 0.2, gain: 0.02 });
@@ -171,7 +207,8 @@ export class AudioManager {
         this.noise(0.04, { gain: 0.035, freq: 900, highpass: 600 });
         break;
 
-      case 'enemyDied': {
+      case 'enemyDied':
+      case 'blast': {
         const big = ev.radius >= 22;
         const huge = ev.radius >= 36;
         const dur = huge ? 0.55 : big ? 0.35 : 0.2;
