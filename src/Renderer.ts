@@ -741,9 +741,10 @@ export class Renderer {
       anchorX?: number;
       anchorY?: number;
       add?: boolean;
+      world?: boolean;
     },
   ): void {
-    const spr = this.fxSpritePool.get(tex);
+    const spr = (opts.world ? this.entityPool : this.fxSpritePool).get(tex);
     spr.anchor.set(opts.anchorX ?? 0.5, opts.anchorY ?? 0.5);
     spr.position.set(x, y);
     spr.rotation = opts.rotation ?? 0;
@@ -1658,15 +1659,30 @@ export class Renderer {
 
   private drawNebulaZones(state: GameState, g: Graphics): void {
     for (const z of state.nebulaZones) {
-      const pulse = 0.16 + Math.sin(this.elapsed * 1.6 + z.x) * 0.04;
-      g.circle(z.x, z.y, z.r).fill({ color: 0x6d28d9, alpha: pulse });
-      g.circle(z.x, z.y, z.r * 0.72).fill({ color: 0x4ade80, alpha: pulse * 0.45 });
+      const tex = fxFrame(this.atlas.fx.nebula, this.elapsed * 0.45 + z.x * 0.002, 5);
+      if (tex) {
+        const size = z.r * 2.4;
+        this.blitFx(tex, z.x, z.y, {
+          rotation: this.elapsed * 0.07, width: size, height: size, alpha: 0.58, add: true, world: true,
+        });
+        const tex2 = fxFrame(this.atlas.fx.nebula, this.elapsed * 0.32 + 1.1, 5);
+        if (tex2) {
+          this.blitFx(tex2, z.x + 10, z.y - 8, {
+            rotation: -this.elapsed * 0.045, width: size * 0.86, height: size * 0.86, alpha: 0.34, add: true, world: true,
+          });
+        }
+        g.circle(z.x, z.y, z.r).stroke({ width: 1.5, color: 0xc4b5fd, alpha: 0.16 + Math.sin(this.elapsed * 1.6 + z.x) * 0.04 });
+      } else {
+        const pulse = 0.16 + Math.sin(this.elapsed * 1.6 + z.x) * 0.04;
+        g.circle(z.x, z.y, z.r).fill({ color: 0x6d28d9, alpha: pulse });
+        g.circle(z.x, z.y, z.r * 0.72).fill({ color: 0x4ade80, alpha: pulse * 0.45 });
+      }
       const glow = this.glowPool.get();
       glow.tint = 0xa78bfa;
       glow.position.set(z.x, z.y);
       glow.width = glow.height = z.r * 2.1;
-      glow.alpha = 0.22;
-      if (Math.random() < 0.35) {
+      glow.alpha = 0.16;
+      if (Math.random() < 0.28) {
         const a = Math.random() * Math.PI * 2;
         const d = Math.random() * z.r * 0.85;
         this.spawnParticle({
@@ -1686,31 +1702,41 @@ export class Renderer {
     const s = state.oneWayShield;
     if (!s) return;
     const fade = Math.min(1, s.life / 2);
-    g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x22d3ee, alpha: 0.14 * fade });
-    g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x67e8f9, alpha: 0.75 * fade });
-    const size = 9;
-    const dx = size * 1.75;
-    const dy = size * 1.5;
-    const scroll = (this.elapsed * 28) % dy;
-    for (let row = -1; row < s.h / dy + 2; row++) {
-      for (let col = -1; col < s.w / dx + 2; col++) {
-        const ox = col * dx + ((row & 1) ? dx * 0.5 : 0);
-        const oy = row * dy + scroll;
-        if (ox < -size || ox > s.w + size || oy < -size || oy > s.h + size) continue;
-        const cx = s.x + ox;
-        const cy = s.y + oy;
-        const pts: number[] = [];
-        for (let k = 0; k < 6; k++) {
-          const a = (Math.PI / 3) * k + Math.PI / 6;
-          pts.push(cx + Math.cos(a) * size, cy + Math.sin(a) * size);
+    const tex = fxFrame(this.atlas.fx.shieldwall, this.elapsed, 8);
+    if (tex) {
+      this.blitFx(tex, s.x + s.w * 0.5, s.y + s.h * 0.5, {
+        width: s.w * 2.15,
+        height: s.h * 1.12,
+        alpha: 0.72 * fade,
+        add: true,
+      });
+    } else {
+      g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x22d3ee, alpha: 0.14 * fade });
+      g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x67e8f9, alpha: 0.75 * fade });
+      const size = 9;
+      const dx = size * 1.75;
+      const dy = size * 1.5;
+      const scroll = (this.elapsed * 28) % dy;
+      for (let row = -1; row < s.h / dy + 2; row++) {
+        for (let col = -1; col < s.w / dx + 2; col++) {
+          const ox = col * dx + ((row & 1) ? dx * 0.5 : 0);
+          const oy = row * dy + scroll;
+          if (ox < -size || ox > s.w + size || oy < -size || oy > s.h + size) continue;
+          const cx = s.x + ox;
+          const cy = s.y + oy;
+          const pts: number[] = [];
+          for (let k = 0; k < 6; k++) {
+            const a = (Math.PI / 3) * k + Math.PI / 6;
+            pts.push(cx + Math.cos(a) * size, cy + Math.sin(a) * size);
+          }
+          g.poly(pts, true).stroke({ width: 1, color: 0xa5f3fc, alpha: 0.35 * fade });
         }
-        g.poly(pts, true).stroke({ width: 1, color: 0xa5f3fc, alpha: 0.35 * fade });
       }
+      const genX = s.x + s.w * 0.5;
+      const genY = s.y + s.h + 6;
+      g.roundRect(genX - 8, genY - 4, 16, 10, 2).fill({ color: 0x0f172a, alpha: 0.9 * fade });
+      g.circle(genX, genY, 3).fill({ color: 0x22d3ee, alpha: 0.9 * fade });
     }
-    const genX = s.x + s.w * 0.5;
-    const genY = s.y + s.h + 6;
-    g.roundRect(genX - 8, genY - 4, 16, 10, 2).fill({ color: 0x0f172a, alpha: 0.9 * fade });
-    g.circle(genX, genY, 3).fill({ color: 0x22d3ee, alpha: 0.9 * fade });
   }
 
   private drawQuantumCores(state: GameState, g: Graphics): void {
@@ -1719,21 +1745,32 @@ export class Renderer {
       const pulseHz = 3 + (1 - hp) * 10;
       const pulse = 0.55 + Math.sin(this.elapsed * pulseHz) * 0.35;
       const r = c.radius;
-      const pts = [
-        c.x, c.y - r,
-        c.x + r * 0.72, c.y - r * 0.25,
-        c.x + r * 0.55, c.y + r * 0.7,
-        c.x - r * 0.55, c.y + r * 0.7,
-        c.x - r * 0.72, c.y - r * 0.25,
-      ];
-      g.poly(pts, true).fill({ color: c.hitFlash > 0 ? 0xffffff : 0x7c3aed, alpha: 0.92 });
-      g.poly(pts, true).stroke({ width: 2, color: 0xc4b5fd, alpha: 0.9 });
+      const tex = fxFrame(this.atlas.fx.quantum, this.elapsed * (0.6 + (1 - hp) * 1.4), 8);
+      if (tex) {
+        const size = r * 2.55 * (1 + pulse * 0.06);
+        this.blitFx(tex, c.x, c.y, {
+          width: size, height: size,
+          tint: c.hitFlash > 0 ? 0xf8fafc : 0xffffff,
+          alpha: 0.95,
+          world: true,
+        });
+      } else {
+        const pts = [
+          c.x, c.y - r,
+          c.x + r * 0.72, c.y - r * 0.25,
+          c.x + r * 0.55, c.y + r * 0.7,
+          c.x - r * 0.55, c.y + r * 0.7,
+          c.x - r * 0.72, c.y - r * 0.25,
+        ];
+        g.poly(pts, true).fill({ color: c.hitFlash > 0 ? 0xffffff : 0x7c3aed, alpha: 0.92 });
+        g.poly(pts, true).stroke({ width: 2, color: 0xc4b5fd, alpha: 0.9 });
+        g.circle(c.x, c.y, r * 0.32).fill({ color: 0xf97316, alpha: 0.7 + pulse * 0.25 });
+      }
       const core = this.glowPool.get();
       core.tint = 0xfb923c;
       core.position.set(c.x, c.y);
       core.width = core.height = r * (1.4 + pulse * 0.8);
       core.alpha = 0.55 + pulse * 0.35;
-      g.circle(c.x, c.y, r * 0.32).fill({ color: 0xf97316, alpha: 0.7 + pulse * 0.25 });
       const cracks = Math.floor((1 - hp) * 5);
       for (let i = 0; i < cracks; i++) {
         const a = -0.9 + i * 0.55;
@@ -1793,11 +1830,19 @@ export class Renderer {
   private drawCreditOrbs(state: GameState, g: Graphics): void {
     for (const o of state.creditOrbs) {
       const bob = Math.sin(this.elapsed * 8 + o.x) * 2;
-      g.circle(o.x, o.y + bob, 6).fill(0xfbbf24);
-      g.circle(o.x, o.y + bob, 3).fill(0xfef3c7);
+      const y = o.y + bob;
+      const tex = this.atlas.pickups.goldCube;
+      if (tex) {
+        const spr = this.entityPool.get(tex);
+        spr.position.set(o.x, y);
+        spr.width = spr.height = 22;
+      } else {
+        g.circle(o.x, y, 6).fill(0xfbbf24);
+        g.circle(o.x, y, 3).fill(0xfef3c7);
+      }
       const glow = this.glowPool.get();
       glow.tint = 0xfbbf24;
-      glow.position.set(o.x, o.y + bob);
+      glow.position.set(o.x, y);
       glow.width = glow.height = 18;
       glow.alpha = 0.7;
     }
@@ -1825,9 +1870,16 @@ export class Renderer {
       glow.position.set(altar.x, altar.y);
       glow.width = glow.height = 70 + Math.sin(this.elapsed * 4) * 10;
       glow.alpha = 0.55 + altar.charge * 0.35;
-      g.roundRect(altar.x - 10, altar.y - 28, 20, 48, 3).fill(0x0f172a);
-      g.roundRect(altar.x - 14, altar.y + 16, 28, 8, 2).fill(0x111827);
-      g.rect(altar.x - 4, altar.y - 32, 8, 10).fill(0x7f1d1d);
+      const tex = fxFrame(this.atlas.fx.altar, this.elapsed, 7);
+      if (tex) {
+        this.blitFx(tex, altar.x, altar.y - 6, {
+          width: 78, height: 96, world: true,
+        });
+      } else {
+        g.roundRect(altar.x - 10, altar.y - 28, 20, 48, 3).fill(0x0f172a);
+        g.roundRect(altar.x - 14, altar.y + 16, 28, 8, 2).fill(0x111827);
+        g.rect(altar.x - 4, altar.y - 32, 8, 10).fill(0x7f1d1d);
+      }
       if (altar.charge > 0 && altar.trialLeft === 0) {
         const r = VOID_ALTAR.radius + 6;
         const start = -Math.PI / 2;
@@ -1845,20 +1897,64 @@ export class Renderer {
     const hz = state.envHazard;
     if (!hz) return;
     if (hz.kind === 'solar') {
-      if (!state.derelict) {
-        for (const s of hz.shades) {
+      for (const s of hz.shades) {
+        const pad = fxFrame(this.atlas.fx.shade, this.elapsed, 7);
+        if (pad) {
+          this.blitFx(pad, s.x + s.w * 0.5, s.y + s.h * 0.5, {
+            width: s.w * 1.15, height: s.h * 1.15,
+            alpha: state.derelict ? 0.45 : 0.7,
+            add: true,
+            world: true,
+          });
+        } else if (!state.derelict) {
           g.rect(s.x, s.y, s.w, s.h).fill({ color: 0x38bdf8, alpha: 0.22 + Math.sin(this.elapsed * 5) * 0.05 });
           g.rect(s.x, s.y, s.w, s.h).stroke({ width: 2, color: 0x7dd3fc, alpha: 0.7 });
         }
       }
     } else if (hz.kind === 'asteroid') {
       const t = hz.phase === 'warn' ? 1 - hz.left / HAZARDS.asteroid.warnSec : 1;
-      const alpha = 0.25 + t * 0.45;
-      const col = t > 0.7 ? 0xdc2626 : 0xf87171;
+      const alpha = 0.28 + t * 0.5;
+      const beamTex = fxFrame(this.atlas.fx.lockbeam, this.elapsed, 10);
+      const met = fxFrame(this.atlas.fx.meteor, this.elapsed, 14);
       for (const x of hz.beams) {
-        g.rect(x - HAZARDS.asteroid.beamW / 2, 0, HAZARDS.asteroid.beamW, CANVAS.height)
-          .fill({ color: col, alpha });
-        g.rect(x - 2, 0, 4, CANVAS.height).fill({ color: 0xfef2f2, alpha: 0.35 + t * 0.4 });
+        if (beamTex) {
+          this.blitFx(beamTex, x, CANVAS.height * 0.5, {
+            width: HAZARDS.asteroid.beamW * 1.35,
+            height: CANVAS.height * 1.08,
+            alpha,
+            add: true,
+          });
+        } else {
+          const col = t > 0.7 ? 0xdc2626 : 0xf87171;
+          g.rect(x - HAZARDS.asteroid.beamW / 2, 0, HAZARDS.asteroid.beamW, CANVAS.height)
+            .fill({ color: col, alpha });
+          g.rect(x - 2, 0, 4, CANVAS.height).fill({ color: 0xfef2f2, alpha: 0.35 + t * 0.4 });
+        }
+        if (met) {
+          const fall = hz.phase === 'warn'
+            ? (1 - hz.left / HAZARDS.asteroid.warnSec) * CANVAS.height * 0.35
+            : CANVAS.height * (1 - Math.min(1, hz.left / 0.35));
+          this.blitFx(met, x, fall, {
+            width: HAZARDS.asteroid.beamW * 1.1,
+            height: HAZARDS.asteroid.beamW * 1.55,
+            alpha: 0.75 + t * 0.25,
+          });
+        }
+      }
+    } else if (hz.kind === 'emp' || state.empLeft > 0) {
+      const bolt = fxFrame(this.atlas.fx.emp, this.elapsed, 12);
+      if (bolt) {
+        for (let i = 0; i < 5; i++) {
+          const x = (0.12 + ((Math.sin(this.elapsed * 1.7 + i * 2.1) + 1) * 0.5) * 0.76) * CANVAS.width;
+          const y = (0.1 + ((Math.cos(this.elapsed * 1.3 + i * 1.6) + 1) * 0.5) * 0.8) * CANVAS.height;
+          this.blitFx(bolt, x, y, {
+            rotation: i * 0.7 + this.elapsed * 0.4,
+            width: 90 + (i % 3) * 28,
+            height: 90 + (i % 3) * 28,
+            alpha: 0.28,
+            add: true,
+          });
+        }
       }
     }
   }

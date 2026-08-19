@@ -28,7 +28,15 @@ export type FxId =
   | 'tempest'
   | 'rupture'
   | 'solance'
-  | 'helix';
+  | 'helix'
+  | 'nebula'
+  | 'shieldwall'
+  | 'quantum'
+  | 'altar'
+  | 'shade'
+  | 'lockbeam'
+  | 'meteor'
+  | 'emp';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -91,6 +99,14 @@ export const SPRITE_PATHS = {
     rupture: `${base}/fx_rupture.png`,
     solance: `${base}/fx_solance.png`,
     helix: `${base}/fx_helix.png`,
+    nebula: `${base}/fx_nebula.png`,
+    shieldwall: `${base}/fx_shieldwall.png`,
+    quantum: `${base}/fx_quantum.png`,
+    altar: `${base}/fx_altar.png`,
+    shade: `${base}/fx_shade.png`,
+    lockbeam: `${base}/fx_lockbeam.png`,
+    meteor: `${base}/fx_meteor.png`,
+    emp: `${base}/fx_emp.png`,
   } satisfies Record<FxId, string>,
 } as const;
 

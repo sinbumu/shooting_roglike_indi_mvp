@@ -2,7 +2,7 @@
 
 > 게임 기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 논의할 수 있도록 정리한 문서입니다.  
 > 수치·밸런스는 `src/GameConfig.ts`가 단일 소스입니다.  
-> 마지막 점검: **2026-08-19** — **v1.8.3 전 무기 투사체 스프라이트** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-19** — **v1.8.4 지형·엔드게임 스프라이트** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/
 
@@ -35,6 +35,7 @@
 | 4번째 기체? | **완료** — 붐바르딜로-크로코딜로 · 융단 폭격 ([docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md](./docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md)) |
 | 근접·장판 VFX? | **완료** — 블레이드/지뢰/스웜 계열 2×2 애니메이션 스프라이트 (원뿔 Graphics 폴백) |
 | 탄막 VFX? | **완료** — T1~T3 투사체·솔라 랜스 전용 시트 (v1.8.3) |
+| 지형·재해 VFX? | **완료** — 성운·방벽·퀀텀·제단·태양풍 그늘·운석·EMP 시트 (v1.8.4) |
 | 패치 노트? | **완료** — 격납고 버전 버튼 · 인게임 체인지로그 ([docs/DESIGN_UPDATE_PATCH_NOTES.md](./docs/DESIGN_UPDATE_PATCH_NOTES.md)) |
 | 아직 안 한 것(의도적 보류) | **① 온라인 리더보드·시드 런** · **② 외부 애널리틱스** |
 | (선택) 보류 | 외부 `.mp3`/`.wav` — 지금은 Web Audio 합성만 사용 |
@@ -95,7 +96,8 @@
 - [x] v1.8.0: 격납고 성좌 보드 22노드 · 판테온 포인트 · 만렙 스탯 카드 제거 · 런타임 룰 분기
 - [x] v1.8.1: 4번째 기체 붐바르딜로-크로코딜로 · 융단 폭격
 - [x] v1.8.2: 근접·장판·스웜 애니메이션 스프라이트 (참격 크레센트, 톱날, 후광, 지뢰 5종, 스웜 드론)
-- [x] v1.8.3: 탄막 트리 T1~T3 투사체·솔라 랜스 전용 스프라이트 
+- [x] v1.8.3: 탄막 트리 T1~T3 투사체·솔라 랜스 전용 스프라이트
+- [x] v1.8.4: 지형·엔드게임 기믹 스프라이트 (성운 구름 · 홀로그램 방벽 · 퀀텀 · 제단 · 재해) 
 
 ---
 
@@ -293,5 +295,5 @@
 | [docs/DESIGN_UPDATE_V1_7_5_POLISHING.md](./docs/DESIGN_UPDATE_V1_7_5_POLISHING.md) | v1.7.5 EXP 곡선 · 솔라 랜스 필터 · 결과창 버전 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md](./docs/DESIGN_UPDATE_V1_8_CONSTELLATION_FULL.md) | v1.8 성좌 22노드 · 판테온 포인트 (구현 완료) |
 | [docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md](./docs/DESIGN_UPDATE_NEW_SHIP_BOMBER.md) | 4번째 기체 붐바르딜로-크로코딜로 (구현 완료) |
-| `public/assets/sprites/fx_*.png` | 근접·장판·스웜·탄막 2×2 애니메이션 시트 (v1.8.2~1.8.3) |
+| `public/assets/sprites/fx_*.png` | 무기·지형·엔드게임 2×2 애니메이션 시트 (v1.8.2~1.8.4) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

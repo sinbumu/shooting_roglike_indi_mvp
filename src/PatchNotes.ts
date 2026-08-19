@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.8.4',
+    date: '2026-08-19',
+    changes: [
+      '🌫️ 성운 가스: 단색 타원 대신 반투명 구름 시트가 느리게 흐름',
+      '지형·엔드게임 기믹 스프라이트: 홀로그램 방벽 · 퀀텀 코어 · 공허 제단 · 태양풍 그늘 · 운석 조준/낙하 · EMP 아크',
+    ],
+  },
+  {
     version: 'v1.8.3',
     date: '2026-08-19',
     changes: [

@@ -38,6 +38,14 @@ const SHEETS = [
   { name: 'fx_rupture', tintable: false },
   { name: 'fx_solance', tintable: true },
   { name: 'fx_helix', tintable: false },
+  { name: 'fx_nebula', tintable: false },
+  { name: 'fx_shieldwall', tintable: false },
+  { name: 'fx_quantum', tintable: false },
+  { name: 'fx_altar', tintable: false },
+  { name: 'fx_shade', tintable: false },
+  { name: 'fx_lockbeam', tintable: false },
+  { name: 'fx_meteor', tintable: false },
+  { name: 'fx_emp', tintable: false },
 ];
 
 function magentaAlpha(r, g, b) {
