@@ -1817,10 +1817,15 @@ export class Renderer {
           glow.alpha = spec.add ? 0.55 : 0.7;
         }
         if (trailOk && spec.trail) {
-          const tail = p.radius * (p.boosted ? 5 : 3.2);
+          const crescent = p.weaponId === 'seekingSlash' || p.weaponId === 'phantomBlade';
+          const tail = p.radius * (p.boosted ? 5 : crescent ? 6.2 : 3.2);
           g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
             .lineTo(p.x, p.y)
-            .stroke({ width: p.radius * (p.boosted ? 1.4 : 0.9), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.7 : 0.28 });
+            .stroke({
+              width: p.radius * (p.boosted ? 1.4 : crescent ? 1.15 : 0.9),
+              color: p.boosted ? 0xf8fafc : color,
+              alpha: p.boosted ? 0.7 : crescent ? 0.42 : 0.28,
+            });
         }
         continue;
       }

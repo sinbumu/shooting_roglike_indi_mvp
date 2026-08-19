@@ -111,6 +111,7 @@
 - [x] v1.9.6: 오버로드 군단 폭주 리워크 · 소환 T3 시너지 · 코어 각성 A/B 개편 
 - [x] v1.9.7: 거합도 참격 네모 테두리 제거 · 진동 채찍 장판 파지직 연출 
 - [x] v1.9.8: 혈사포 피분수 연출 
+- [x] v1.9.9: 마그네틱 훅 → 유도 참격 / 환영검무 
 
 ---
 
@@ -148,10 +149,10 @@
 | 3 | `halo` / `cleaver` | 발키리의 후광 / 차원 절단기 | 근접 종결 (rotor+nova / beamSword+laser) |
 | 3 | `predator` / `eventHorizon` | 프레데터 스웜 / 이벤트 호라이즌 | 장판 종결 (seekerMine+swarm / singularity+mothership) |
 | 1 | `plasmaWhip` / `spiderMine` / `bloodSpike` | 플라즈마 채찍 / 스파이더 마인 / 핏빛 쐐기 | 매트릭스 T1 (근접 / 소환 / HP코스트 발사체) |
-| 2 | `orbitalSaw` / `magHook` / `quakeWhip` | 궤도 전기톱 / 마그네틱 훅 / 진동 채찍 | 채찍 트리 |
+| 2 | `orbitalSaw` / `seekingSlash` / `quakeWhip` | 궤도 전기톱 / 유도 참격 / 진동 채찍 | 채찍 트리 |
 | 2 | `interceptorWing` / `autoTurret` / `sawDrone` | 요격기 편대 / 자동 포탑 / 톱니 드론 | 스파이더 트리 |
 | 2 | `drainAura` / `bleedBurst` / `bloodSeeker` | 착취의 오라 / 출혈 폭발 / 피의 추적자 | 핏빛 트리 (쐐기+지뢰=오라) |
-| 3 | `kingSaw` / `gravityAnchor` / `tectonicCutter` | 명왕의 톱니 / 중력 닻 / 지각 절단기 | 채찍 T3 (T2+패시브 촉매) |
+| 3 | `kingSaw` / `phantomBlade` / `tectonicCutter` | 명왕의 톱니 / 환영검무 / 지각 절단기 | 채찍 T3 (T2+패시브 촉매) |
 | 3 | `doomsday` / `orbitalBattery` / `ironMaiden` | 둠스데이 / 궤도 폭격 신호소 / 아이언 메이든 | 스파이더 T3 |
 | 3 | `bloodGallows` / `bloodNova` / `vampireBats` | 선혈의 처형대 / 혈노바 / 흡혈 박쥐 | 핏빛 T3 |
 
@@ -322,6 +323,6 @@
 | [docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md](./docs/DESIGN_UPDATE_V1_9_1_QA_FIXES.md) | v1.9.1 채찍 스윕 판정 · 거합도 VFX (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md](./docs/DESIGN_UPDATE_V1_9_2_UI_HINTS.md) | v1.9.2 레벨업 카드 시너지/진화/조합 힌트 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md](./docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md) | v1.9.3 신규 기체 코어 각성 A/B · 기체 매핑 픽스 (구현 완료) |
-| [docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) | 오버로드 군단 폭주 리워크 (게임 버전 v1.9.6) |
+| [docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) | 마그네틱 훅 → 유도 참격/환영검무 (게임 버전 v1.9.9) |
 | `public/assets/sprites/fx_*.png` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

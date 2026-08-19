@@ -31,10 +31,10 @@ export type WeaponId =
   | 'eventHorizon'
   | 'plasmaWhip'
   | 'orbitalSaw'
-  | 'magHook'
+  | 'seekingSlash'
   | 'quakeWhip'
   | 'kingSaw'
-  | 'gravityAnchor'
+  | 'phantomBlade'
   | 'tectonicCutter'
   | 'spiderMine'
   | 'interceptorWing'
@@ -105,8 +105,6 @@ export interface ProjectileSpec {
     zoneDuration?: number;
     zoneTick?: number;
   };
-  /** 명중 시 적을 플레이어 쪽으로 당김 */
-  pullOnHit?: number;
 }
 
 export type WeaponTag = 'projectile' | 'melee' | 'aura' | 'drop' | 'beam' | 'summon';

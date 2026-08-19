@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.9.9',
+    date: '2026-08-20',
+    changes: [
+      '⚔️ 마그네틱 훅/중력 닻을 폐기하고, 채찍에서 유도 검기가 나가는 유도 참격·환영검무로 교체했습니다',
+      '검기는 0.2초 흩어진 뒤 곡선을 그리며 추적하며, 강제 끌어당기기는 제거했습니다',
+    ],
+  },
+  {
     version: 'v1.9.8',
     date: '2026-08-20',
     changes: [

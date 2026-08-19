@@ -351,14 +351,14 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
       orbit: { count: 2, radius: 60, persist: true },
     },
   },
-  magHook: {
-    id: 'magHook', name: '마그네틱 훅', tier: 2, icon: '🪝', color: '#38bdf8',
-    desc: '[채찍+호밍] 적을 끌어당기는 유도 갈고리',
+  seekingSlash: {
+    id: 'seekingSlash', name: '유도 참격', tier: 2, icon: '🌙', color: '#7dd3fc',
+    desc: '[채찍+호밍] 휘두를 때 유도 검기 2발 사출',
     tags: ['melee'],
-    cooldownMs: 700,
+    cooldownMs: 500,
     projectile: {
-      damage: 22, speed: 520, radius: 7, count: 1, spreadDeg: 0, homingTurnRate: 5.5, pierce: 0, lifetime: 1.8,
-      pullOnHit: 42,
+      damage: 15, speed: 520, radius: 8, count: 2, spreadDeg: 70, homingTurnRate: 0, pierce: 1, lifetime: 1.55,
+      melee: { arcDeg: 70, range: 118, duration: 0.22, deflect: true },
     },
   },
   quakeWhip: {
@@ -382,14 +382,14 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
       orbit: { count: 3, radius: 78, persist: true },
     },
   },
-  gravityAnchor: {
-    id: 'gravityAnchor', name: '중력 닻', tier: 3, icon: '⚓', color: '#67e8f9',
-    desc: '[마그네틱 훅+추진기] 강하게 끌어당기는 닻',
+  phantomBlade: {
+    id: 'phantomBlade', name: '비검: 환영검무', tier: 3, icon: '✨', color: '#e0e7ff',
+    desc: '[유도 참격+추진기] 휘두를 때 유도 검기 12발, 관통 +2',
     tags: ['melee'],
-    cooldownMs: 640,
+    cooldownMs: 480,
     projectile: {
-      damage: 36, speed: 580, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 6.2, pierce: 1, lifetime: 2.0,
-      pullOnHit: 90,
+      damage: 13, speed: 560, radius: 7, count: 12, spreadDeg: 360, homingTurnRate: 0, pierce: 3, lifetime: 1.7,
+      melee: { arcDeg: 78, range: 128, duration: 0.22, deflect: true },
     },
   },
   tectonicCutter: {
@@ -546,10 +546,10 @@ export const RECIPES: Recipe[] = [
   { materials: ['seekerMine', 'swarm'], result: 'predator' },
   { materials: ['singularity', 'mothership'], result: 'eventHorizon' },
   { materials: ['plasmaWhip', 'beamSword'], result: 'orbitalSaw' },
-  { materials: ['plasmaWhip', 'homing'], result: 'magHook' },
+  { materials: ['plasmaWhip', 'homing'], result: 'seekingSlash' },
   { materials: ['plasmaWhip', 'mine'], result: 'quakeWhip' },
   { materials: ['orbitalSaw'], result: 'kingSaw', requirePassive: 'titaniumPlate' },
-  { materials: ['magHook'], result: 'gravityAnchor', requirePassive: 'thrusterMod' },
+  { materials: ['seekingSlash'], result: 'phantomBlade', requirePassive: 'thrusterMod' },
   { materials: ['quakeWhip'], result: 'tectonicCutter', requirePassive: 'highExplosive' },
   { materials: ['spiderMine', 'swarm'], result: 'interceptorWing' },
   { materials: ['spiderMine', 'gatling'], result: 'autoTurret' },
@@ -1434,7 +1434,8 @@ export function isMeleeFamily(id: WeaponId): boolean {
 
 /** 채찍 계열 — 부채 즉발이 아니라 좌→우 스윕 판정 */
 export function isWhipWeapon(id: WeaponId): boolean {
-  return id === 'plasmaWhip' || id === 'quakeWhip' || id === 'tectonicCutter';
+  return id === 'plasmaWhip' || id === 'quakeWhip' || id === 'tectonicCutter'
+    || id === 'seekingSlash' || id === 'phantomBlade';
 }
 
 /** progress 0=호 시작, 1=호 끝. 채찍 끝단 각도 */
@@ -1568,6 +1569,13 @@ export const IAIDO_FX = {
   sweep: 0.38,
   bladeW: 240,
   bladeH: 72,
+} as const;
+
+/** 유도 참격 / 환영검무 검기 */
+export const SEEKING_SLASH = {
+  scatterSec: 0.2,
+  turnRate: 8.6,
+  dmgMul: 0.7,
 } as const;
 
 /** Lv.50 코어 각성 */

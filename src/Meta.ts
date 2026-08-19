@@ -92,6 +92,22 @@ function migrateStageList(ids: string[] | undefined, fallback: StageId[]): Stage
   return out.length ? out : fallback;
 }
 
+function migrateSeenWeapons(ids: string[] | undefined): WeaponId[] {
+  const rename: Record<string, WeaponId> = {
+    magHook: 'seekingSlash',
+    gravityAnchor: 'phantomBlade',
+  };
+  const out: WeaponId[] = [];
+  const seen = new Set<WeaponId>();
+  for (const id of ids ?? []) {
+    const next = rename[id] ?? id;
+    if (seen.has(next) || !(next in WEAPONS)) continue;
+    seen.add(next);
+    out.push(next);
+  }
+  return out;
+}
+
 export function loadMeta(): MetaSave {
   try {
     // v1 → v2 마이그레이션
@@ -129,7 +145,7 @@ export function loadMeta(): MetaSave {
       unlockedProjSkins: parsed.unlockedProjSkins ?? [],
       equippedShipSkins: parsed.equippedShipSkins ?? {},
       equippedProjSkins: parsed.equippedProjSkins ?? {},
-      seenWeapons: parsed.seenWeapons ?? [],
+      seenWeapons: migrateSeenWeapons(parsed.seenWeapons),
       unlockedDrones: parsed.unlockedDrones ?? [],
       selectedDrone: parsed.selectedDrone && (parsed.unlockedDrones ?? []).includes(parsed.selectedDrone)
         ? parsed.selectedDrone

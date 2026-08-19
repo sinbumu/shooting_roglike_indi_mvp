@@ -14,7 +14,7 @@ import {
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
   isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
-  CORE_AWAKENINGS, PERF,
+  CORE_AWAKENINGS, PERF, SEEKING_SLASH,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -69,7 +69,8 @@ export interface Projectile {
   originY?: number;
   /** 단방향 쉴드 통과 강화 */
   boosted?: boolean;
-  pullOnHit?: number;
+  /** 유도 검기: 흩어진 뒤 추적 시작까지 */
+  seekDelay?: number;
 }
 
 export interface Beam {
@@ -1455,16 +1456,6 @@ export class GameState {
     if (frac) this.leechHp(frac);
   }
 
-  private pullEnemyTowardPlayer(e: Enemy, amount: number): void {
-    const dx = this.playerX - e.x;
-    const dy = this.playerY - e.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const step = Math.min(amount, dist - 4);
-    if (step <= 0) return;
-    e.x += (dx / dist) * step;
-    e.y += (dy / dist) * step;
-  }
-
   private meleeWeaponLevelSum(): number {
     let sum = 0;
     for (const slot of this.weapons) {
@@ -1753,7 +1744,7 @@ export class GameState {
     affix?: AffixId; noSplit?: boolean; pierceHits?: number;
     explodeRadius?: number; shieldPierce?: boolean; ignoreShield?: boolean;
     weaponId?: WeaponId; orbitAngle?: number; orbitRadius?: number; orbitOmega?: number;
-    originX?: number; originY?: number; boosted?: boolean; pullOnHit?: number;
+    originX?: number; originY?: number; boosted?: boolean; seekDelay?: number;
     copyHits?: Set<number>;
   }): Projectile {
     const p = this.projPool.pop() ?? {
@@ -1789,7 +1780,7 @@ export class GameState {
     p.originX = init.originX;
     p.originY = init.originY;
     p.boosted = init.boosted;
-    p.pullOnHit = init.pullOnHit;
+    p.seekDelay = init.seekDelay ?? 0;
     this.projectiles.push(p);
     return p;
   }
@@ -1866,6 +1857,46 @@ export class GameState {
       color,
       shieldPierce: true,
     });
+  }
+
+  private fireSeekingCrescents(
+    slot: WeaponSlot,
+    damage: number,
+    color: string,
+    sizeMul: number,
+    baseAngle: number,
+    range: number,
+  ): void {
+    if (slot.weaponId !== 'seekingSlash' && slot.weaponId !== 'phantomBlade') return;
+    const spec = WEAPONS[slot.weaponId].projectile;
+    const n = spec.count;
+    const originX = this.playerX + Math.cos(baseAngle) * (PLAYER.radius + Math.min(28, range * 0.22));
+    const originY = this.playerY + Math.sin(baseAngle) * (PLAYER.radius + Math.min(28, range * 0.22));
+    const spd = Math.min(HOMING.maxSpeed, spec.speed * this.runStats.projSpeedMul * this.passiveProjMul);
+    const burst = slot.weaponId === 'phantomBlade';
+    for (let i = 0; i < n; i++) {
+      const ang = burst
+        ? (Math.PI * 2 * i) / n + (Math.random() - 0.5) * 0.4
+        : baseAngle + (Math.random() - 0.5) * 1.5;
+      this.acquireProjectile({
+        x: originX,
+        y: originY,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd,
+        speed: spd,
+        baseSpeed: spec.speed,
+        damage: damage * SEEKING_SLASH.dmgMul,
+        radius: spec.radius * sizeMul,
+        homingTurnRate: SEEKING_SLASH.turnRate,
+        pierceLeft: spec.pierce,
+        life: spec.lifetime,
+        color,
+        affix: slot.affix,
+        shieldPierce: true,
+        weaponId: slot.weaponId,
+        seekDelay: SEEKING_SLASH.scatterSec,
+      });
+    }
   }
 
   private zoneMoveMulAt(x: number, y: number): number {
@@ -2043,6 +2074,7 @@ export class GameState {
         x: this.playerX, y: this.playerY - PLAYER.radius,
         color, weaponId: slot.weaponId, angle: baseAngle, arcDeg, range,
       });
+      this.fireSeekingCrescents(slot, damage, color, sizeMul, baseAngle, range);
       return;
     }
 
@@ -2202,7 +2234,6 @@ export class GameState {
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
         ignoreShield: p.ignoreShield,
         weaponId: slot.weaponId,
-        pullOnHit: p.pullOnHit,
       });
       if (p.spiral) {
         proj.orbitAngle = angle;
@@ -3675,8 +3706,10 @@ export class GameState {
         continue;
       }
 
-      // 유도
-      if (p.homingTurnRate > 0 && this.enemies.length > 0) {
+      // 유도 (검기는 0.2초 흩어진 뒤 추적)
+      if (p.seekDelay && p.seekDelay > 0) {
+        p.seekDelay = Math.max(0, p.seekDelay - dt);
+      } else if (p.homingTurnRate > 0 && this.enemies.length > 0) {
         const target = this.nearestEnemy(p.x, p.y, p.hitIds);
         if (target) {
           const cur = Math.atan2(p.vy, p.vx);
@@ -3733,7 +3766,6 @@ export class GameState {
           if (this.rollCrit()) dmg *= this.runStats.critMul;
           this.damageEnemy(e, dmg, p.weaponId);
           this.onWeaponHit(p.weaponId, e);
-          if (p.pullOnHit) this.pullEnemyTowardPlayer(e, p.pullOnHit);
           if (p.explodeRadius) this.explodeProjectile(p, e);
 
           if (p.affix === 'chain') {
