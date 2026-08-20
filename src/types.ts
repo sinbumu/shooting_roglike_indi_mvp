@@ -243,6 +243,8 @@ export type PassiveId =
   | 'titaniumPlate' | 'thrusterMod' | 'highExplosive' | 'quantumCell' | 'extendedMag'
   | 'nanoPlate' | 'regenModule' | 'critLens' | 'accelMotor';
 
+export type PassiveTag = 'survival' | 'utility' | 'offense';
+
 export interface PassiveDef {
   id: PassiveId;
   name: string;
@@ -256,6 +258,8 @@ export interface PassiveDef {
   hpMul?: number;
   /** 있으면 무기 쿨타임에 곱함 */
   cooldownMul?: number;
+  /** 운명 성좌 가중치용 */
+  tags?: PassiveTag[];
 }
 
 export type MetaUpgradeId =
@@ -293,6 +297,7 @@ export type AchievementId =
   | 'elite_hunter'
   | 'rift_clear'
   | 'legion_clear'
+  | 'blitz_clear'
   | 'challenge_clear';
 
 export interface AchievementDef {
@@ -303,7 +308,7 @@ export interface AchievementDef {
   reward: number;
 }
 
-export type StageId = 'orbit' | 'rift' | 'legion';
+export type StageId = 'orbit' | 'rift' | 'legion' | 'blitz';
 
 export interface StoryBeat {
   /** 경과 초 */
@@ -327,6 +332,10 @@ export interface StageDef {
   bossRoster: readonly EnemyId[];
   story: StoryBeat[];
   clearCreditMul: number;
+  /** 클리어 시 판테온 포인트 고정 지급 */
+  clearPantheon?: number;
+  /** 경험치 획득 배율 (심연 강하 등) */
+  expMultiplier?: number;
 }
 
 export type ChallengeId = 'standard' | 'tight' | 'fragile' | 'bare';
@@ -477,7 +486,7 @@ export interface LevelUpChoice {
 // 성좌 (v1.8)
 // ------------------------------------------------------------
 
-export type ConstellationCategory = 'stage' | 'elite' | 'rule' | 'risk' | 'sink';
+export type ConstellationCategory = 'stage' | 'elite' | 'rule' | 'risk' | 'sink' | 'fate';
 
 export type ConstellationId =
   | 'voidPredator'
@@ -501,7 +510,13 @@ export type ConstellationId =
   | 'endlessAbyss'
   | 'fateWheel'
   | 'altarFrenzy'
-  | 'infiniteOrbit';
+  | 'infiniteOrbit'
+  | 'fateMelee'
+  | 'fateSummon'
+  | 'fateProjectile'
+  | 'fateSurvival'
+  | 'fateUtility'
+  | 'fateOffense';
 
 export interface ConstellationDef {
   id: ConstellationId;

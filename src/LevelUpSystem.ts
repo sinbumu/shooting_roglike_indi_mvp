@@ -1,10 +1,12 @@
 import type {
   LevelUpChoice, WeaponId, PassiveId, AffixId, StatBoostId, TacticalId, CraftOp, ShipId,
+  WeaponTag, PassiveTag,
 } from './types';
 import {
   WEAPONS, RECIPES, LEVELING, HEAL_CARD_RATIO, HEAL_CARD_WEIGHT, PASSIVES,
   ENDGAME, TACTICAL, AFFIXES, ARSENAL, T1_DUPLICATE_CAP, SHIPS, VOID_ALTAR, PLAYER,
   compatibleAffixes, isTickWeapon, weaponTags, shipSpecialtyTags, CORE_AWAKENINGS,
+  CONSTELLATION_FX,
 } from './GameConfig';
 import type { GameState, WeaponSlot } from './GameState';
 
@@ -70,6 +72,34 @@ function pickWeighted(pool: LevelUpChoice[]): LevelUpChoice | null {
     }
   }
   return pool.splice(picked, 1)[0];
+}
+
+function fateWeaponIds(choice: LevelUpChoice): WeaponId[] {
+  if (choice.kind === 'merge' && choice.resultId) return [choice.resultId as WeaponId];
+  return (choice.weaponIds ?? []) as WeaponId[];
+}
+
+function applyFateWeights(state: GameState, pool: LevelUpChoice[]): void {
+  const mul = CONSTELLATION_FX.fateWeightMul;
+  for (const c of pool) {
+    if (c.weight <= 0) continue;
+    if (c.kind === 'jackpot' || c.kind === 'heal' || c.kind === 'awakening') continue;
+    const tags = new Set<WeaponTag>();
+    for (const id of fateWeaponIds(c)) {
+      if (!(id in WEAPONS)) continue;
+      for (const t of weaponTags(WEAPONS[id])) tags.add(t);
+    }
+    if (state.hasNode('fateMelee') && tags.has('melee')) c.weight *= mul;
+    if (state.hasNode('fateSummon') && tags.has('summon')) c.weight *= mul;
+    if (state.hasNode('fateProjectile') && tags.has('projectile')) c.weight *= mul;
+    const pid = c.passiveId;
+    if (pid) {
+      const ptags = (PASSIVES[pid].tags ?? []) as PassiveTag[];
+      if (state.hasNode('fateSurvival') && ptags.includes('survival')) c.weight *= mul;
+      if (state.hasNode('fateUtility') && ptags.includes('utility')) c.weight *= mul;
+      if (state.hasNode('fateOffense') && ptags.includes('offense')) c.weight *= mul;
+    }
+  }
 }
 
 function buildEndgamePool(state: GameState): LevelUpChoice[] {
@@ -367,6 +397,8 @@ export function generateChoices(state: GameState): LevelUpChoice[] {
   if (state.awakeningDue && !state.coreAwakened) {
     return awakeningChoices(state.shipId);
   }
+
+  applyFateWeights(state, pool);
 
   const choices: LevelUpChoice[] = [];
   const useEndgame = pool.length === 0;

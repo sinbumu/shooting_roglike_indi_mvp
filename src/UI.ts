@@ -968,7 +968,12 @@ export class UI {
     this.clearFocus();
   }
 
-  private resultHtml(state: GameState, creditsGained: number, newAchv: AchievementId[]): string {
+  private resultHtml(
+    state: GameState,
+    creditsGained: number,
+    newAchv: AchievementId[],
+    pantheonGained = 0,
+  ): string {
     const m = Math.floor(state.time / 60).toString().padStart(2, '0');
     const s = Math.floor(state.time % 60).toString().padStart(2, '0');
     const best = this.meta?.bestScore ?? state.score;
@@ -994,15 +999,20 @@ export class UI {
       }).join('')}</div>`;
     return `
       점수 <b>${state.score.toLocaleString()}</b>${isNew ? ' <span class="new-record">🎉 신기록!</span>' : ''}<br/>
-      최고 기록 <b>${best.toLocaleString()}</b> · 획득 크레딧 <b>+${creditsGained}</b><br/>
+      최고 기록 <b>${best.toLocaleString()}</b> · 획득 크레딧 <b>+${creditsGained}</b> · 판테온 <b>+${pantheonGained}</b><br/>
       생존 <b>${m}:${s}</b> · 처치 <b>${state.kills}</b> · Lv.<b>${state.level}</b><br/>
       ${STAGES[state.stageId].icon}${STAGES[state.stageId].name} · ${CHALLENGES[state.challengeId].icon}${CHALLENGES[state.challengeId].name}${achvLine}
       ${meter}
     `;
   }
 
-  showGameOver(state: GameState, creditsGained: number, newAchv: AchievementId[]): void {
-    this.gameoverStats.innerHTML = this.resultHtml(state, creditsGained, newAchv);
+  showGameOver(
+    state: GameState,
+    creditsGained: number,
+    newAchv: AchievementId[],
+    pantheonGained = 0,
+  ): void {
+    this.gameoverStats.innerHTML = this.resultHtml(state, creditsGained, newAchv, pantheonGained);
     this.gameoverOverlay.classList.remove('hidden');
     this.setFocusGroup([document.getElementById('restart-btn') as HTMLButtonElement]);
   }
@@ -1012,8 +1022,13 @@ export class UI {
     this.clearFocus();
   }
 
-  showVictory(state: GameState, creditsGained: number, newAchv: AchievementId[]): void {
-    this.victoryStats.innerHTML = this.resultHtml(state, creditsGained, newAchv);
+  showVictory(
+    state: GameState,
+    creditsGained: number,
+    newAchv: AchievementId[],
+    pantheonGained = 0,
+  ): void {
+    this.victoryStats.innerHTML = this.resultHtml(state, creditsGained, newAchv, pantheonGained);
     this.victoryOverlay.classList.remove('hidden');
     this.setFocusGroup([document.getElementById('victory-restart-btn') as HTMLButtonElement]);
   }

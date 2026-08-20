@@ -900,7 +900,7 @@ export class GameState {
     this.magnetRadius = this.baseMagnet * magnetMul;
     this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul * this.passiveMoveMul;
     this.armorReduce = Math.min(0.7, armor);
-    this.expMul = this.baseExpMul * stormExp;
+    this.expMul = this.baseExpMul * stormExp * (STAGES[this.stageId].expMultiplier ?? 1);
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
     if (this.hasNode('glassCannon')) this.damageMul *= CONSTELLATION_FX.glassDmgMul;
     if (this.hasNode('overloadGear')) {

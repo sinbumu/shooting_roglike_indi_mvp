@@ -330,7 +330,7 @@ export function settleRun(
   meta: MetaSave,
   state: GameState,
   cleared: boolean,
-): { newly: AchievementId[]; creditsGained: number } {
+): { newly: AchievementId[]; creditsGained: number; pantheonGained: number } {
   const stage = STAGES[state.stageId];
   const creditMul = (state.creditMul || 1) * (cleared ? stage.clearCreditMul : 1);
 
@@ -356,14 +356,16 @@ export function settleRun(
   }
 
   meta.bossCores += state.bossKills + Math.max(0, state.runCoreBonus || 0);
-  meta.pantheonPoints += Math.max(0, state.pantheonEarned || 0);
+  const clearPts = cleared ? (stage.clearPantheon ?? 0) : 0;
+  const pantheonGained = Math.max(0, state.pantheonEarned || 0) + clearPts;
+  meta.pantheonPoints += pantheonGained;
 
   const creditsGained = baseGain + achvReward + Math.floor(state.runCreditBonus || 0);
   meta.credits += creditsGained;
   if (state.score > meta.bestScore) meta.bestScore = state.score;
   mergeSeenWeapons(meta, [...state.seenThisRun]);
   saveMeta(meta);
-  return { newly, creditsGained };
+  return { newly, creditsGained, pantheonGained };
 }
 
 function evaluateAchievements(
@@ -383,6 +385,7 @@ function evaluateAchievements(
   tryUnlock('clear_mission', cleared && state.stageId === 'orbit');
   tryUnlock('rift_clear', cleared && state.stageId === 'rift');
   tryUnlock('legion_clear', cleared && state.stageId === 'legion');
+  tryUnlock('blitz_clear', cleared && state.stageId === 'blitz');
   tryUnlock('challenge_clear', cleared && state.challengeId !== 'standard');
   tryUnlock('boss_slayer', state.bossKills >= 1);
   tryUnlock('combo_20', state.maxCombo >= 20);

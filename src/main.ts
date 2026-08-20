@@ -198,12 +198,12 @@ function openAltarRewardUI(): void {
 function endRun(cleared: boolean): void {
   if (runSettled) return;
   runSettled = true;
-  const { newly, creditsGained } = settleRun(meta, state, cleared);
+  const { newly, creditsGained, pantheonGained } = settleRun(meta, state, cleared);
   meta = loadMeta();
   ui.setMeta(meta);
   if (newly.length) ui.showAchievementToast(newly);
-  if (cleared) ui.showVictory(state, creditsGained, newly);
-  else ui.showGameOver(state, creditsGained, newly);
+  if (cleared) ui.showVictory(state, creditsGained, newly, pantheonGained);
+  else ui.showGameOver(state, creditsGained, newly, pantheonGained);
 }
 
 function processEvents(): void {

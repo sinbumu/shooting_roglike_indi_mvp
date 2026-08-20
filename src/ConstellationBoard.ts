@@ -20,19 +20,20 @@ interface Spark {
   size: number;
 }
 
-const DEG72 = (Math.PI * 2) / 5;
 const CORE_R = 22;
 const STEP = 78;
 const NODE_R = 16;
 
-/** 중심에서 시계 반대, 위쪽부터 5갈래 */
+/** 중심에서 시계 반대, 위쪽부터 갈래 */
 const BRANCHES: { ids: ConstellationId[][] }[] = [
   { ids: [['voidPredator'], ['disasterEye'], ['traitorLegion']] },
   { ids: [['shieldBreaker'], ['deathArena'], ['twinDread', 'hunterToy']] },
   { ids: [['spacetime'], ['overloadGear'], ['purist', 'sniper', 'berserker', 'pacifist']] },
   { ids: [['greed'], ['glassCannon'], ['bloodFeast'], ['giantMarch'], ['darkFog']] },
   { ids: [['endlessAbyss'], ['fateWheel'], ['altarFrenzy'], ['infiniteOrbit']] },
+  { ids: [['fateMelee', 'fateSummon', 'fateProjectile'], ['fateSurvival', 'fateUtility', 'fateOffense']] },
 ];
+const DEG = (Math.PI * 2) / BRANCHES.length;
 
 function hexAlpha(color: string, a: number): string {
   const n = parseInt(color.slice(1), 16);
@@ -45,7 +46,7 @@ function hexAlpha(color: string, a: number): string {
 function layoutNodes(): NodePos[] {
   const out: NodePos[] = [];
   for (let b = 0; b < BRANCHES.length; b++) {
-    const base = -Math.PI / 2 + b * DEG72;
+    const base = -Math.PI / 2 + b * DEG;
     BRANCHES[b].ids.forEach((group, depth) => {
       const dist = STEP * (depth + 1);
       const n = group.length;

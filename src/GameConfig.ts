@@ -837,67 +837,83 @@ export const PASSIVES: Record<PassiveId, PassiveDef> = {
   evasion: {
     id: 'evasion', name: '소형화', icon: '🪶', color: '#67e8f9',
     desc: '피격 판정 -8% 감소', perLevel: 0.08, maxLevel: 5,
+    tags: ['survival'],
   },
   cripple: {
     id: 'cripple', name: '구속장', icon: '🕸️', color: '#c084fc',
     desc: '적 이동 속도 -4% 감소', perLevel: 0.04, maxLevel: 5,
+    tags: ['utility'],
   },
   aegis: {
     id: 'aegis', name: '레벨업 쉴드', icon: '🛡️', color: '#86efac',
     desc: '레벨업 시 짧은 피해 감소 보호막', perLevel: 0.1, maxLevel: 5,
+    tags: ['survival'],
   },
   plating: {
     id: 'plating', name: '반응장갑', icon: '🧱', color: '#94a3b8',
     desc: '받는 피해 -8% 감소', perLevel: 0.08, maxLevel: 4,
+    tags: ['survival'],
   },
   collector: {
     id: 'collector', name: '수집 모듈', icon: '📗', color: '#4ade80',
     desc: '경험치 획득량 +15% 증가', perLevel: 0.15, maxLevel: 5,
+    tags: ['utility'],
   },
   overcharge: {
     id: 'overcharge', name: '과충전', icon: '💢', color: '#fbbf24',
     desc: '모든 무기 데미지 +12% 증가', perLevel: 0.12, maxLevel: 5,
+    tags: ['offense'],
   },
   overload: {
     id: 'overload', name: '과부하 코어', icon: '☢️', color: '#f97316',
     desc: '쿨타임 30% 감소, 최대 체력 40% 감소',
     perLevel: 0, maxLevel: 1, hpMul: 0.6, cooldownMul: 0.7,
+    tags: ['offense'],
   },
   titaniumPlate: {
     id: 'titaniumPlate', name: '티타늄 장갑', icon: '🛡️', color: '#cbd5e1',
     desc: '최대 체력 +12%', perLevel: 0.12, maxLevel: 5,
+    tags: ['survival'],
   },
   thrusterMod: {
     id: 'thrusterMod', name: '추진기', icon: '🚀', color: '#7dd3fc',
     desc: '이동 속도 +6%', perLevel: 0.06, maxLevel: 5,
+    tags: ['utility'],
   },
   highExplosive: {
     id: 'highExplosive', name: '고폭약', icon: '💣', color: '#fb923c',
     desc: '폭발/타격 반경 +10%', perLevel: 0.1, maxLevel: 5,
+    tags: ['offense'],
   },
   quantumCell: {
     id: 'quantumCell', name: '양자 배터리', icon: '🔋', color: '#a78bfa',
     desc: '무기 쿨타임 8% 감소', perLevel: 0.08, maxLevel: 5,
+    tags: ['utility'],
   },
   extendedMag: {
     id: 'extendedMag', name: '확장 탄창', icon: '📦', color: '#facc15',
     desc: '투사체 발사 수 증가', perLevel: 0.4, maxLevel: 5,
+    tags: ['utility'],
   },
   nanoPlate: {
     id: 'nanoPlate', name: '나노 장갑', icon: '🧱', color: '#86efac',
     desc: '받는 피해 -6% 감소', perLevel: 0.06, maxLevel: 5,
+    tags: ['survival'],
   },
   regenModule: {
     id: 'regenModule', name: '재생 모듈', icon: '💚', color: '#4ade80',
     desc: '초당 최대 체력 0.4% 회복', perLevel: 0.004, maxLevel: 5,
+    tags: ['survival'],
   },
   critLens: {
     id: 'critLens', name: '치명타 렌즈', icon: '🎯', color: '#fbbf24',
     desc: '치명타 확률 +4%p', perLevel: 0.04, maxLevel: 5,
+    tags: ['offense'],
   },
   accelMotor: {
     id: 'accelMotor', name: '가속 모터', icon: '⚡', color: '#38bdf8',
     desc: '투사체 속도 +8%', perLevel: 0.08, maxLevel: 5,
+    tags: ['offense'],
   },
 };
 
@@ -985,6 +1001,7 @@ export const ACHIEVEMENTS: Record<AchievementId, AchievementDef> = {
   elite_hunter: { id: 'elite_hunter', name: '엘리트 헌터', desc: '엘리트 적 처치', icon: '👑', reward: 200 },
   rift_clear: { id: 'rift_clear', name: '균열 돌파', desc: '공허 균열 클리어', icon: '🕳️', reward: 700 },
   legion_clear: { id: 'legion_clear', name: '군단 격파', desc: '군단장의 성역 클리어', icon: '👑', reward: 900 },
+  blitz_clear: { id: 'blitz_clear', name: '심연 강하', desc: '심연 강하 클리어', icon: '☄️', reward: 900 },
   challenge_clear: { id: 'challenge_clear', name: '도전자', desc: '표준 외 도전 모드로 클리어', icon: '🎖️', reward: 450 },
 };
 
@@ -1225,6 +1242,7 @@ export const CONSTELLATION_CAT_COLOR: Record<ConstellationDef['category'], strin
   rule: '#c084fc',
   risk: '#f87171',
   sink: '#facc15',
+  fate: '#e879f9',
 };
 
 export const CONSTELLATION: Record<ConstellationId, ConstellationDef> = {
@@ -1360,6 +1378,42 @@ export const CONSTELLATION: Record<ConstellationId, ConstellationDef> = {
     reward: '투자마다 투속 +2% · 기동 +3% · 치명 배율 +5%',
     cost: 1, prereq: 'altarFrenzy', repeatable: true,
   },
+  fateMelee: {
+    id: 'fateMelee', category: 'fate', name: '운명: 근접 덱', icon: '⚔', color: '#e879f9',
+    penalty: '다른 계열 무기 카드가 상대적으로 덜 뜹니다',
+    reward: '근접 태그 무기 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  fateSummon: {
+    id: 'fateSummon', category: 'fate', name: '운명: 소환 덱', icon: '🛸', color: '#e879f9',
+    penalty: '다른 계열 무기 카드가 상대적으로 덜 뜹니다',
+    reward: '소환 태그 무기 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  fateProjectile: {
+    id: 'fateProjectile', category: 'fate', name: '운명: 투사체', icon: '🔫', color: '#e879f9',
+    penalty: '다른 계열 무기 카드가 상대적으로 덜 뜹니다',
+    reward: '투사체 태그 무기 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  fateSurvival: {
+    id: 'fateSurvival', category: 'fate', name: '운명: 생존', icon: '🛡', color: '#e879f9',
+    penalty: '다른 계열 패시브 카드가 상대적으로 덜 뜹니다',
+    reward: '생존 태그 패시브 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  fateUtility: {
+    id: 'fateUtility', category: 'fate', name: '운명: 유틸', icon: '🧰', color: '#e879f9',
+    penalty: '다른 계열 패시브 카드가 상대적으로 덜 뜹니다',
+    reward: '유틸 태그 패시브 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  fateOffense: {
+    id: 'fateOffense', category: 'fate', name: '운명: 공격', icon: '💥', color: '#e879f9',
+    penalty: '다른 계열 패시브 카드가 상대적으로 덜 뜹니다',
+    reward: '공격 태그 패시브 선택지 가중치 ×3',
+    cost: 1, prereq: null, repeatable: false,
+  },
 };
 
 export const CONSTELLATION_FX = {
@@ -1411,6 +1465,7 @@ export const CONSTELLATION_FX = {
   orbitSpeed: 0.02,
   orbitMove: 0.03,
   orbitCrit: 0.05,
+  fateWeightMul: 3,
 } as const;
 
 export function constellationUnlockCost(id: ConstellationId, currentLevel: number): number {
@@ -1967,6 +2022,26 @@ const LEGION_WAVES: Wave[] = [
   ] },
 ];
 
+const BLITZ_WAVES: Wave[] = [
+  { from: 0, to: Infinity, entries: [{ enemy: 'drone', interval: 0.33 }] },
+  { from: 8, to: Infinity, entries: [{ enemy: 'zigzag', interval: 0.72 }] },
+  { from: 18, to: Infinity, entries: [{ enemy: 'dasher', interval: 1.35 }] },
+  { from: 30, to: Infinity, entries: [{ enemy: 'rusher', interval: 1.8 }] },
+  { from: 42, to: Infinity, entries: [{ enemy: 'tank', interval: 2.7 }] },
+  { from: 70, to: Infinity, entries: [{ enemy: 'drone', interval: 0.27 }, { enemy: 'dasher', interval: 1.5 }] },
+  { from: 100, to: Infinity, entries: [
+    { enemy: 'shielder', interval: 2.16 },
+    { enemy: 'teleporter', interval: 2.04 },
+    { enemy: 'mirage', interval: 2.4 },
+    { enemy: 'guardian', interval: 5.4 },
+    { enemy: 'drone', interval: 0.48, mutation: 'explode' },
+    { enemy: 'zigzag', interval: 1.02, mutation: 'split' },
+    { enemy: 'tank', interval: 4.2, mutation: 'burst' },
+    { enemy: 'trapper', interval: 6.0 },
+    { enemy: 'vortex', interval: 6.6 },
+  ] },
+];
+
 export const STAGES: Record<StageId, StageDef> = {
   orbit: {
     id: 'orbit', name: '궤도 방벽', icon: '🛰️', color: '#7dd3fc',
@@ -1977,6 +2052,7 @@ export const STAGES: Record<StageId, StageDef> = {
     bossTimes: [75, 165, 255],
     bossRoster: ['boss', 'bossSeraph', 'boss'],
     clearCreditMul: 1,
+    clearPantheon: 1,
     story: [
       { at: 0, text: '궤도 방벽 방어 개시. 생존 시간 5분.' },
       { at: 30, text: '적 함대 밀도 상승. 빌드를 서두르세요.' },
@@ -1995,6 +2071,7 @@ export const STAGES: Record<StageId, StageDef> = {
     bossTimes: [45, 120, 210],
     bossRoster: ['boss', 'bossSeraph', 'boss'],
     clearCreditMul: 1.25,
+    clearPantheon: 2,
     story: [
       { at: 0, text: '균열 너머. 귀환 좌표는 확보되지 않았습니다.' },
       { at: 40, text: '조기 보스 경보! 대비하세요.' },
@@ -2012,12 +2089,32 @@ export const STAGES: Record<StageId, StageDef> = {
     bossTimes: [70, 200, 340],
     bossRoster: ['boss', 'bossSeraph', 'boss'],
     clearCreditMul: 1.5,
+    clearPantheon: 3,
     story: [
       { at: 0, text: '군단장의 성역. 생존 시간 7분. 패널티는 처치해도 남습니다.' },
       { at: 55, text: '첫 군단장 접근. 방어·무리·기술 중 하나가 옵니다.' },
       { at: 68, text: '드레드노트급 반응. 군단장과 겹치지 않게.' },
       { at: 195, text: '성역 심부. 누적 패널티를 계산하세요.' },
       { at: 330, text: '마지막 파도. 여기서 끝내십시오.' },
+    ],
+  },
+  blitz: {
+    id: 'blitz', name: '심연 강하', icon: '☄️', color: '#c084fc',
+    desc: '3분 압축 파밍. 경험치 3배 · 크레딧 2배 · 판테온 3pt.',
+    unlockAfter: 'legion',
+    victoryTime: 180,
+    bgTop: 0x12081f, bgBottom: 0x05030c,
+    waves: BLITZ_WAVES,
+    bossTimes: [60, 120, 168],
+    bossRoster: ['boss', 'bossSeraph', 'boss'],
+    clearCreditMul: 2,
+    clearPantheon: 3,
+    expMultiplier: 3,
+    story: [
+      { at: 0, text: '심연 강하. 3분 안에 풀빌드를 완성하십시오. 경험치 3배.' },
+      { at: 55, text: '첫 보스. 빌드가 늦으면 밀립니다.' },
+      { at: 100, text: '엘리트 파도. 거미줄과 트래퍼에 주의.' },
+      { at: 160, text: '마지막 보스. 강하 종료까지 얼마 남지 않았습니다.' },
     ],
   },
 };
