@@ -228,12 +228,78 @@ function fxBlood() {
   }));
 }
 
+function star(png, x, y, r) {
+  disk(png, x, y, r, 255, 255, 255);
+  line(png, x - r * 1.8, y, x + r * 1.8, y, 1.15, 255, 255, 255);
+  line(png, x, y - r * 1.8, x, y + r * 1.8, 1.15, 255, 255, 255);
+}
+
+/** +X 방향 초승달 검기. 프레임은 맥동·잔상 루프 */
+function crescentBlade(png, frame, { double = false, sparks = false } = {}) {
+  const c = 128;
+  const pulse = 1 + frame * 0.04;
+  const span = 1.02 + frame * 0.07;
+  const R = 74 * pulse;
+  const cx = c - 10;
+  const cy = c;
+  const n = 58;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const a = -span + span * 2 * t;
+    const x = cx + Math.cos(a) * R;
+    const y = cy + Math.sin(a) * R;
+    const mid = Math.sin(t * Math.PI);
+    const w = (6.6 + frame * 1.05) * (0.32 + 0.9 * mid);
+    disk(png, x, y, w + 2.4, 210, 228, 255);
+    disk(png, x, y, w, 248, 250, 255);
+    disk(png, x, y, w * 0.36, 255, 255, 255);
+  }
+  if (double) {
+    const R2 = R * 0.58;
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40;
+      const a = -span * 0.82 + span * 1.64 * t;
+      const x = cx + 12 + Math.cos(a) * R2;
+      const y = cy + Math.sin(a) * R2;
+      const mid = Math.sin(t * Math.PI);
+      disk(png, x, y, 1.4 + 3.2 * mid, 255, 255, 255);
+    }
+  }
+  const tipX = cx + R;
+  disk(png, tipX, cy, 5.5 + frame * 1.2, 255, 255, 255);
+  if (frame >= 2) disk(png, tipX + 10, cy, 9, 236, 246, 255);
+  const motes = sparks ? 9 : 3 + frame;
+  for (let k = 0; k < motes; k++) {
+    const back = 14 + k * 10;
+    const wobble = Math.sin(frame * 1.25 + k * 1.6) * (8 + k * 1.4);
+    disk(png, c - back, c + wobble, sparks ? 2.7 : 2.1, 255, 255, 255);
+  }
+  if (sparks) {
+    for (let s = 0; s < 6; s++) {
+      const ang = -1.05 + s * 0.42 + frame * 0.18;
+      star(png, c + Math.cos(ang) * 18 - 6, c + Math.sin(ang) * 34, 3.2 + (s % 2));
+    }
+  }
+}
+
+function fxSeekingSlash() {
+  write('fx_seekingSlash_raw.png', fxSheet((png, frame) => crescentBlade(png, frame)));
+}
+
+function fxPhantomBlade() {
+  write('fx_phantomBlade_raw.png', fxSheet((png, frame) => {
+    crescentBlade(png, frame, { double: true, sparks: true });
+  }));
+}
+
 shipYaksha();
 shipOverlord();
 shipCrimson();
 fxWhip();
 fxSpider();
 fxBlood();
+fxSeekingSlash();
+fxPhantomBlade();
 
 function chromaKeyAndResize(inputName, outName, size = 128) {
   const png = PNG.sync.read(readFileSync(path.join(rawDir, inputName)));

@@ -55,6 +55,8 @@ const SHEETS = [
   { name: 'fx_whip', tintable: true },
   { name: 'fx_spider', tintable: false },
   { name: 'fx_blood', tintable: true },
+  { name: 'fx_seekingSlash', tintable: true },
+  { name: 'fx_phantomBlade', tintable: true },
 ];
 
 function magentaAlpha(r, g, b) {

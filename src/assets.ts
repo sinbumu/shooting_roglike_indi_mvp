@@ -45,7 +45,9 @@ export type FxId =
   | 'frontshield'
   | 'whip'
   | 'spider'
-  | 'blood';
+  | 'blood'
+  | 'seekingSlash'
+  | 'phantomBlade';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -128,6 +130,8 @@ export const SPRITE_PATHS = {
     whip: `${base}/fx_whip.png`,
     spider: `${base}/fx_spider.png`,
     blood: `${base}/fx_blood.png`,
+    seekingSlash: `${base}/fx_seekingSlash.png`,
+    phantomBlade: `${base}/fx_phantomBlade.png`,
   } satisfies Record<FxId, string>,
 } as const;
 
@@ -160,8 +164,8 @@ export const PROJ_FX: Partial<Record<WeaponId, ProjFxDraw>> = {
   rupture: { fx: 'rupture', sizeMul: 4.9, elong: 1.4, fps: 10, trail: true },
   helix: { fx: 'helix', sizeMul: 5.4, fps: 10 },
   predator: { fx: 'swarm', sizeMul: 5.8, fps: 12 },
-  seekingSlash: { fx: 'slash', sizeMul: 6.8, elong: 2.05, fps: 16, trail: true, tint: true },
-  phantomBlade: { fx: 'slash', sizeMul: 6.2, elong: 1.95, fps: 18, trail: true, tint: true },
+  seekingSlash: { fx: 'seekingSlash', sizeMul: 7.4, elong: 1.55, fps: 16, trail: true, tint: true },
+  phantomBlade: { fx: 'phantomBlade', sizeMul: 6.6, elong: 1.48, fps: 20, trail: true, tint: true, add: true },
   spiderMine: { fx: 'spider', sizeMul: 5.6, fps: 10 },
   interceptorWing: { fx: 'swarm', sizeMul: 5.6, fps: 12, tint: true },
   doomsday: { fx: 'swarm', sizeMul: 6.2, fps: 14, tint: true },
