@@ -1,12 +1,13 @@
 /**
  * Magenta chroma-key for 2x2 FX sheets. Does NOT trim — cell alignment must stay.
  * Energy sheets are converted to greyscale so weapon tint works.
- * Missing raw files are skipped so old/new sheets can be processed independently.
+ * Public output is lossless WebP (docs/SPRITE_PIPELINE.md). Raw stays PNG.
  */
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
+import { readFileSync, mkdirSync, copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
+import { pngBufferToWebp } from './png-to-webp.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -71,7 +72,7 @@ function magentaAlpha(r, g, b) {
   return 255;
 }
 
-function processOne(name, tintable) {
+async function processOne(name, tintable) {
   const input = path.join(rawDir, `${name}_raw.png`);
   if (!existsSync(input)) {
     console.log('skip missing', name);
@@ -94,8 +95,8 @@ function processOne(name, tintable) {
   }
 
   mkdirSync(outDir, { recursive: true });
-  const dest = path.join(outDir, `${name}.png`);
-  writeFileSync(dest, PNG.sync.write(png));
+  const dest = path.join(outDir, `${name}.webp`);
+  await pngBufferToWebp(Buffer.from(data), { width, height }, dest);
   console.log('OK', name, `${width}x${height}`, tintable ? 'tintable' : 'color');
 }
 
@@ -109,6 +110,6 @@ if (srcOverride) {
 }
 
 for (const sheet of SHEETS) {
-  processOne(sheet.name, sheet.tintable);
+  await processOne(sheet.name, sheet.tintable);
 }
 console.log('done', outDir);

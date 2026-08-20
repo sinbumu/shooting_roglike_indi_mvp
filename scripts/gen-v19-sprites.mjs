@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
+import { pngBufferToWebp } from './png-to-webp.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rawDir = path.resolve(__dirname, '../assets/raw');
@@ -301,7 +302,7 @@ fxBlood();
 fxSeekingSlash();
 fxPhantomBlade();
 
-function chromaKeyAndResize(inputName, outName, size = 128) {
+async function chromaKeyAndResize(inputName, outName, size = 128) {
   const png = PNG.sync.read(readFileSync(path.join(rawDir, inputName)));
   const { width, height, data } = png;
   const isMag = (r, g, b) => r > 180 && b > 180 && g < 140;
@@ -351,12 +352,13 @@ function chromaKeyAndResize(inputName, outName, size = 128) {
   }
   const outDir = path.resolve(__dirname, '../public/assets/sprites');
   mkdirSync(outDir, { recursive: true });
-  writeFileSync(path.join(outDir, outName), PNG.sync.write(out));
-  console.log('sprite', outName, `${size}x${size}`);
+  const dest = outName.endsWith('.webp') ? outName : outName.replace(/\.png$/i, '.webp');
+  await pngBufferToWebp(Buffer.from(out.data), { width: size, height: size }, path.join(outDir, dest));
+  console.log('sprite', dest, `${size}x${size}`);
 }
 
-chromaKeyAndResize('ship_yaksha.png', 'ship_yaksha.png');
-chromaKeyAndResize('ship_overlord.png', 'ship_overlord.png');
-chromaKeyAndResize('ship_crimson.png', 'ship_crimson.png');
+await chromaKeyAndResize('ship_yaksha.png', 'ship_yaksha.webp');
+await chromaKeyAndResize('ship_overlord.png', 'ship_overlord.webp');
+await chromaKeyAndResize('ship_crimson.png', 'ship_crimson.webp');
 console.log('done', rawDir);
 

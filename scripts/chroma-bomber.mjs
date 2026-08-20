@@ -1,11 +1,12 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
+import { pngBufferToWebp } from './png-to-webp.mjs';
 
 const src = process.argv[2];
 const dst = process.argv[3];
 if (!src || !dst) {
-  console.error('usage: node chroma-bomber.mjs <in.png> <out.png>');
+  console.error('usage: node chroma-bomber.mjs <in.png> <out.webp>');
   process.exit(1);
 }
 
@@ -70,5 +71,5 @@ for (let y = 0; y < size; y++) {
 }
 
 mkdirSync(path.dirname(dst), { recursive: true });
-writeFileSync(dst, PNG.sync.write(out));
+await pngBufferToWebp(Buffer.from(out.data), { width: size, height: size }, dst);
 console.log('wrote', dst, `${width}x${height} -> ${size}x${size}`);

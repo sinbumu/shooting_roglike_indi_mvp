@@ -1,10 +1,11 @@
 /**
- * Magenta chroma-key raw AI sprites → transparent PNGs in public/assets/sprites
+ * Magenta chroma-key raw AI sprites → lossless WebP in public/assets/sprites
  */
 import sharp from 'sharp';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { WEBP_LOSSLESS } from './png-to-webp.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -47,8 +48,8 @@ async function processOne(name) {
   })
     .trim({ threshold: 10 })
     .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .png()
-    .toFile(path.join(outDir, `${name}.png`));
+    .webp(WEBP_LOSSLESS)
+    .toFile(path.join(outDir, `${name}.webp`));
 
   console.log('OK', name, `${info.width}x${info.height} -> ${size}x${size}`);
 }

@@ -77,7 +77,7 @@ npm run preview
 ## 기술 스택
 
 - Vite 5 + TypeScript strict + PixiJS v8 + DOM UI + Web Audio (프로시저럴, 외부 음원 없음)
-- 스프라이트: `public/assets/sprites/` (기체·적·보스·픽업·무기 FX PNG)
+- 스프라이트: `public/assets/sprites/` (기체·적·보스·픽업·무기 FX, lossless WebP). 생성 규칙: [docs/SPRITE_PIPELINE.md](./docs/SPRITE_PIPELINE.md)
 
 ## 아키텍처
 
@@ -107,4 +107,5 @@ src/
 | [REPORT.md](./REPORT.md) | 발표·피치·데모 시나리오 |
 | [PLAN.md](./PLAN.md) | 착수 당시 5단계 MVP가 어떻게 끝났는지 |
 | `docs/DESIGN_UPDATE_*.md` | 기능별 지시서 (구현 완료 기록). 최신 콘텐츠는 v1.9 계열 |
+| [docs/SPRITE_PIPELINE.md](./docs/SPRITE_PIPELINE.md) | 스프라이트: PNG 초안 → lossless WebP 배치 |
 | `src/PatchNotes.ts` | 플레이어가 격납고에서 보는 패치 노트와 동일 |

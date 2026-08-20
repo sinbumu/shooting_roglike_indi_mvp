@@ -340,6 +340,7 @@
 | [docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md](./docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md) | v1.9.3 신규 기체 코어 각성 A/B · 기체 매핑 픽스 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) | 오버로드 자폭 → 군단 폭주 (게임 버전 **v1.9.6**. 파일명 V1_9_4는 기획서 초안 번호) |
 | [docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) | 마그네틱 훅 → 유도 참격/환영검무 (게임 버전 **v1.9.9**) |
-| `public/assets/sprites/fx_*.png` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
+| [docs/SPRITE_PIPELINE.md](./docs/SPRITE_PIPELINE.md) | 런타임 스프라이트: PNG 초안 → lossless WebP 배치 (에이전트용) |
+| `public/assets/sprites/fx_*.webp` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |
 | `src/PatchNotes.ts` | 격납고 패치 노트와 동일 (최신이 배열 앞) | |

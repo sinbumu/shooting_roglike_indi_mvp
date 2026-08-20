@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sprites:webp": "node scripts/png-to-webp.mjs"
   },
   "devDependencies": {
     "pngjs": "^7.0.0",
