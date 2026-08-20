@@ -888,6 +888,10 @@ export class Renderer {
     if (id === 'singularity' || id === 'eventHorizon') return 'singularity';
     if (id === 'predator') return 'predator';
     if (id === 'spiderMine') return 'spider';
+    if (id === 'shrapnelMine') return 'shrapnelMine';
+    if (id === 'clusterDeathBomb') return 'clusterDeathBomb';
+    if (id === 'toxicWeb') return 'toxicWeb';
+    if (id === 'absoluteLockdown') return 'absoluteLockdown';
     return 'mine';
   }
 
@@ -1817,7 +1821,8 @@ export class Renderer {
           glow.alpha = spec.add ? 0.55 : 0.7;
         }
         if (trailOk && spec.trail) {
-          const crescent = p.weaponId === 'seekingSlash' || p.weaponId === 'phantomBlade';
+          const crescent = p.weaponId === 'seekingSlash' || p.weaponId === 'phantomBlade'
+            || p.weaponId === 'boomerangBlade' || p.weaponId === 'infinityChakram';
           const tail = p.radius * (p.boosted ? 5 : crescent ? 6.2 : 3.2);
           g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
             .lineTo(p.x, p.y)

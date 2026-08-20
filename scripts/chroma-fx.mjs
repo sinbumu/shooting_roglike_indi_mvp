@@ -58,6 +58,16 @@ const SHEETS = [
   { name: 'fx_blood', tintable: true },
   { name: 'fx_seekingSlash', tintable: true },
   { name: 'fx_phantomBlade', tintable: true },
+  { name: 'fx_boomerangBlade', tintable: true },
+  { name: 'fx_infinityChakram', tintable: true },
+  { name: 'fx_shrapnelMine', tintable: false },
+  { name: 'fx_shrapnelShard', tintable: false },
+  { name: 'fx_clusterDeathBomb', tintable: false },
+  { name: 'fx_clusterShard', tintable: false },
+  { name: 'fx_toxicWeb', tintable: false },
+  { name: 'fx_absoluteLockdown', tintable: false },
+  { name: 'fx_crimsonGatling', tintable: true },
+  { name: 'fx_bloodCrossfire', tintable: true },
 ];
 
 function magentaAlpha(r, g, b) {

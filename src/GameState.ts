@@ -14,7 +14,7 @@ import {
   CONSTELLATION_FX, emptyConstellation,
   compatibleAffixes, ampCooldownMul,
   isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
-  CORE_AWAKENINGS, PERF, SEEKING_SLASH,
+  CORE_AWAKENINGS, PERF, SEEKING_SLASH, BLOOD_CROSSFIRE,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -71,6 +71,12 @@ export interface Projectile {
   boosted?: boolean;
   /** 유도 검기: 흩어진 뒤 추적 시작까지 */
   seekDelay?: number;
+  /** 부메랑: 아직 나가는 중이면 남은 시간 */
+  outboundLeft?: number;
+  returning?: boolean;
+  boomerangTurn?: number;
+  /** 클러스터 파편: 화면 끝에서도 폭발 */
+  clusterOnEdge?: boolean;
 }
 
 export interface Beam {
@@ -173,8 +179,16 @@ export interface Mine {
   pullRadius: number;
   pullForce: number;
   split: number;
+  splitPierce?: number;
+  splitHoming?: number;
+  splitSpeed?: number;
+  splitExplode?: number;
+  splitRadius?: number;
+  clusterOnEdge?: boolean;
   zoneDuration: number;
   zoneTick: number;
+  zoneSlow?: number;
+  stunNonBoss?: boolean;
   vx: number;
   vy: number;
 }
@@ -211,6 +225,7 @@ export interface HazardZone {
   pulsePeak?: number;
   pulseMaxLife?: number;
   slow?: number;
+  stunNonBoss?: boolean;
 }
 
 export interface Pylon {
@@ -1450,6 +1465,11 @@ export class GameState {
     return Math.min(cap, lostPct * 0.03);
   }
 
+  private missingHp01(): number {
+    if (this.maxHp <= 0) return 0;
+    return Math.max(0, Math.min(1, 1 - this.hp / this.maxHp));
+  }
+
   private onWeaponHit(weaponId: WeaponId | undefined, _e: Enemy): void {
     if (!weaponId) return;
     const frac = WEAPONS[weaponId].leechOnHit;
@@ -1746,6 +1766,8 @@ export class GameState {
     weaponId?: WeaponId; orbitAngle?: number; orbitRadius?: number; orbitOmega?: number;
     originX?: number; originY?: number; boosted?: boolean; seekDelay?: number;
     copyHits?: Set<number>;
+    outboundLeft?: number; returning?: boolean; boomerangTurn?: number;
+    clusterOnEdge?: boolean;
   }): Projectile {
     const p = this.projPool.pop() ?? {
       x: 0, y: 0, vx: 0, vy: 0, speed: 0, baseSpeed: 0, damage: 0, radius: 0,
@@ -1781,6 +1803,10 @@ export class GameState {
     p.originY = init.originY;
     p.boosted = init.boosted;
     p.seekDelay = init.seekDelay ?? 0;
+    p.outboundLeft = init.outboundLeft ?? 0;
+    p.returning = init.returning ?? false;
+    p.boomerangTurn = init.boomerangTurn ?? 0;
+    p.clusterOnEdge = init.clusterOnEdge ?? false;
     this.projectiles.push(p);
     return p;
   }
@@ -1899,11 +1925,12 @@ export class GameState {
     }
   }
 
-  private zoneMoveMulAt(x: number, y: number): number {
+  private zoneMoveMulAt(x: number, y: number, e?: Enemy): number {
     if (this.zones.length === 0) return 1;
     let mul = 1;
     for (const z of this.zones) {
       if (z.slow == null) continue;
+      if (z.stunNonBoss && e && this.isBossLike(e)) continue;
       const hit = z.kind === 'segment'
         ? distToSegment(x, y, z.x, z.y, z.x2, z.y2) <= z.radius
         : (x - z.x) ** 2 + (y - z.y) ** 2 <= z.radius * z.radius;
@@ -1995,6 +2022,9 @@ export class GameState {
         let raw = def.cooldownMs * cdScale * (1 - craftCd);
         if (this.shipId === 'overlord' && isSummonFamily(slot.weaponId)) raw *= 0.5;
         if (this.isSwarmFrenzy() && isSummonFamily(slot.weaponId)) raw /= AWAKEN.frenzyMul;
+        if (slot.weaponId === 'bloodCrossfire') {
+          raw *= 1 - this.missingHp01() * BLOOD_CROSSFIRE.firePerMissing;
+        }
         slot.cooldownLeft += Math.max(def.cooldownMs * ARSENAL.cooldownFloor, raw);
       }
     }
@@ -2045,6 +2075,9 @@ export class GameState {
     let sizeMul = (1 + (slot.radiusBonus ?? 0)) * this.runStats.radiusMul;
     if (this.shipId === 'yaksha' && isMeleeFamily(slot.weaponId)) sizeMul *= 1.5;
     if (puristLow) sizeMul *= CONSTELLATION_FX.puristRadiusMul;
+    if (slot.weaponId === 'bloodCrossfire') {
+      sizeMul *= 1 + this.missingHp01() * BLOOD_CROSSFIRE.sizePerMissing;
+    }
     let shotCount = p.count + (puristLow ? CONSTELLATION_FX.puristExtraCount : 0) + this.runStats.extraShots;
     if (this.isSwarmFrenzy() && isSummonFamily(slot.weaponId)) shotCount *= AWAKEN.frenzyMul;
 
@@ -2130,8 +2163,16 @@ export class GameState {
         pullRadius: p.drop.pullRadius ?? 0,
         pullForce: p.drop.pullForce ?? 0,
         split: p.drop.split ?? 0,
+        splitPierce: p.drop.splitPierce,
+        splitHoming: p.drop.splitHoming,
+        splitSpeed: p.drop.splitSpeed,
+        splitExplode: p.drop.splitExplode,
+        splitRadius: p.drop.splitRadius,
+        clusterOnEdge: p.drop.clusterOnEdge,
         zoneDuration: p.drop.zoneDuration ?? 0,
         zoneTick: p.drop.zoneTick ?? 0.15,
+        zoneSlow: p.drop.zoneSlow,
+        stunNonBoss: p.drop.stunNonBoss,
         vx: thrown ? this.lastAimX * p.speed : 0,
         vy: thrown ? this.lastAimY * p.speed : 0,
       });
@@ -2234,6 +2275,8 @@ export class GameState {
         shieldPierce: p.pierce > 0 || p.spreadDeg >= 180 || p.homingTurnRate >= 4 || (p.explodeRadius ?? 0) > 0,
         ignoreShield: p.ignoreShield,
         weaponId: slot.weaponId,
+        outboundLeft: p.boomerang?.outboundSec,
+        boomerangTurn: p.boomerang?.returnTurnRate,
       });
       if (p.spiral) {
         proj.orbitAngle = angle;
@@ -2955,7 +2998,7 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
-      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y) * this.zoneMoveMulAt(e.x, e.y)
+      const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y) * this.zoneMoveMulAt(e.x, e.y, e)
         * (this.hasNode('hunterToy') && (e.def.id === 'teleporter' || e.def.id === 'mirage')
           ? CONSTELLATION_FX.hunterSpeedMul : 1);
       const eliteMul = (e.elite ? ELITE.speedMul : 1) * (e.enraged ? 1.5 : 1);
@@ -3405,21 +3448,30 @@ export class GameState {
     this.hitCoresCircle(m.x, m.y, m.explodeRadius, m.damage);
     this.events.push({ type: 'blast', x: m.x, y: m.y, color: m.color, radius: m.explodeRadius * 0.45 });
     if (m.split > 0) {
-      for (let k = 0; k < m.split; k++) {
-        const a = (Math.PI * 2 * k) / m.split;
+      const n = m.split;
+      const spd = m.splitSpeed ?? 240;
+      const homing = m.splitHoming ?? 4.5;
+      const pierce = m.splitPierce ?? 0;
+      const shardR = m.splitRadius ?? 5;
+      const boom = m.splitExplode ?? 36;
+      const cluster = !!m.clusterOnEdge;
+      for (let k = 0; k < n; k++) {
+        const a = (Math.PI * 2 * k) / n;
         this.acquireProjectile({
           x: m.x, y: m.y,
-          vx: Math.cos(a) * 240,
-          vy: Math.sin(a) * 240,
-          speed: 240,
-          baseSpeed: 240,
-          damage: m.damage * 0.55,
-          radius: 5,
-          homingTurnRate: 4.5,
-          pierceLeft: 0,
-          life: 1.6,
+          vx: Math.cos(a) * spd,
+          vy: Math.sin(a) * spd,
+          speed: spd,
+          baseSpeed: spd,
+          damage: m.damage * (cluster ? 0.7 : 0.55),
+          radius: shardR,
+          homingTurnRate: homing,
+          pierceLeft: pierce,
+          life: cluster ? 1.1 : 1.6,
           color: m.color,
-          explodeRadius: 36,
+          explodeRadius: boom > 0 ? boom : undefined,
+          noSplit: true,
+          clusterOnEdge: cluster,
           weaponId: m.weaponId,
         });
       }
@@ -3436,6 +3488,8 @@ export class GameState {
         pull: m.pullForce * 0.6,
         color: m.color,
         weaponId: m.weaponId,
+        slow: m.zoneSlow,
+        stunNonBoss: m.stunNonBoss,
       });
     }
   }
@@ -3702,12 +3756,32 @@ export class GameState {
       const p = this.projectiles[i];
       p.life -= dt;
       if (p.life <= 0) {
+        this.detonateClusterIfNeeded(p);
         this.removeProjectileAt(i);
         continue;
       }
 
-      // 유도 (검기는 0.2초 흩어진 뒤 추적)
-      if (p.seekDelay && p.seekDelay > 0) {
+      // 유도 (검기는 0.2초 흩어진 뒤 추적) / 부메랑 귀환
+      if ((p.outboundLeft ?? 0) > 0) {
+        p.outboundLeft = Math.max(0, (p.outboundLeft ?? 0) - dt);
+        if ((p.outboundLeft ?? 0) <= 0) {
+          p.returning = true;
+          p.hitIds.clear();
+          p.life = Math.max(p.life, 1.6);
+        }
+      }
+      if (p.returning && (p.boomerangTurn ?? 0) > 0) {
+        const cur = Math.atan2(p.vy, p.vx);
+        const want = Math.atan2(this.playerY - p.y, this.playerX - p.x);
+        let diff = want - cur;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const maxTurn = (p.boomerangTurn ?? 0) * (p.speed / Math.max(p.baseSpeed, 1)) * dt;
+        const turn = Math.max(-maxTurn, Math.min(maxTurn, diff));
+        const next = cur + turn;
+        p.vx = Math.cos(next) * p.speed;
+        p.vy = Math.sin(next) * p.speed;
+      } else if (p.seekDelay && p.seekDelay > 0) {
         p.seekDelay = Math.max(0, p.seekDelay - dt);
       } else if (p.homingTurnRate > 0 && this.enemies.length > 0) {
         const target = this.nearestEnemy(p.x, p.y, p.hitIds);
@@ -3739,6 +3813,14 @@ export class GameState {
       }
 
       this.tryBoostProjectile(p);
+
+      if (p.returning && (p.boomerangTurn ?? 0) > 0) {
+        const catchR = PLAYER.radius + p.radius + 10;
+        if ((p.x - this.playerX) ** 2 + (p.y - this.playerY) ** 2 <= catchR * catchR) {
+          this.removeProjectileAt(i);
+          continue;
+        }
+      }
 
       // 적과 충돌
       let removed = false;
@@ -3802,11 +3884,27 @@ export class GameState {
       }
       if (coreRemoved) continue;
 
-      // 화면 밖
-      if (p.x < -60 || p.x > CANVAS.width + 60 || p.y < -60 || p.y > CANVAS.height + 60) {
+      // 화면 밖 / 클러스터 가장자리 폭발
+      const boomerang = (p.boomerangTurn ?? 0) > 0;
+      if (p.clusterOnEdge && p.explodeRadius) {
+        if (p.x < p.radius || p.x > CANVAS.width - p.radius
+          || p.y < p.radius || p.y > CANVAS.height - p.radius) {
+          this.detonateClusterIfNeeded(p);
+          this.removeProjectileAt(i);
+          continue;
+        }
+      }
+      if (!boomerang && (p.x < -60 || p.x > CANVAS.width + 60 || p.y < -60 || p.y > CANVAS.height + 60)) {
         this.removeProjectileAt(i);
       }
     }
+  }
+
+  private detonateClusterIfNeeded(p: Projectile): void {
+    if (!p.clusterOnEdge || !p.explodeRadius) return;
+    const x = Math.max(0, Math.min(CANVAS.width, p.x));
+    const y = Math.max(0, Math.min(CANVAS.height, p.y));
+    this.blastAt(x, y, p.explodeRadius, p.damage * 0.7, p.color, p.weaponId);
   }
 
   private updateBeams(dt: number): void {

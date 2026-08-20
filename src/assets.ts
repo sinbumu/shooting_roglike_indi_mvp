@@ -47,7 +47,17 @@ export type FxId =
   | 'spider'
   | 'blood'
   | 'seekingSlash'
-  | 'phantomBlade';
+  | 'phantomBlade'
+  | 'boomerangBlade'
+  | 'infinityChakram'
+  | 'shrapnelMine'
+  | 'shrapnelShard'
+  | 'clusterDeathBomb'
+  | 'clusterShard'
+  | 'toxicWeb'
+  | 'absoluteLockdown'
+  | 'crimsonGatling'
+  | 'bloodCrossfire';
 
 export const SPRITE_PATHS = {
   ships: {
@@ -132,6 +142,16 @@ export const SPRITE_PATHS = {
     blood: `${base}/fx_blood.webp`,
     seekingSlash: `${base}/fx_seekingSlash.webp`,
     phantomBlade: `${base}/fx_phantomBlade.webp`,
+    boomerangBlade: `${base}/fx_boomerangBlade.webp`,
+    infinityChakram: `${base}/fx_infinityChakram.webp`,
+    shrapnelMine: `${base}/fx_shrapnelMine.webp`,
+    shrapnelShard: `${base}/fx_shrapnelShard.webp`,
+    clusterDeathBomb: `${base}/fx_clusterDeathBomb.webp`,
+    clusterShard: `${base}/fx_clusterShard.webp`,
+    toxicWeb: `${base}/fx_toxicWeb.webp`,
+    absoluteLockdown: `${base}/fx_absoluteLockdown.webp`,
+    crimsonGatling: `${base}/fx_crimsonGatling.webp`,
+    bloodCrossfire: `${base}/fx_bloodCrossfire.webp`,
   } satisfies Record<FxId, string>,
 } as const;
 
@@ -176,6 +196,14 @@ export const PROJ_FX: Partial<Record<WeaponId, ProjFxDraw>> = {
   bloodSeeker: { fx: 'homing', sizeMul: 6.0, elong: 1.5, fps: 12, trail: true, tint: true },
   bloodNova: { fx: 'nova', sizeMul: 5.8, fps: 14, add: true, tint: true },
   vampireBats: { fx: 'homing', sizeMul: 5.4, fps: 14, tint: true },
+  boomerangBlade: { fx: 'boomerangBlade', sizeMul: 7.4, elong: 1.35, fps: 16, trail: true, tint: true },
+  infinityChakram: { fx: 'infinityChakram', sizeMul: 6.8, elong: 1.05, fps: 18, trail: true, tint: true, add: true },
+  shrapnelMine: { fx: 'shrapnelShard', sizeMul: 5.6, elong: 1.7, fps: 14, trail: true },
+  clusterDeathBomb: { fx: 'clusterShard', sizeMul: 6.4, elong: 1.25, fps: 12, trail: true },
+  toxicWeb: { fx: 'toxicWeb', sizeMul: 5.8, fps: 10 },
+  absoluteLockdown: { fx: 'absoluteLockdown', sizeMul: 6.4, fps: 10 },
+  crimsonGatling: { fx: 'crimsonGatling', sizeMul: 7.2, elong: 2.15, fps: 18, trail: true, tint: true },
+  bloodCrossfire: { fx: 'bloodCrossfire', sizeMul: 7.6, elong: 1.55, fps: 16, trail: true, tint: true, add: true },
 };
 
 export interface SpriteAtlas {

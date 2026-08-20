@@ -29,5 +29,6 @@ SPRITE_PATHS
 | 2×2 FX raw (`*_raw.png`) | `node scripts/chroma-fx.mjs` |
 | 128px 기체·적 raw | `node scripts/chroma-sprites.mjs` |
 | v1.9 절차적 시트 | `node scripts/gen-v19-sprites.mjs` (raw PNG 유지, public만 WebP) |
+| v1.10 교차 매트릭스 FX | `node scripts/gen-v110-sprites.mjs` 후 `node scripts/chroma-fx.mjs` |
 
 Pixi 8 `Assets.load`는 `.webp`를 PNG와 같이 `Texture`로 연다. `Renderer` blit은 손대지 않는다.

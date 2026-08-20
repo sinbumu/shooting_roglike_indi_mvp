@@ -2,7 +2,7 @@
 
 > 제3자·기획자가 **지금 무엇이 있고**, **다음에 어디를 팔지** 바로 잡도록 정리한 문서입니다.  
 > 수치·밸런스의 단일 소스: `src/GameConfig.ts`. 플레이어용 체인지로그: `src/PatchNotes.ts`.  
-> 마지막 점검: **2026-08-20 — v1.9.9** (온라인·외부 애널리틱스만 보류)
+> 마지막 점검: **2026-08-20 — v1.10.0** (온라인·외부 애널리틱스만 보류)
 
 ▶ 플레이: https://sinbumu.github.io/shooting_roglike_indi_mvp/  
 ▶ 실행·배포: [README.md](./README.md) · 발표 요약: [REPORT.md](./REPORT.md)
@@ -15,10 +15,10 @@
 
 | 항목 | 현재 |
 |---|---|
-| 버전 | **v1.9.9** (`package.json` / 격납고 패치 노트와 동일) |
+| 버전 | **v1.10.0** (`package.json` / 격납고 패치 노트와 동일) |
 | 기체 | 7종 — 스카웃·포트리스·헌터·폭격기·**야차·오버로드·크림슨** |
-| 무기 | **47종** — 탄막 트리 + 근접/장판 + 매트릭스(채찍·소환·핏빛) |
-| 패시브 | 런 중 슬롯 4, 풀 **16종** (그중 9종은 매트릭스 T3 촉매) |
+| 무기 | **55종** — 탄막 트리 + 근접/장판 + 매트릭스(채찍·소환·핏빛·교차 4트리) |
+| 패시브 | 런 중 슬롯 4, 풀 **16종** (그중 10종은 매트릭스 T3 촉매) |
 | 스테이지 / 도전 | 3 / 4 (궤도 5분 · 균열 4:30 · 군단 7분) |
 | 엔드게임 | 제단·재해·지형·성좌 22노드·**Lv.50 코어 각성** |
 | 세이브 | 브라우저 `localStorage`만. 서버 없음 |
@@ -32,6 +32,7 @@
 | 매트릭스 T3 | Vampire Survivors식 **촉매**: 패시브 보유 시에만 카드, 패시브는 안 없어짐 | 위 문서 |
 | 오버로드 스킬 | 예전 자폭은 **폐기**. 5초 군단 폭주(소환 공속·이속·발사 수 ×3) | [오버로드 리워크](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) (게임 버전 v1.9.6) |
 | 채찍+호밍 | 마그네틱 훅/중력 닻 **폐기**. 유도 참격 → 환영검무 | [훅 대체](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) (게임 버전 v1.9.9) |
+| 교차 매트릭스 | 빈 T1 교차 4쌍 → T2/T3 8종 (부메랑·파편지뢰·거미줄·혈연사) | [v1.10.0](./docs/DESIGN_UPDATE_V1_10_0_WEAPON_MATRIX_EXPANSION.md) |
 | 후반 성능 | v1.9.4~1.9.5 탄막 최적화 (풀·이벤트 예산·HUD 10Hz) | 체크리스트 §1 |
 
 지시서 파일명의 `V1_9_4` / `V1_9_5`는 **기획서 초안 번호**입니다. 이미 나간 성능 패치와 겹치지 않게 **실제 출시 버전은 v1.9.6 / v1.9.9**입니다.
@@ -72,7 +73,7 @@
 ### 시스템 체크리스트 (요약)
 
 - [x] 전투·월드: 종스크롤, Warning 스폰, 충돌/무적, 보석 자석, 보스 탄막, 드롭 3종  
-- [x] 성장: 레벨업 3선택지, 슬롯 5, 패시브 4, Tier1→2→3 (47무기 / 기존+매트릭스 레시피, 동형 조합·진화·촉매 T3 포함)  
+- [x] 성장: 레벨업 3선택지, 슬롯 5, 패시브 4, Tier1→2→3 (55무기 / 기존+매트릭스 레시피, 동형 조합·진화·촉매 T3 포함)  
 - [x] 피드백: 점수·콤보, 배너, 데미지 숫자, 히트스톱, 흔들림, SFX/BGM, 진동  
 - [x] 메타: 기체·패시브·영구강화·업적·스테이지 해금·도전·로컬 통계  
 - [x] 비주얼/오디오: Pixi 스프라이트 + Graphics 폴백, Web Audio 합성  
@@ -112,7 +113,8 @@
 - [x] v1.9.6: 오버로드 군단 폭주 리워크 · 소환 T3 시너지 · 코어 각성 A/B 개편 
 - [x] v1.9.7: 거합도 참격 네모 테두리 제거 · 진동 채찍 장판 파지직 연출 
 - [x] v1.9.8: 혈사포 피분수 연출 
-- [x] v1.9.9: 마그네틱 훅 → 유도 참격 / 환영검무 
+- [x] v1.9.9: 마그네틱 훅 → 유도 참격 / 환영검무
+- [x] v1.10.0: 교차 매트릭스 8종 (부메랑 참격·영겁의 차크람 / 산탄 폭뢰·클러스터 데스밤 / 맹독 거미줄·절대 구속의 둥지 / 핏빛 기관포·피의 십자포화) 
 
 ---
 
@@ -156,6 +158,8 @@
 | 3 | `kingSaw` / `phantomBlade` / `tectonicCutter` | 명왕의 톱니 / 환영검무 / 지각 절단기 | 채찍 T3 (T2+패시브 촉매) |
 | 3 | `doomsday` / `orbitalBattery` / `ironMaiden` | 둠스데이 / 궤도 폭격 신호소 / 아이언 메이든 | 스파이더 T3 |
 | 3 | `bloodGallows` / `bloodNova` / `vampireBats` | 선혈의 처형대 / 혈노바 / 흡혈 박쥐 | 핏빛 T3 |
+| 2 | `boomerangBlade` / `shrapnelMine` / `toxicWeb` / `crimsonGatling` | 부메랑 참격 / 산탄 폭뢰 / 맹독 거미줄 / 핏빛 기관포 | 빈 T1 교차 (blade+homing / mine+vulcan / spider+mine / blood+vulcan) |
+| 3 | `infinityChakram` / `clusterDeathBomb` / `absoluteLockdown` / `bloodCrossfire` | 영겁의 차크람 / 클러스터 데스밤 / 절대 구속의 둥지 / 피의 십자포화 | 교차 T3 (가속모터·고폭약·구속장·확장탄창) |
 
 - 슬롯 5 → 경로 선택형 빌드. T1 복제 카드는 **동형 레시피 있는 ID만** (`vulcan`/`spread`/`homing`). `blade`/`mine`은 슬롯당 1  
 - 매트릭스 T3는 **해당 패시브를 보유**해야 카드가 뜨고, 패시브 슬롯은 **소모하지 않음** (T2 무기만 교체)
@@ -340,6 +344,7 @@
 | [docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md](./docs/DESIGN_UPDATE_V1_9_3_CORE_AWAKENINGS.md) | v1.9.3 신규 기체 코어 각성 A/B · 기체 매핑 픽스 (구현 완료) |
 | [docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md](./docs/DESIGN_UPDATE_V1_9_4_OVERLORD_REWORK.md) | 오버로드 자폭 → 군단 폭주 (게임 버전 **v1.9.6**. 파일명 V1_9_4는 기획서 초안 번호) |
 | [docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md](./docs/DESIGN_UPDATE_V1_9_5_REPLACE_MAGNETIC_HOOK.md) | 마그네틱 훅 → 유도 참격/환영검무 (게임 버전 **v1.9.9**) |
+| [docs/DESIGN_UPDATE_V1_10_0_WEAPON_MATRIX_EXPANSION.md](./docs/DESIGN_UPDATE_V1_10_0_WEAPON_MATRIX_EXPANSION.md) | v1.10.0 교차 매트릭스 8종 · 태그 정립 |
 | [docs/SPRITE_PIPELINE.md](./docs/SPRITE_PIPELINE.md) | 런타임 스프라이트: PNG 초안 → lossless WebP 배치 (에이전트용) |
 | `public/assets/sprites/fx_*.webp` | 무기·지형·엔드게임·잔여 도형 2×2 애니메이션 시트 (v1.8.2~1.8.5, v1.9 T1 FX) |
 | `src/GameConfig.ts` | 실제 콘텐츠·밸런스 데이터 |

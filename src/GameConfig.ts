@@ -521,6 +521,96 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     cooldownMs: 620,
     projectile: { damage: 13, speed: 500, radius: 5, count: 8, spreadDeg: 360, homingTurnRate: 5.8, pierce: 0, lifetime: 2.5 },
   },
+  // ---------- v1.10 교차 매트릭스 ----------
+  boomerangBlade: {
+    id: 'boomerangBlade', name: '부메랑 참격', tier: 2, icon: '🪃', color: '#7dd3fc',
+    desc: '[블레이드+호밍] 적을 관통한 뒤 기체로 돌아와 2차 타격',
+    tags: ['melee', 'projectile'],
+    cooldownMs: 640,
+    projectile: {
+      damage: 18, speed: 560, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 8, lifetime: 2.4,
+      boomerang: { outboundSec: 0.42, returnTurnRate: 8 },
+    },
+  },
+  infinityChakram: {
+    id: 'infinityChakram', name: '영겁의 차크람', tier: 3, icon: '☸️', color: '#e0e7ff',
+    desc: '[부메랑 참격+가속 모터] 6개의 차크람이 기체를 따라 휘며 적을 가른다',
+    tags: ['melee', 'projectile'],
+    cooldownMs: 720,
+    projectile: {
+      damage: 14, speed: 500, radius: 10, count: 6, spreadDeg: 360, homingTurnRate: 0, pierce: 12, lifetime: 3.4,
+      boomerang: { outboundSec: 0.38, returnTurnRate: 14 },
+    },
+  },
+  shrapnelMine: {
+    id: 'shrapnelMine', name: '산탄 폭뢰', tier: 2, icon: '💥', color: '#fdba74',
+    desc: '[지뢰+벌컨] 폭발과 동시에 360도 관통 파편 16발',
+    tags: ['drop', 'projectile'],
+    cooldownMs: 760,
+    projectile: {
+      damage: 20, speed: 0, radius: 10, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 2.8,
+      explodeRadius: 62,
+      drop: {
+        fuse: 2.8, split: 16, splitPierce: 2, splitHoming: 0, splitSpeed: 420,
+        splitExplode: 0, splitRadius: 3.5,
+      },
+    },
+  },
+  clusterDeathBomb: {
+    id: 'clusterDeathBomb', name: '클러스터 데스밤', tier: 3, icon: '☢️', color: '#ef4444',
+    desc: '[산탄 폭뢰+고폭약] 거대 파편 8개가 적·화면 끝에서 2차 폭발',
+    tags: ['drop', 'projectile'],
+    cooldownMs: 900,
+    projectile: {
+      damage: 24, speed: 0, radius: 12, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 2.6,
+      explodeRadius: 72,
+      drop: {
+        fuse: 2.6, split: 8, splitPierce: 0, splitHoming: 0, splitSpeed: 280,
+        splitExplode: 52, splitRadius: 8, clusterOnEdge: true,
+      },
+    },
+  },
+  toxicWeb: {
+    id: 'toxicWeb', name: '맹독 거미줄', tier: 2, icon: '🕸️', color: '#a3e635',
+    desc: '[스파이더+지뢰] 폭발 위치에 3초 거미줄. 이속 70% 감소·틱 피해',
+    tags: ['summon', 'drop'],
+    cooldownMs: 820,
+    projectile: {
+      damage: 16, speed: 115, radius: 9, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 4,
+      explodeRadius: 58,
+      drop: { fuse: 4, seekSpeed: 115, zoneDuration: 3, zoneTick: 0.2, zoneSlow: 0.3 },
+    },
+  },
+  absoluteLockdown: {
+    id: 'absoluteLockdown', name: '절대 구속의 둥지', tier: 3, icon: '🔒', color: '#c084fc',
+    desc: '[맹독 거미줄+구속장] 3배 장판. 일반·엘리트 완전 정지',
+    tags: ['summon', 'drop', 'aura'],
+    cooldownMs: 900,
+    projectile: {
+      damage: 18, speed: 130, radius: 11, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 0, lifetime: 3.8,
+      explodeRadius: 174,
+      drop: {
+        fuse: 3.8, seekSpeed: 130, zoneDuration: 3.4, zoneTick: 0.15,
+        zoneSlow: 0, stunNonBoss: true,
+      },
+    },
+  },
+  crimsonGatling: {
+    id: 'crimsonGatling', name: '핏빛 기관포', tier: 2, icon: '🩸', color: '#fb7185',
+    desc: '[핏빛 쐐기+벌컨] 격발마다 체력 0.2%를 소모해 관통 쐐기를 난사',
+    tags: ['projectile'],
+    hpCostFrac: 0.002,
+    cooldownMs: 90,
+    projectile: { damage: 6, speed: 880, radius: 4, count: 1, spreadDeg: 0, homingTurnRate: 0, pierce: 2, lifetime: 1.2 },
+  },
+  bloodCrossfire: {
+    id: 'bloodCrossfire', name: '피의 십자포화', tier: 3, icon: '✝️', color: '#be123c',
+    desc: '[핏빛 기관포+확장 탄창] 4방향 난사. 잃은 체력만큼 굵기·연사 증폭',
+    tags: ['projectile'],
+    hpCostFrac: 0.002,
+    cooldownMs: 110,
+    projectile: { damage: 7, speed: 820, radius: 5, count: 4, spreadDeg: 360, homingTurnRate: 0, pierce: 2, lifetime: 1.3 },
+  },
 };
 
 export const RECIPES: Recipe[] = [
@@ -563,6 +653,14 @@ export const RECIPES: Recipe[] = [
   { materials: ['drainAura'], result: 'bloodGallows', requirePassive: 'regenModule' },
   { materials: ['bleedBurst'], result: 'bloodNova', requirePassive: 'critLens' },
   { materials: ['bloodSeeker'], result: 'vampireBats', requirePassive: 'accelMotor' },
+  { materials: ['blade', 'homing'], result: 'boomerangBlade' },
+  { materials: ['boomerangBlade'], result: 'infinityChakram', requirePassive: 'accelMotor' },
+  { materials: ['mine', 'vulcan'], result: 'shrapnelMine' },
+  { materials: ['shrapnelMine'], result: 'clusterDeathBomb', requirePassive: 'highExplosive' },
+  { materials: ['spiderMine', 'mine'], result: 'toxicWeb' },
+  { materials: ['toxicWeb'], result: 'absoluteLockdown', requirePassive: 'cripple' },
+  { materials: ['bloodSpike', 'vulcan'], result: 'crimsonGatling' },
+  { materials: ['crimsonGatling'], result: 'bloodCrossfire', requirePassive: 'extendedMag' },
 ];
 
 /** 동형 조합을 위해 T1 무기를 슬롯에 몇 개까지 복제할 수 있는지 */
@@ -1477,8 +1575,10 @@ export function compatibleAffixes(weaponId: WeaponId): AffixId[] {
 }
 
 export function isTickWeapon(id: WeaponId): boolean {
-  const tags = weaponTags(WEAPONS[id]);
-  return tags.includes('melee') || tags.includes('aura') || tags.includes('beam');
+  const def = WEAPONS[id];
+  const tags = weaponTags(def);
+  if (tags.includes('aura') || tags.includes('beam')) return true;
+  return tags.includes('melee') && !!def.projectile.melee;
 }
 
 /** 공허의 제단 */
@@ -1576,6 +1676,12 @@ export const SEEKING_SLASH = {
   scatterSec: 0.2,
   turnRate: 8.6,
   dmgMul: 0.7,
+} as const;
+
+/** 피의 십자포화: 잃은 HP 비율로 굵기·연사 증폭 */
+export const BLOOD_CROSSFIRE = {
+  sizePerMissing: 1.0,
+  firePerMissing: 0.55,
 } as const;
 
 /** Lv.50 코어 각성 */

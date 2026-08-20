@@ -49,7 +49,15 @@ export type WeaponId =
   | 'bloodSeeker'
   | 'bloodGallows'
   | 'bloodNova'
-  | 'vampireBats';
+  | 'vampireBats'
+  | 'boomerangBlade'
+  | 'infinityChakram'
+  | 'shrapnelMine'
+  | 'clusterDeathBomb'
+  | 'toxicWeb'
+  | 'absoluteLockdown'
+  | 'crimsonGatling'
+  | 'bloodCrossfire';
 
 export type WeaponTier = 1 | 2 | 3;
 
@@ -102,8 +110,24 @@ export interface ProjectileSpec {
     pullForce?: number;
     persist?: number;
     split?: number;
+    splitPierce?: number;
+    splitHoming?: number;
+    splitSpeed?: number;
+    splitExplode?: number;
+    splitRadius?: number;
+    /** 파편이 화면 가장자리에서도 폭발 */
+    clusterOnEdge?: boolean;
     zoneDuration?: number;
     zoneTick?: number;
+    /** 장판 안 적 이속 배율 (0.3 = 70% 감속, 0 = 정지) */
+    zoneSlow?: number;
+    /** true면 보스 제외 완전 정지 */
+    stunNonBoss?: boolean;
+  };
+  /** 일정 거리 후 기체로 되돌아오는 부메랑 */
+  boomerang?: {
+    outboundSec: number;
+    returnTurnRate: number;
   };
 }
 
