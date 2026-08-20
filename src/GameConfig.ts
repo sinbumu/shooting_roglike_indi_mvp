@@ -4,6 +4,7 @@ import type {
   MetaUpgradeDef, MetaUpgradeId, AchievementDef, AchievementId,
   StageDef, StageId, ChallengeDef, ChallengeId,
   AffixId, StatBoostId, TacticalId, WeaponTag,
+  ModifierDef, ModifierId,
   ShipSkinId, ProjSkinId, DroneDef, DroneId, PilotTraitId,
   ConstellationDef, ConstellationId,
   CoreAwakeningDef,
@@ -753,6 +754,10 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   bossSeraph: {
     id: 'bossSeraph', name: '세라프', hp: 800, speed: 70, radius: 38, color: DANGER.high,
     contactDamage: 28, exp: 0, spawnEdge: 'top', movePattern: 'bossSeraph',
+  },
+  nemesis: {
+    id: 'nemesis', name: '도플갱어', hp: 800, speed: 90, radius: 18, color: '#800080',
+    contactDamage: 22, exp: 0, spawnEdge: 'top', movePattern: 'nemesis',
   },
 };
 
@@ -2120,6 +2125,88 @@ export const STAGES: Record<StageId, StageDef> = {
 };
 
 export const DEFAULT_STAGE: StageId = 'orbit';
+
+// ------------------------------------------------------------
+// 공허 모디파이어 (심연 강하 맵 크래프팅)
+// ------------------------------------------------------------
+
+export const MODIFIERS: Record<ModifierId, ModifierDef> = {
+  mod_haste: {
+    id: 'mod_haste', kind: 'prefix', name: '신속', icon: '⚡',
+    desc: '일반 적 이동 속도 +40%', rewardMul: 0.5,
+  },
+  mod_swarm: {
+    id: 'mod_swarm', kind: 'prefix', name: '군집', icon: '🐝',
+    desc: '일반 적 스폰량 +100%', rewardMul: 0.8,
+  },
+  mod_unyielding: {
+    id: 'mod_unyielding', kind: 'prefix', name: '불굴', icon: '🛡',
+    desc: '보스 체력 +150%', rewardMul: 1,
+  },
+  mod_exhaust: {
+    id: 'mod_exhaust', kind: 'suffix', name: '과로', icon: '💤',
+    desc: '기체 무기 쿨타임 +25%', rewardMul: 0.8,
+  },
+  mod_eclipse: {
+    id: 'mod_eclipse', kind: 'suffix', name: '일식', icon: '🌑',
+    desc: '시야 300px 제한', rewardMul: 1.2,
+  },
+  mod_minefield: {
+    id: 'mod_minefield', kind: 'suffix', name: '지뢰밭', icon: '💣',
+    desc: '맵에 환경 지뢰가 계속 깔립니다', rewardMul: 1,
+  },
+  mod_mirror: {
+    id: 'mod_mirror', kind: 'suffix', name: '거울', icon: '👥',
+    desc: '히든 · 2분 30초에 도플갱어 확정 난입', rewardMul: 2,
+  },
+};
+
+export const MODIFIER_FX = {
+  rerollCost: 1000,
+  hasteSpeedMul: 1.4,
+  swarmSpawnMul: 2,
+  unyieldingHpMul: 2.5,
+  exhaustCooldownMul: 1.25,
+  eclipseRadius: 300,
+  mineInterval: 2,
+  mineFuse: 2.4,
+  mineRadius: 12,
+  mineExplode: 52,
+  mineDamage: 18,
+  nemesisAt: 150,
+  nemesisChance: 0.05,
+  nemesisKeepDist: 160,
+  nemesisDmgMin: 15,
+  nemesisDmgMax: 25,
+  nemesisShotSpeed: 280,
+} as const;
+
+function pickN<T>(arr: T[], n: number): T[] {
+  const copy = [...arr];
+  const out: T[] = [];
+  const count = Math.min(n, copy.length);
+  for (let i = 0; i < count; i++) {
+    const idx = Math.floor(Math.random() * copy.length);
+    out.push(copy.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+/** 접두 1~2 + 접미 1~2, 중복 없이 최대 4 */
+export function rollModifiers(): ModifierId[] {
+  const prefixes = Object.values(MODIFIERS).filter((m) => m.kind === 'prefix');
+  const suffixes = Object.values(MODIFIERS).filter((m) => m.kind === 'suffix');
+  const nP = 1 + (Math.random() < 0.5 ? 1 : 0);
+  const nS = 1 + (Math.random() < 0.5 ? 1 : 0);
+  return [
+    ...pickN(prefixes, nP).map((m) => m.id),
+    ...pickN(suffixes, nS).map((m) => m.id),
+  ];
+}
+
+export function modifierRewardMul(ids: readonly ModifierId[]): number {
+  return 1 + ids.reduce((sum, id) => sum + MODIFIERS[id].rewardMul, 0);
+}
 
 /** 하위 호환: 기본 스테이지 웨이브 */
 export const WAVES = STAGES.orbit.waves;

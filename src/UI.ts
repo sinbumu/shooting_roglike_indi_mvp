@@ -1,8 +1,9 @@
-import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId, DroneId, PilotTraitId } from './types';
+import type { LevelUpChoice, ShipId, MetaUpgradeId, AchievementId, StageId, ChallengeId, WeaponId, DroneId, PilotTraitId, ModifierId } from './types';
 import {
   WEAPONS, LEVELING, SHIPS, PASSIVES, META_UPGRADES, ACHIEVEMENTS,
   STAGES, CHALLENGES, AFFIXES, ARSENAL, GACHA, SHIP_SKINS, PROJ_SKINS,
   COMBAT, RECIPES, DRONES, DRONE_FX, PILOT_TRAITS, ampCooldownMul, isTickWeapon,
+  MODIFIERS, MODIFIER_FX, rollModifiers, modifierRewardMul,
 } from './GameConfig';
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
@@ -91,6 +92,12 @@ export class UI {
   private traitSelect = document.getElementById('trait-select') as HTMLDivElement;
   private traitShopCores = document.getElementById('trait-shop-cores') as HTMLSpanElement;
   private hudDrone = document.getElementById('hud-drone') as HTMLDivElement;
+  private hudMods = document.getElementById('hud-mods') as HTMLDivElement;
+  private modifierOverlay = document.getElementById('modifier-overlay') as HTMLDivElement;
+  private modReward = document.getElementById('mod-reward') as HTMLDivElement;
+  private modList = document.getElementById('mod-list') as HTMLDivElement;
+  private modRerollBtn = document.getElementById('mod-reroll-btn') as HTMLButtonElement;
+  private pendingMods: ModifierId[] = [];
   private stageSelect = document.getElementById('stage-select') as HTMLDivElement;
   private challengeSelect = document.getElementById('challenge-select') as HTMLDivElement;
   private metaCredits = document.getElementById('meta-credits') as HTMLSpanElement;
@@ -710,6 +717,18 @@ export class UI {
       this.hudDrone.classList.remove('emp-off');
     }
 
+    if (state.activeMods.length > 0) {
+      this.hudMods.classList.remove('hidden');
+      this.hudMods.innerHTML = state.activeMods.map((id) => {
+        const def = MODIFIERS[id];
+        const color = def.kind === 'prefix' ? '#f87171' : '#c084fc';
+        return `<span style="color:${color}">${def.icon} ${def.name}</span>`;
+      }).join('');
+    } else {
+      this.hudMods.innerHTML = '';
+      this.hudMods.classList.add('hidden');
+    }
+
     const m = Math.floor(state.time / 60).toString().padStart(2, '0');
     const s = Math.floor(state.time % 60).toString().padStart(2, '0');
     this.statTime.textContent = `${m}:${s}`;
@@ -1085,6 +1104,7 @@ export class UI {
     this.startOverlay.classList.add('hidden');
     this.droneOverlay.classList.add('hidden');
     this.traitOverlay.classList.add('hidden');
+    this.hideModifierModal();
     this.clearFocus();
   }
 
@@ -1099,6 +1119,66 @@ export class UI {
 
   onStartClick(fn: () => void): void {
     (document.getElementById('start-btn') as HTMLButtonElement).addEventListener('click', fn);
+  }
+
+  getPendingMods(): ModifierId[] {
+    return [...this.pendingMods];
+  }
+
+  showModifierModal(): void {
+    this.pendingMods = rollModifiers();
+    this.renderModifierModal();
+    this.modifierOverlay.classList.remove('hidden');
+    this.setFocusGroup([
+      this.modRerollBtn,
+      document.getElementById('mod-launch-btn') as HTMLButtonElement,
+      document.getElementById('mod-close-btn') as HTMLButtonElement,
+    ]);
+  }
+
+  hideModifierModal(): void {
+    this.modifierOverlay.classList.add('hidden');
+    this.clearFocus();
+  }
+
+  rerollModifiers(): void {
+    this.pendingMods = rollModifiers();
+    this.modList.classList.add('spinning');
+    for (const el of this.modList.querySelectorAll('.mod-chip')) el.classList.add('spinning');
+    window.setTimeout(() => {
+      this.renderModifierModal();
+    }, 160);
+  }
+
+  private renderModifierModal(): void {
+    const mul = modifierRewardMul(this.pendingMods);
+    const pct = Math.round((mul - 1) * 100);
+    this.modReward.textContent = `현재 보상 배율 +${pct}%`;
+    this.modList.className = 'mod-list';
+    this.modList.innerHTML = this.pendingMods.map((id) => {
+      const def = MODIFIERS[id];
+      return `<div class="mod-chip ${def.kind}">
+        <div class="mod-name">${def.icon} ${def.name}</div>
+        <div class="mod-desc">${def.desc} · +${Math.round(def.rewardMul * 100)}%</div>
+      </div>`;
+    }).join('');
+    const canReroll = (this.meta?.credits ?? 0) >= MODIFIER_FX.rerollCost;
+    this.modRerollBtn.disabled = !canReroll;
+    this.modRerollBtn.textContent = canReroll
+      ? `변이 굴림 (${MODIFIER_FX.rerollCost.toLocaleString()}c)`
+      : `크레딧 부족 (${MODIFIER_FX.rerollCost.toLocaleString()}c)`;
+  }
+
+  onModifierReroll(fn: () => void): void {
+    this.modRerollBtn.addEventListener('click', fn);
+  }
+
+  onModifierLaunch(fn: () => void): void {
+    (document.getElementById('mod-launch-btn') as HTMLButtonElement).addEventListener('click', fn);
+  }
+
+  onModifierClose(fn: () => void): void {
+    (document.getElementById('mod-close-btn') as HTMLButtonElement).addEventListener('click', fn);
   }
 
   onRestartClick(fn: () => void): void {

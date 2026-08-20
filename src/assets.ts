@@ -87,6 +87,7 @@ export const SPRITE_PATHS = {
     architect: `${base}/enemy_architect.webp`,
     boss: `${base}/boss_boss.webp`,
     bossSeraph: `${base}/boss_bossSeraph.webp`,
+    nemesis: `${base}/ship_scout.webp`,
   } satisfies Record<EnemyId, string>,
   pickups: {
     heal: `${base}/pickup_heal.webp`,
@@ -94,6 +95,7 @@ export const SPRITE_PATHS = {
     bomb: `${base}/pickup_bomb.webp`,
     cube: `${base}/pickup_cube.webp`,
     goldCube: `${base}/pickup_goldCube.webp`,
+    voidCrate: `${base}/pickup_goldCube.webp`,
   } satisfies Record<PickupKind, string>,
   terrain: {
     derelict: `${base}/spr_derelict_ship.webp`,

@@ -1,5 +1,5 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import type { GameState, Beam } from './GameState';
+import type { GameState, Beam, Enemy } from './GameState';
 import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, isSummonFamily, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
@@ -450,7 +450,7 @@ export class Renderer {
           const tint = ev.kind === 'heal' ? 0x4ade80
             : ev.kind === 'magnet' ? 0x38bdf8
             : ev.kind === 'cube' ? 0x67e8f9
-            : ev.kind === 'goldCube' ? 0xfbbf24
+            : ev.kind === 'goldCube' || ev.kind === 'voidCrate' ? 0xfbbf24
             : 0xfb923c;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
           break;
@@ -1423,6 +1423,14 @@ export class Renderer {
       const isTrueBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
       const isCommander = e.def.movePattern === 'legion';
       const isBoss = isTrueBoss || isCommander;
+      if (e.def.id === 'nemesis') {
+        this.drawNemesis(state, e, r);
+        if (e.hp < e.maxHp) {
+          g.rect(e.x - r, e.y - r - 8, r * 2, 4).fill({ color: 0x000000, alpha: 0.5 });
+          g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4).fill(0xc084fc);
+        }
+        continue;
+      }
       const tex = this.atlas.enemies[e.def.id as EnemyId];
 
       if (tex) {
@@ -1711,22 +1719,55 @@ export class Renderer {
     }
   }
 
+  private drawNemesis(state: GameState, e: Enemy, r: number): void {
+    const shipId = (e.nemesisShipId ?? state.shipId) as ShipId;
+    const tex = this.atlas.ships[shipId];
+    const tint = 0x800080;
+    this.spawnParticle({
+      x: e.x + (Math.random() - 0.5) * 10,
+      y: e.y + 12 + Math.random() * 8,
+      vx: (Math.random() - 0.5) * 24,
+      vy: 90 + Math.random() * 50,
+      life: 0.24 + Math.random() * 0.1,
+      sizeFrom: 9,
+      sizeTo: 2,
+      tint: 0xef4444,
+      alphaFrom: 0.9,
+    });
+    const glow = this.glowPool.get();
+    glow.tint = tint;
+    glow.position.set(e.x, e.y);
+    glow.width = glow.height = r * 4.4 + Math.sin(this.elapsed * 5) * 6;
+    glow.alpha = 0.58;
+    if (tex) {
+      const spr = this.entityPool.get(tex);
+      spr.position.set(e.x, e.y);
+      spr.width = spr.height = r * 2.7;
+      spr.tint = e.hitFlash > 0 ? 0xffffff : tint;
+      spr.alpha = 1;
+      spr.rotation = 0;
+    } else {
+      this.enemyG.circle(e.x, e.y, r).fill({ color: tint, alpha: 0.95 });
+    }
+  }
+
   /** 보스·적 탄환 — 흰 코어 + 보라 테두리 (치명 탄 시인성) */
   private drawEnemyProjectiles(state: GameState): void {
     const outline = hex(DANGER.fatal);
     const glowOk = state.enemyProjectiles.length <= PERF.glowEnemyBulletCap;
     for (const p of state.enemyProjectiles) {
+      const col = p.color ? hex(p.color) : outline;
       const tex = fxFrame(this.atlas.fx.ebullet, this.elapsed + p.x * 0.02, 12);
       if (tex) {
         const size = p.radius * 5.2;
-        this.blitFx(tex, p.x, p.y, { width: size, height: size });
+        this.blitFx(tex, p.x, p.y, { width: size, height: size, tint: col });
       } else {
-        this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: outline });
+        this.coreG.circle(p.x, p.y, p.radius).stroke({ width: 2, color: col });
         this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
       }
       if (!glowOk) continue;
       const glow = this.glowPool.get();
-      glow.tint = outline;
+      glow.tint = col;
       glow.position.set(p.x, p.y);
       glow.width = glow.height = p.radius * 5.5;
       glow.alpha = 0.9;
@@ -1754,9 +1795,9 @@ export class Renderer {
       const tint = p.kind === 'heal' ? 0x4ade80
         : p.kind === 'magnet' ? 0x38bdf8
         : p.kind === 'cube' ? 0x67e8f9
-        : p.kind === 'goldCube' ? 0xfbbf24
+        : p.kind === 'goldCube' || p.kind === 'voidCrate' ? 0xfbbf24
         : 0xfb923c;
-      const tex = this.atlas.pickups[p.kind];
+      const tex = this.atlas.pickups[p.kind === 'voidCrate' ? 'goldCube' : p.kind];
 
       const glow = this.glowPool.get();
       glow.tint = tint;
@@ -1770,6 +1811,10 @@ export class Renderer {
         const size = (PICKUPS.radius + 3) * 2.6;
         spr.width = size;
         spr.height = size;
+        if (p.kind === 'voidCrate') {
+          g.circle(p.x, y, PICKUPS.radius + 9)
+            .stroke({ width: 2.4, color: 0xfde68a, alpha: 0.95 });
+        }
       } else {
         g.circle(p.x, y, PICKUPS.radius + 3).fill({ color: 0x0f172a, alpha: 0.85 }).stroke({ width: 2, color: tint });
         if (p.kind === 'heal') {
@@ -1779,7 +1824,7 @@ export class Renderer {
           g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
           g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
           g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
-        } else if (p.kind === 'cube' || p.kind === 'goldCube') {
+        } else if (p.kind === 'cube' || p.kind === 'goldCube' || p.kind === 'voidCrate') {
           const r = PICKUPS.radius + 2;
           g.poly([p.x, y - r, p.x + r * 0.75, y, p.x, y + r, p.x - r * 0.75, y], true).fill(tint);
         } else {
@@ -2018,6 +2063,24 @@ export class Renderer {
         g.circle(m.x, m.y, m.pullRadius)
           .stroke({ width: 1.5, color, alpha: 0.22 + Math.sin(this.elapsed * 6) * 0.08 });
       }
+    }
+    for (const m of state.hazardMines) {
+      const idle = 1 + Math.sin(this.elapsed * 6 + m.x * 0.05) * 0.1;
+      const blink = m.fuse < 0.55 && Math.floor(this.elapsed * 14) % 2 === 0;
+      const tex = fxFrame(this.atlas.fx.mine, this.elapsed + m.x * 0.03, 7);
+      const color = 0xc084fc;
+      if (tex) {
+        this.blitFx(tex, m.x, m.y, {
+          width: m.radius * 5 * idle,
+          height: m.radius * 5 * idle,
+          tint: blink ? 0xffffff : color,
+          alpha: 0.95,
+        });
+      } else {
+        g.circle(m.x, m.y, m.radius * idle).fill({ color: blink ? 0xffffff : color, alpha: 0.9 });
+      }
+      g.circle(m.x, m.y, m.explodeRadius)
+        .stroke({ width: 1.2, color, alpha: 0.2 + Math.sin(this.elapsed * 8) * 0.08 });
     }
     for (const s of state.summons) {
       const color = this.frenzyTint(state, s.weaponId, hex(s.elite ? '#fbbf24' : s.color));

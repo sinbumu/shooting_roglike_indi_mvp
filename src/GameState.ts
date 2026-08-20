@@ -1,7 +1,7 @@
 import type {
   EnemyDef, EnemyId, WeaponId, PickupKind, ShipId, PassiveId, StageId, ChallengeId,
   AffixId, StatBoostId, TacticalId, MutationId, ActiveSkillId, DroneId, PilotTraitId,
-  ProjectileSpec, ConstellationId, AwakeningId,
+  ProjectileSpec, ConstellationId, AwakeningId, ModifierId,
 } from './types';
 import {
   CANVAS, PLAYER, LEVELING, WEAPONS, ENEMIES, GEM, SHIPS, PASSIVES, ELITE,
@@ -15,6 +15,7 @@ import {
   compatibleAffixes, ampCooldownMul,
   isMeleeFamily, isSummonFamily, isRangedFamily, isWhipWeapon, slashSweepAngle,
   CORE_AWAKENINGS, PERF, SEEKING_SLASH, BLOOD_CROSSFIRE,
+  MODIFIER_FX, modifierRewardMul,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
 import { metaBonuses } from './Meta';
@@ -132,6 +133,8 @@ export interface Enemy {
   anchored?: boolean;
   /** 탐욕 오염 픽업에 피격되어 광폭화 */
   enraged?: boolean;
+  clonedWeapons?: WeaponSlot[];
+  nemesisShipId?: ShipId;
 }
 
 export interface Slash {
@@ -334,12 +337,22 @@ export interface PassiveSlot {
   level: number;
 }
 
+export interface HazardMine {
+  x: number;
+  y: number;
+  fuse: number;
+  radius: number;
+  explodeRadius: number;
+  damage: number;
+}
+
 /** 보스가 발사하는 적 탄환 */
 export interface EnemyProjectile {
   x: number; y: number;
   vx: number; vy: number;
   radius: number;
   damage: number;
+  color?: string;
 }
 
 /** 드롭 아이템 (회복/자석/폭탄) */
@@ -533,6 +546,8 @@ export class GameState {
   enemyHpMul = 1;
   scoreMul = 1;
   creditMul = 1;
+  activeMods: ModifierId[] = [];
+  modRewardMul = 1;
   maxWeaponSlots: number = PLAYER.maxWeaponSlots;
   maxPassiveSlots: number = PLAYER.maxPassiveSlots;
   victoryTime = 300;
@@ -616,6 +631,7 @@ export class GameState {
   slashes: Slash[] = [];
   orbiters: Orbiter[] = [];
   mines: Mine[] = [];
+  hazardMines: HazardMine[] = [];
   summons: Summon[] = [];
   private projPool: Projectile[] = [];
   private hitEventLeft = 0;
@@ -689,6 +705,10 @@ export class GameState {
   private wheelPending = false;
   private bloodBursting = false;
   private carpetQueue: { x: number; y: number; left: number; radius: number; damage: number }[] = [];
+  private minefieldAcc = 0;
+  private nemesisSpawned = false;
+  private nemesisDecided = false;
+  private nemesisWillSpawn = false;
 
   nodeLv(id: ConstellationId): number {
     return this.constellation[id] ?? 0;
@@ -698,8 +718,12 @@ export class GameState {
     return this.nodeLv(id) > 0;
   }
 
+  hasMod(id: ModifierId): boolean {
+    return this.activeMods.includes(id);
+  }
+
   /** 기체 + 스테이지 + 도전 + 메타로 런 시작 */
-  start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId): void {
+  start(shipId: ShipId, meta: MetaSave, stageId?: StageId, challengeId?: ChallengeId, mods?: ModifierId[]): void {
     const ship = SHIPS[shipId];
     const stage = STAGES[stageId ?? meta.selectedStage];
     const challenge = CHALLENGES[challengeId ?? meta.selectedChallenge];
@@ -710,6 +734,16 @@ export class GameState {
     this.challengeId = challenge.id;
     this.constellation = { ...emptyConstellation(), ...meta.constellation };
     this.fogRadius = this.hasNode('darkFog') ? CONSTELLATION_FX.fogRadius : 0;
+    this.activeMods = [...(mods ?? [])];
+    this.modRewardMul = modifierRewardMul(this.activeMods);
+    if (this.hasMod('mod_eclipse')) {
+      this.fogRadius = Math.max(this.fogRadius, MODIFIER_FX.eclipseRadius);
+    }
+    this.hazardMines = [];
+    this.minefieldAcc = 0;
+    this.nemesisSpawned = false;
+    this.nemesisDecided = false;
+    this.nemesisWillSpawn = false;
     this.pantheonEarned = 0;
     this.runCoreBonus = 0;
     const skinId = meta.equippedShipSkins?.[shipId];
@@ -735,7 +769,7 @@ export class GameState {
     const abyss = this.nodeLv('endlessAbyss');
     if (abyss > 0) this.enemyHpMul *= Math.pow(1 + CONSTELLATION_FX.abyssPerStack, abyss);
     this.scoreMul = challenge.scoreMul ?? 1;
-    this.creditMul = challenge.creditMul ?? 1;
+    this.creditMul = (challenge.creditMul ?? 1) * this.modRewardMul;
 
     const hpMul = ship.hpMul * m.hpMul * (challenge.hpMul ?? 1);
     this.baseMaxHp = Math.round(PLAYER.maxHp * hpMul);
@@ -900,7 +934,7 @@ export class GameState {
     this.magnetRadius = this.baseMagnet * magnetMul;
     this.moveSpeed = this.baseMoveSpeed * this.runStats.moveSpeedMul * this.passiveMoveMul;
     this.armorReduce = Math.min(0.7, armor);
-    this.expMul = this.baseExpMul * stormExp * (STAGES[this.stageId].expMultiplier ?? 1);
+    this.expMul = this.baseExpMul * stormExp * (STAGES[this.stageId].expMultiplier ?? 1) * this.modRewardMul;
     this.damageMul = this.baseDamageMul * (1 + dmgAdd);
     if (this.hasNode('glassCannon')) this.damageMul *= CONSTELLATION_FX.glassDmgMul;
     if (this.hasNode('overloadGear')) {
@@ -1195,6 +1229,8 @@ export class GameState {
     this.updateSpawns(dt);
     this.updateBossSchedule();
     this.updateCommanderSchedule();
+    this.updateNemesisSchedule();
+    this.updateMinefield(dt);
     this.updateRiftEvent(dt);
     this.updateWarnings(dt);
     const edt = dt * this.worldSlow;
@@ -2025,6 +2061,7 @@ export class GameState {
         if (slot.weaponId === 'bloodCrossfire') {
           raw *= 1 - this.missingHp01() * BLOOD_CROSSFIRE.firePerMissing;
         }
+        if (this.hasMod('mod_exhaust')) raw *= MODIFIER_FX.exhaustCooldownMul;
         slot.cooldownLeft += Math.max(def.cooldownMs * ARSENAL.cooldownFloor, raw);
       }
     }
@@ -2301,7 +2338,8 @@ export class GameState {
         const key = `${wi}:${ei}`;
         const t = (this.spawnTimers.get(key) ?? 0) + dt;
         const interval = entry.interval * scale / (1 + this.legionSpawnMul)
-          / (this.hasNode('bloodFeast') ? CONSTELLATION_FX.bloodSpawnMul : 1);
+          / (this.hasNode('bloodFeast') ? CONSTELLATION_FX.bloodSpawnMul : 1)
+          / (this.hasMod('mod_swarm') ? MODIFIER_FX.swarmSpawnMul : 1);
         if (t >= interval) {
           this.spawnTimers.set(key, t - interval);
           this.spawnEnemy(entry.enemy, entry.mutation);
@@ -2365,7 +2403,8 @@ export class GameState {
     if (this.time >= spawnAt) {
       const bossType = this.bossRoster[this.bossIndex % this.bossRoster.length];
       const boss = this.addEnemy(bossType, CANVAS.width / 2, -60, 1, false);
-      boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth) * this.enemyHpMul;
+      const uny = this.hasMod('mod_unyielding') ? MODIFIER_FX.unyieldingHpMul : 1;
+      boss.hp = boss.maxHp = ENEMIES[bossType].hp * (1 + this.bossIndex * BOSS.hpGrowth) * this.enemyHpMul * uny;
       boss.phase = 1;
       this.bossId = boss.id;
       if (this.hasNode('twinDread')) {
@@ -2407,6 +2446,112 @@ export class GameState {
     this.commanderWarned = false;
     this.events.push({ type: 'bossSpawned', x: e.x, y: e.y });
     this.events.push({ type: 'banner', text: `⚠ ${ENEMIES[id].name}` });
+  }
+
+  private updateNemesisSchedule(): void {
+    if (this.stageId !== 'blitz' || this.nemesisSpawned) return;
+    const at = MODIFIER_FX.nemesisAt;
+    if (!this.nemesisDecided && this.time >= at - BOSS.warningLead) {
+      this.nemesisDecided = true;
+      this.nemesisWillSpawn = this.hasMod('mod_mirror') || Math.random() < MODIFIER_FX.nemesisChance;
+      if (this.nemesisWillSpawn) {
+        this.events.push({ type: 'bossWarn' });
+        this.events.push({ type: 'banner', text: '⚠ 도플갱어 접근' });
+      }
+    }
+    if (!this.nemesisWillSpawn || this.time < at) return;
+    this.spawnNemesis();
+  }
+
+  private spawnNemesis(): void {
+    this.nemesisSpawned = true;
+    const e = this.addEnemy('nemesis', CANVAS.width / 2, -40, 1, false);
+    e.nemesisShipId = this.shipId;
+    e.clonedWeapons = this.weapons.map((w) => ({
+      weaponId: w.weaponId,
+      level: w.level,
+      cooldownLeft: 280 + Math.random() * 220,
+      affix: w.affix,
+      damageBonus: w.damageBonus,
+      speedBonus: w.speedBonus,
+      cooldownBonus: w.cooldownBonus,
+      radiusBonus: w.radiusBonus,
+    }));
+    const uny = this.hasMod('mod_unyielding') ? MODIFIER_FX.unyieldingHpMul : 1;
+    e.hp = e.maxHp = ENEMIES.nemesis.hp * this.enemyHpMul * uny;
+    this.bossId = e.id;
+    this.events.push({ type: 'bossSpawned', x: e.x, y: e.y });
+    this.events.push({ type: 'banner', text: '👥 섀도우 난입' });
+  }
+
+  private updateNemesis(e: Enemy, dt: number): void {
+    const dx = this.playerX - e.x;
+    const dy = this.playerY - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const desired = MODIFIER_FX.nemesisKeepDist;
+    const speed = e.def.speed;
+    if (dist > desired + 24) {
+      e.x += (dx / dist) * speed * dt;
+      e.y += (dy / dist) * speed * dt;
+    } else if (dist < desired - 24) {
+      e.x -= (dx / dist) * speed * dt;
+      e.y -= (dy / dist) * speed * dt;
+    } else {
+      e.x += (-dy / dist) * speed * 0.55 * dt;
+      e.y += (dx / dist) * speed * 0.55 * dt;
+    }
+    e.x = Math.max(e.def.radius, Math.min(CANVAS.width - e.def.radius, e.x));
+    e.y = Math.max(e.def.radius + 40, Math.min(CANVAS.height * 0.62, e.y));
+    this.updateNemesisWeapons(e, dt);
+  }
+
+  private updateNemesisWeapons(e: Enemy, dt: number): void {
+    if (!e.clonedWeapons) return;
+    const ang = Math.atan2(this.playerY - e.y, this.playerX - e.x);
+    for (const slot of e.clonedWeapons) {
+      slot.cooldownLeft -= dt * 1000;
+      if (slot.cooldownLeft > 0) continue;
+      const def = WEAPONS[slot.weaponId];
+      const scaled = def.projectile.damage * (0.2 + slot.level * 0.04);
+      const dmg = Math.min(MODIFIER_FX.nemesisDmgMax, Math.max(MODIFIER_FX.nemesisDmgMin, scaled));
+      this.enemyProjectiles.push({
+        x: e.x,
+        y: e.y,
+        vx: Math.cos(ang) * MODIFIER_FX.nemesisShotSpeed,
+        vy: Math.sin(ang) * MODIFIER_FX.nemesisShotSpeed,
+        radius: 7,
+        damage: dmg,
+        color: def.color,
+      });
+      const cdScale = 1 - Math.min(0.45, (slot.level - 1) * LEVELING.cooldownPerLevel);
+      slot.cooldownLeft += Math.max(280, def.cooldownMs * cdScale);
+    }
+  }
+
+  private updateMinefield(dt: number): void {
+    if (!this.hasMod('mod_minefield')) return;
+    this.minefieldAcc += dt;
+    while (this.minefieldAcc >= MODIFIER_FX.mineInterval) {
+      this.minefieldAcc -= MODIFIER_FX.mineInterval;
+      const pad = 36;
+      this.hazardMines.push({
+        x: pad + Math.random() * (CANVAS.width - pad * 2),
+        y: pad + Math.random() * (CANVAS.height * 0.72),
+        fuse: MODIFIER_FX.mineFuse,
+        radius: MODIFIER_FX.mineRadius,
+        explodeRadius: MODIFIER_FX.mineExplode,
+        damage: MODIFIER_FX.mineDamage,
+      });
+    }
+    for (let i = this.hazardMines.length - 1; i >= 0; i--) {
+      const m = this.hazardMines[i];
+      m.fuse -= dt;
+      if (m.fuse > 0) continue;
+      const dist = Math.hypot(this.playerX - m.x, this.playerY - m.y);
+      if (dist <= m.explodeRadius + PLAYER.radius) this.hurtPlayer(m.damage);
+      this.events.push({ type: 'enemyDied', x: m.x, y: m.y, color: '#c084fc', radius: m.explodeRadius * 0.4 });
+      swapPop(this.hazardMines, i);
+    }
   }
 
   private nearBossWindow(): boolean {
@@ -2998,9 +3143,10 @@ export class GameState {
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
 
+      const haste = this.hasMod('mod_haste') && !this.isBossLike(e) ? MODIFIER_FX.hasteSpeedMul : 1;
       const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y) * this.zoneMoveMulAt(e.x, e.y, e)
         * (this.hasNode('hunterToy') && (e.def.id === 'teleporter' || e.def.id === 'mirage')
-          ? CONSTELLATION_FX.hunterSpeedMul : 1);
+          ? CONSTELLATION_FX.hunterSpeedMul : 1) * haste;
       const eliteMul = (e.elite ? ELITE.speedMul : 1) * (e.enraged ? 1.5 : 1);
 
       switch (e.def.movePattern) {
@@ -3041,6 +3187,9 @@ export class GameState {
           break;
         case 'vortexPull':
           this.updateVortex(e, dt * moveMul);
+          break;
+        case 'nemesis':
+          this.updateNemesis(e, dt * moveMul);
           break;
       }
 
@@ -4283,7 +4432,9 @@ export class GameState {
         this.events.push({ type: 'banner', text: '🎯 사냥 표식: 자석·EXP 3배' });
       }
 
-      if (this.isTrueBoss(e)) {
+      if (e.def.id === 'nemesis') {
+        this.killNemesis(e);
+      } else if (this.isTrueBoss(e)) {
         this.killBoss(e);
       } else {
         if (e.elite) this.eliteKills++;
@@ -4392,6 +4543,16 @@ export class GameState {
     this.vacuumDrops();
   }
 
+  private killNemesis(e: Enemy): void {
+    const other = this.enemies.find((x) => (this.isTrueBoss(x) || x.def.id === 'nemesis') && x.id !== e.id);
+    if (this.bossId === e.id) this.bossId = other?.id ?? null;
+    this.bossKills++;
+    this.score += Math.round(BOSS.score * 0.6 * this.scoreMul);
+    this.events.push({ type: 'bossDied', x: e.x, y: e.y });
+    this.events.push({ type: 'banner', text: '도플갱어 격파!' });
+    this.spawnPickup('voidCrate', e.x, e.y, PICKUPS.lifetime * 2);
+  }
+
   private killBoss(e: Enemy): void {
     const other = this.enemies.find((x) => this.isTrueBoss(x) && x.id !== e.id);
     this.bossId = other?.id ?? null;
@@ -4498,6 +4659,12 @@ export class GameState {
         this.status = 'levelup';
         this.events.push({ type: 'banner', text: '🏆 VOID CACHE' });
         if (greedFresh) this.runCreditBonus += 80 * CONSTELLATION_FX.greedRewardMul;
+        break;
+      case 'voidCrate':
+        this.pendingCrafts++;
+        this.pantheonEarned += 2;
+        this.status = 'levelup';
+        this.events.push({ type: 'banner', text: '📦 공허의 보급상자 · 판테온 +2' });
         break;
     }
   }
@@ -4684,7 +4851,7 @@ export class GameState {
   }
 
   private isBossPattern(pattern: Enemy['def']['movePattern']): boolean {
-    return pattern === 'boss' || pattern === 'bossSeraph' || pattern === 'legion';
+    return pattern === 'boss' || pattern === 'bossSeraph' || pattern === 'legion' || pattern === 'nemesis';
   }
 
   private isBossLike(e: Enemy): boolean {

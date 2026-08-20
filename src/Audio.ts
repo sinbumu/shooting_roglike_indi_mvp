@@ -152,6 +152,16 @@ export class AudioManager {
     this.tone(780, 0.12, { type: 'square', slideTo: 220, gain: 0.03, delay: 0.12 });
   }
 
+  /** 공허 맵 크래프팅 리롤 — 기계음 + 마법석 */
+  playModifierReroll(): void {
+    if (!this.ctx) this.init();
+    this.noise(0.16, { gain: 0.14, freq: 70 });
+    this.tone(90, 0.22, { type: 'sawtooth', slideTo: 48, gain: 0.09 });
+    this.tone(220, 0.1, { type: 'square', slideTo: 140, gain: 0.04, delay: 0.04 });
+    this.tone(640, 0.08, { type: 'triangle', slideTo: 420, gain: 0.035, delay: 0.09 });
+    this.tone(180, 0.14, { type: 'sawtooth', slideTo: 90, gain: 0.05, delay: 0.14 });
+  }
+
   private applyBgmGain(): void {
     if (!this.ctx || !this.bgmBus) return;
     const combat = 1 - this.combatIntensity * 0.35;
@@ -377,10 +387,10 @@ export class AudioManager {
         } else if (ev.kind === 'magnet') {
           this.tone(280, 0.32, { type: 'sine', slideTo: 1500, gain: 0.055 });
           this.tone(420, 0.2, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.06 });
-        } else if (ev.kind === 'cube' || ev.kind === 'goldCube') {
-          const seq = ev.kind === 'goldCube'
-            ? [523, 784, 1047, 1319]
-            : [784, 988, 1175, 1568];
+        } else if (ev.kind === 'cube' || ev.kind === 'goldCube' || ev.kind === 'voidCrate') {
+          const seq = ev.kind === 'cube'
+            ? [784, 988, 1175, 1568]
+            : [523, 784, 1047, 1319];
           seq.forEach((f, i) =>
             this.tone(f, 0.1, { type: 'sine', gain: 0.05, delay: i * 0.045 }),
           );

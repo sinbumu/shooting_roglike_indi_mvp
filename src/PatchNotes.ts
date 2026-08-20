@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.12.0',
+    date: '2026-08-20',
+    changes: [
+      '🗺️ 심연 강하 출격 전 공허 맵 크래프팅: 접두/접미 모디파이어 최대 4, 리롤 1,000c, 보상 배율 합산',
+      '👥 2분 30초 도플갱어(섀도우) 난입 — 빌드 복사 사격, 처치 시 공허의 보급상자(크래프트 1회 + 판테온 +2)',
+    ],
+  },
+  {
     version: 'v1.11.0',
     date: '2026-08-20',
     changes: [

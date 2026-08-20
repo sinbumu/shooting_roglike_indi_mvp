@@ -1,4 +1,4 @@
-import { CANVAS, JOYSTICK, WEAPONS, PERF } from './GameConfig';
+import { CANVAS, JOYSTICK, WEAPONS, PERF, MODIFIER_FX } from './GameConfig';
 import { GameState, type GameStatus } from './GameState';
 import { Renderer } from './Renderer';
 import { UI, craftLockedPreviewHtml, craftArsenalPreviewHtml } from './UI';
@@ -10,7 +10,7 @@ import {
   tryUnlockDrone, selectDrone, tryUpgradeDrone,
   tryUnlockTrait, selectTrait,
 } from './Meta';
-import type { ShipId, MetaUpgradeId, DroneId, PilotTraitId } from './types';
+import type { ShipId, MetaUpgradeId, DroneId, PilotTraitId, ModifierId } from './types';
 import './style.css';
 
 const wrap = document.getElementById('game-wrap') as HTMLDivElement;
@@ -307,16 +307,17 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 
-function beginRun(): void {
+function beginRun(mods?: ModifierId[]): void {
   meta = loadMeta();
   ui.setMeta(meta);
   state = new GameState();
-  state.start(meta.selectedShip, meta, meta.selectedStage, meta.selectedChallenge);
+  state.start(meta.selectedShip, meta, meta.selectedStage, meta.selectedChallenge, mods);
   runSettled = false;
   hitstop = 0;
   ui.hideGameOver();
   ui.hideVictory();
   ui.hidePause();
+  ui.hideModifierModal();
   ui.hideStart();
   audio.init();
   audio.resume();
@@ -410,7 +411,28 @@ ui.onOpenGacha(() => {
   if (result.tier === 'jackpot') audio.handleEvent({ type: 'jackpot' });
 });
 
-ui.onStartClick(beginRun);
+ui.onStartClick(() => {
+  meta = loadMeta();
+  ui.setMeta(meta);
+  if (meta.selectedStage === 'blitz') ui.showModifierModal();
+  else beginRun();
+});
+ui.onModifierReroll(() => {
+  meta = loadMeta();
+  if (meta.credits < MODIFIER_FX.rerollCost) {
+    ui.showBanner('크레딧이 부족합니다');
+    return;
+  }
+  meta.credits -= MODIFIER_FX.rerollCost;
+  saveMeta(meta);
+  ui.setMeta(meta);
+  ui.refreshHangar();
+  audio.init();
+  audio.playModifierReroll();
+  ui.rerollModifiers();
+});
+ui.onModifierLaunch(() => beginRun(ui.getPendingMods()));
+ui.onModifierClose(() => ui.hideModifierModal());
 ui.onRestartClick(backToHangar);
 ui.onPauseClick(togglePause);
 ui.onRetreatClick(() => ui.showRetreatConfirm());

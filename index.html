@@ -19,6 +19,7 @@
           <div id="exp-bar"><div id="exp-fill"></div><span id="exp-label">Lv.1</span></div>
           <div id="hp-bar"><div id="hp-fill"></div><span id="hp-label"></span></div>
           <div id="hud-drone" class="hidden"></div>
+          <div id="hud-mods" class="hidden"></div>
           <div id="hud-stats">
             <span id="stat-time">00:00</span>
             <span id="stat-kills">☠ 0</span>
@@ -119,6 +120,23 @@
         <p class="overlay-sub">출격 전 보조 드론 1기를 장착합니다 · 💰 <span id="drone-shop-credits">0</span></p>
         <div id="drone-select"></div>
         <button id="drone-close-btn" class="secondary">닫기</button>
+      </div>
+
+      <!-- ===== 공허 맵 크래프팅 ===== -->
+      <div id="modifier-overlay" class="overlay hidden">
+        <h2 class="overlay-title">VOID MAPPING</h2>
+        <p class="overlay-sub">공허의 맵 크래프팅 · 리스크를 감수하고 보상을 키우세요</p>
+        <div class="mod-layout">
+          <div class="mod-left">
+            <div id="mod-reward" class="mod-reward">현재 보상 배율 +0%</div>
+            <div id="mod-list"></div>
+          </div>
+          <div class="mod-right">
+            <button id="mod-reroll-btn">변이 굴림 (1,000c)</button>
+            <button id="mod-launch-btn">이대로 출격</button>
+            <button id="mod-close-btn" class="secondary">닫기</button>
+          </div>
+        </div>
       </div>
 
       <!-- ===== 파일럿 특성 ===== -->

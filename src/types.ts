@@ -338,6 +338,27 @@ export interface StageDef {
   expMultiplier?: number;
 }
 
+export type ModifierKind = 'prefix' | 'suffix';
+
+export type ModifierId =
+  | 'mod_haste'
+  | 'mod_swarm'
+  | 'mod_unyielding'
+  | 'mod_exhaust'
+  | 'mod_eclipse'
+  | 'mod_minefield'
+  | 'mod_mirror';
+
+export interface ModifierDef {
+  id: ModifierId;
+  kind: ModifierKind;
+  name: string;
+  icon: string;
+  desc: string;
+  /** 0.5 = 보상 +50% */
+  rewardMul: number;
+}
+
 export type ChallengeId = 'standard' | 'tight' | 'fragile' | 'bare';
 
 export interface ChallengeDef {
@@ -372,7 +393,8 @@ export type EnemyId =
   | 'trapper'
   | 'vortex'
   | 'boss'
-  | 'bossSeraph';
+  | 'bossSeraph'
+  | 'nemesis';
 
 export type SpawnEdge = 'top' | 'side' | 'bottom';
 
@@ -390,12 +412,13 @@ export type MovePattern =
   | 'anchorFence'
   | 'vortexPull'
   | 'boss'
-  | 'bossSeraph';
+  | 'bossSeraph'
+  | 'nemesis';
 
 /** 후반 돌연변이 */
 export type MutationId = 'explode' | 'split' | 'burst';
 
-export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube';
+export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube' | 'voidCrate';
 
 export type PilotTraitId = 'lastStand' | 'turretDark' | 'executioner';
 
