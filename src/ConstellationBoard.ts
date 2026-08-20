@@ -235,14 +235,20 @@ export class ConstellationBoard {
       if (this.moved) {
         this.panX = this.panStartX + dx;
         this.panY = this.panStartY + dy;
+        this.hoverId = null;
+        this.hideTip();
+        return;
       }
-      return;
     }
     const w = this.toWorld(p.x, p.y);
     const id = this.hitNode(w.x, w.y);
     this.hoverId = id;
     if (id) this.showTip(id, p.x, p.y);
     else this.hideTip();
+    if (this.holdId && id !== this.holdId) {
+      this.holdId = null;
+      this.holdT = 0;
+    }
   }
 
   private onUp(e: PointerEvent): void {
@@ -255,6 +261,12 @@ export class ConstellationBoard {
     }
     this.holdId = null;
     this.holdT = 0;
+    const p = this.localPoint(e);
+    const w = this.toWorld(p.x, p.y);
+    const id = this.hitNode(w.x, w.y);
+    this.hoverId = id;
+    if (id && !this.moved) this.showTip(id, p.x, p.y);
+    else this.hideTip();
   }
 
   private tryUnlock(id: ConstellationId): void {
