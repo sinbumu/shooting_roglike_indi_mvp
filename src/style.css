@@ -743,6 +743,15 @@ button.secondary {
   padding: 6px 4px 0;
 }
 
+.debug-unlock-btn {
+  width: 100%;
+  max-width: 340px;
+  margin-top: 8px;
+  border-color: rgba(251, 146, 60, 0.7) !important;
+  color: #fdba74 !important;
+  background: rgba(124, 45, 18, 0.55) !important;
+}
+
 .weapon-slot {
   width: 52px;
   height: 52px;

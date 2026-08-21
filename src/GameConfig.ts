@@ -1193,6 +1193,7 @@ export const COMBAT = {
 /** 후반 탄막·몹팩 프레임 가드 */
 export const PERF = {
   maxDpr: 1.5,
+  tickHz: 60,
   hitFxPerFrame: 8,
   muzzleFxPerFrame: 6,
   deathFxPerFrame: 4,

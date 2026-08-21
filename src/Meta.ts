@@ -177,6 +177,36 @@ export function saveMeta(meta: MetaSave): void {
   localStorage.setItem(META.storageKey, JSON.stringify(meta));
 }
 
+/** 프로파일링용. 잠긴 메타 컨텐츠를 열고 재화를 채운다. 성좌 노드는 켜지 않는다. */
+export function applyDebugUnlock(meta: MetaSave): void {
+  const infCap = 10;
+  meta.credits = Math.max(meta.credits, 9_999_999);
+  meta.bossCores = Math.max(meta.bossCores, 999);
+  meta.pantheonPoints = Math.max(meta.pantheonPoints, 99);
+
+  meta.unlockedShips = Object.keys(SHIPS) as ShipId[];
+  meta.unlockedStages = Object.keys(STAGES) as StageId[];
+  meta.clearedStages = [...meta.unlockedStages];
+  meta.unlockedDrones = Object.keys(DRONES) as DroneId[];
+  meta.unlockedTraits = Object.keys(PILOT_TRAITS) as PilotTraitId[];
+  meta.unlockedShipSkins = Object.keys(SHIP_SKINS) as ShipSkinId[];
+  meta.unlockedProjSkins = Object.keys(PROJ_SKINS) as ProjSkinId[];
+  meta.seenWeapons = Object.keys(WEAPONS) as WeaponId[];
+  meta.achievements = Object.keys(ACHIEVEMENTS) as AchievementId[];
+  meta.seenAltarHint = true;
+
+  for (const id of Object.keys(META_UPGRADES) as MetaUpgradeId[]) {
+    const max = META_UPGRADES[id].maxLevel;
+    const cap = Number.isFinite(max) ? max : infCap;
+    meta.upgrades[id] = Math.max(meta.upgrades[id] ?? 0, cap);
+  }
+  for (const id of Object.keys(DRONES) as DroneId[]) {
+    meta.droneLevels[id] = DRONES[id].maxLevel;
+  }
+
+  saveMeta(meta);
+}
+
 export function upgradeCost(id: MetaUpgradeId, currentLevel: number): number {
   const def = META_UPGRADES[id];
   const mul = def.costMul ?? 1.5;

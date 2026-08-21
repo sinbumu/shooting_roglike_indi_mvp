@@ -8,7 +8,7 @@ import {
 import { kindLabel } from './LevelUpSystem';
 import type { GameState } from './GameState';
 import type { MetaSave } from './Meta';
-import { upgradeCost, droneUpgradeCost } from './Meta';
+import { upgradeCost, droneUpgradeCost, applyDebugUnlock } from './Meta';
 import { SPRITE_PATHS } from './assets';
 import { PATCH_NOTES, LATEST_VERSION } from './PatchNotes';
 import { ConstellationBoard } from './ConstellationBoard';
@@ -171,6 +171,13 @@ export class UI {
     };
     (document.getElementById('codex-btn') as HTMLButtonElement).onclick = () => {
       this.showCodex();
+    };
+    (document.getElementById('codex-debug-btn') as HTMLButtonElement).onclick = () => {
+      if (!this.meta) return;
+      applyDebugUnlock(this.meta);
+      this.onHangarChange?.();
+      this.showCodex();
+      this.showBanner('DEBUG: 전 컨텐츠 해금 · 재화 지급. 군단장 / 심연 강하로 출격하세요.');
     };
     (document.getElementById('codex-close-btn') as HTMLButtonElement).onclick = () => {
       this.codexOverlay.classList.add('hidden');
@@ -682,7 +689,10 @@ export class UI {
 
     this.codexList.innerHTML = block(1) + block(2) + block(3);
     this.codexOverlay.classList.remove('hidden');
-    this.setFocusGroup([document.getElementById('codex-close-btn') as HTMLButtonElement]);
+    this.setFocusGroup([
+      document.getElementById('codex-debug-btn') as HTMLButtonElement,
+      document.getElementById('codex-close-btn') as HTMLButtonElement,
+    ]);
   }
 
   showAchievementToast(ids: AchievementId[]): void {

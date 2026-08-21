@@ -181,6 +181,30 @@ function makeRingTexture(): Texture {
   return Texture.from(c);
 }
 
+/** 탄 꼬리·빔용 가로 스트릭 (앵커 왼쪽 = 흐릿, 오른쪽 = 밝음) */
+function makeStreakTexture(): Texture {
+  const w = 64;
+  const h = 16;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d') as CanvasRenderingContext2D;
+  const along = ctx.createLinearGradient(0, 0, w, 0);
+  along.addColorStop(0, 'rgba(255,255,255,0)');
+  along.addColorStop(0.28, 'rgba(255,255,255,0.45)');
+  along.addColorStop(1, 'rgba(255,255,255,1)');
+  const across = ctx.createLinearGradient(0, 0, 0, h);
+  across.addColorStop(0, 'rgba(255,255,255,0)');
+  across.addColorStop(0.5, 'rgba(255,255,255,1)');
+  across.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = along;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = across;
+  ctx.fillRect(0, 0, w, h);
+  return Texture.from(c);
+}
+
 // ============================================================
 
 export class Renderer {
@@ -206,7 +230,9 @@ export class Renderer {
 
   private glowTex!: Texture;
   private ringTex!: Texture;
+  private streakTex!: Texture;
   private glowPool!: FramePool;
+  private streakPool!: FramePool;
   private entityPool!: EntityPool;
   private fxSpritePool!: EntityPool;
   private playerSprite: Sprite | null = null;
@@ -256,12 +282,19 @@ export class Renderer {
       powerPreference: 'high-performance',
       resolution: Math.min(window.devicePixelRatio || 1, PERF.maxDpr),
       autoDensity: false,
+      eventFeatures: { move: false, globalMove: false, click: false, wheel: false },
     });
     this.app.ticker.stop(); // 게임 루프에서 수동 렌더링
+    this.app.stage.eventMode = 'none';
+    this.app.stage.interactiveChildren = false;
+    this.world.eventMode = 'none';
+    this.world.interactiveChildren = false;
 
     this.glowTex = makeGlowTexture();
     this.ringTex = makeRingTexture();
+    this.streakTex = makeStreakTexture();
     this.glowPool = new FramePool(this.glowLayer, this.glowTex);
+    this.streakPool = new FramePool(this.glowLayer, this.streakTex);
     this.entityPool = new EntityPool(this.spriteLayer);
     this.fxSpritePool = new EntityPool(this.fxLayer);
     this.atlas = await loadSpriteAtlas();
@@ -323,6 +356,7 @@ export class Renderer {
     this.updateWreckShards(dt);
 
     this.glowPool.begin();
+    this.streakPool.begin();
     this.entityPool.begin();
     this.fxSpritePool.begin();
     this.coreG.clear();
@@ -343,6 +377,7 @@ export class Renderer {
 
     this.entityPool.end();
     this.fxSpritePool.end();
+    this.streakPool.end();
     this.glowPool.end();
     this.app.render();
   }
@@ -986,6 +1021,27 @@ export class Renderer {
     spr.tint = opts.tint ?? 0xffffff;
     spr.alpha = opts.alpha ?? 1;
     if (opts.add) spr.blendMode = 'add';
+  }
+
+  /** 꼬리 시작점(x,y)에서 angle 방향으로 length만큼 스트릭 */
+  private blitStreak(
+    x: number,
+    y: number,
+    angle: number,
+    length: number,
+    width: number,
+    tint: number,
+    alpha: number,
+  ): void {
+    if (length < 1 || width < 0.5 || alpha <= 0) return;
+    const s = this.streakPool.get();
+    s.anchor.set(0, 0.5);
+    s.position.set(x, y);
+    s.rotation = angle;
+    s.width = length;
+    s.height = Math.max(1, width);
+    s.tint = tint;
+    s.alpha = alpha;
   }
 
   private gemBurst(x: number, y: number): void {
@@ -1836,8 +1892,6 @@ export class Renderer {
   }
 
   private drawProjectiles(state: GameState): void {
-    const g = this.projG;
-    g.clear();
     const n = state.projectiles.length;
     const glowOk = n <= PERF.glowProjCap;
     const trailOk = n <= PERF.glowProjCap;
@@ -1869,27 +1923,41 @@ export class Renderer {
           const crescent = p.weaponId === 'seekingSlash' || p.weaponId === 'phantomBlade'
             || p.weaponId === 'boomerangBlade' || p.weaponId === 'infinityChakram';
           const tail = p.radius * (p.boosted ? 5 : crescent ? 6.2 : 3.2);
-          g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
-            .lineTo(p.x, p.y)
-            .stroke({
-              width: p.radius * (p.boosted ? 1.4 : crescent ? 1.15 : 0.9),
-              color: p.boosted ? 0xf8fafc : color,
-              alpha: p.boosted ? 0.7 : crescent ? 0.42 : 0.28,
-            });
+          this.blitStreak(
+            p.x - Math.cos(angle) * tail,
+            p.y - Math.sin(angle) * tail,
+            angle,
+            tail,
+            p.radius * (p.boosted ? 1.4 : crescent ? 1.15 : 0.9),
+            p.boosted ? 0xf8fafc : color,
+            p.boosted ? 0.7 : crescent ? 0.42 : 0.28,
+          );
         }
         continue;
       }
 
       if (trailOk) {
         const tail = p.radius * (p.boosted ? 6.5 : 4);
-        g.moveTo(p.x - Math.cos(angle) * tail, p.y - Math.sin(angle) * tail)
-          .lineTo(p.x, p.y)
-          .stroke({ width: p.radius * (p.boosted ? 1.8 : 1.2), color: p.boosted ? 0xf8fafc : color, alpha: p.boosted ? 0.85 : 0.4 });
-
+        this.blitStreak(
+          p.x - Math.cos(angle) * tail,
+          p.y - Math.sin(angle) * tail,
+          angle,
+          tail,
+          p.radius * (p.boosted ? 1.8 : 1.2),
+          p.boosted ? 0xf8fafc : color,
+          p.boosted ? 0.85 : 0.4,
+        );
         if (p.boosted) {
-          g.moveTo(p.x - Math.cos(angle) * tail * 1.15, p.y - Math.sin(angle) * tail * 1.15)
-            .lineTo(p.x, p.y)
-            .stroke({ width: p.radius * 0.7, color: 0xffffff, alpha: 0.95 });
+          const tail2 = tail * 1.15;
+          this.blitStreak(
+            p.x - Math.cos(angle) * tail2,
+            p.y - Math.sin(angle) * tail2,
+            angle,
+            tail2,
+            p.radius * 0.7,
+            0xffffff,
+            0.95,
+          );
         }
       }
 
@@ -1901,12 +1969,17 @@ export class Renderer {
         glow.alpha = 1;
       }
 
-      this.coreG.circle(p.x, p.y, p.radius * 0.55).fill(0xffffff);
+      const core = this.glowPool.get();
+      core.tint = 0xffffff;
+      core.position.set(p.x, p.y);
+      core.width = core.height = p.radius * 1.2;
+      core.alpha = 1;
     }
   }
 
   private drawSpecials(state: GameState): void {
     const g = this.projG;
+    g.clear();
     for (const s of state.slashes) {
       const color = hex(s.color);
       const alpha = Math.max(0.28, s.life / s.maxLife);
@@ -1918,10 +1991,8 @@ export class Renderer {
       if (whip) {
         const tipX = s.x + Math.cos(sweepAng) * s.range;
         const tipY = s.y + Math.sin(sweepAng) * s.range;
-        g.moveTo(s.x, s.y).lineTo(tipX, tipY)
-          .stroke({ width: 10, color, alpha: 0.28 * alpha });
-        g.moveTo(s.x, s.y).lineTo(tipX, tipY)
-          .stroke({ width: 3.2, color: 0xffffff, alpha: 0.7 * alpha });
+        this.blitStreak(s.x, s.y, sweepAng, s.range, 10, color, 0.28 * alpha);
+        this.blitStreak(s.x, s.y, sweepAng, s.range, 3.2, 0xffffff, 0.7 * alpha);
         if (tex) {
           this.blitFx(tex, s.x, s.y, {
             rotation: sweepAng,
@@ -2612,13 +2683,15 @@ export class Renderer {
       const x = b.x + c * dist + px * jag;
       const y = b.y + s * dist + py * jag;
       const streak = 16 + (1 - u) * 28;
-      g.moveTo(x - c * streak, y - s * streak)
-        .lineTo(x + c * 8, y + s * 8)
-        .stroke({
-          width: Math.max(1.2, 2.6 - u * 1.2),
-          color: i % 3 === 0 ? 0xf43f5e : 0xbe123c,
-          alpha: 0.82 - u * 0.4,
-        });
+      this.blitStreak(
+        x - c * streak,
+        y - s * streak,
+        b.angle,
+        streak + 8,
+        Math.max(1.2, 2.6 - u * 1.2),
+        i % 3 === 0 ? 0xf43f5e : 0xbe123c,
+        0.82 - u * 0.4,
+      );
     }
 
     const gush = b.width * 0.52 + Math.sin(this.elapsed * 32) * 3.5;
@@ -2658,8 +2731,6 @@ export class Renderer {
         this.drawBloodStream(g, b);
         continue;
       }
-      const x2 = b.x + Math.cos(b.angle) * b.length;
-      const y2 = b.y + Math.sin(b.angle) * b.length;
       const color = hex(b.color);
       const pulse = 0.55 + Math.sin(this.elapsed * 28) * 0.15;
       const tex = fxFrame(this.atlas.fx.solance, this.elapsed, 14);
@@ -2674,18 +2745,16 @@ export class Renderer {
           anchorX: 0.07,
           anchorY: 0.5,
         });
-        g.moveTo(b.x, b.y).lineTo(x2, y2)
-          .stroke({ width: Math.max(3, b.width * 0.22), color: 0xffffff, alpha: 0.55 + pulse * 0.25 });
+        this.blitStreak(
+          b.x, b.y, b.angle, b.length,
+          Math.max(3, b.width * 0.22),
+          0xffffff,
+          0.55 + pulse * 0.25,
+        );
       } else {
-        g.moveTo(b.x, b.y);
-        g.lineTo(x2, y2);
-        g.stroke({ width: b.width * 1.8, color, alpha: 0.22 * pulse });
-        g.moveTo(b.x, b.y);
-        g.lineTo(x2, y2);
-        g.stroke({ width: b.width, color, alpha: 0.55 });
-        g.moveTo(b.x, b.y);
-        g.lineTo(x2, y2);
-        g.stroke({ width: Math.max(3, b.width * 0.28), color: 0xffffff, alpha: 0.9 });
+        this.blitStreak(b.x, b.y, b.angle, b.length, b.width * 1.8, color, 0.22 * pulse);
+        this.blitStreak(b.x, b.y, b.angle, b.length, b.width, color, 0.55);
+        this.blitStreak(b.x, b.y, b.angle, b.length, Math.max(3, b.width * 0.28), 0xffffff, 0.9);
       }
       const glow = this.glowPool.get();
       glow.tint = color;

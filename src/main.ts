@@ -274,17 +274,28 @@ function processEvents(): void {
 
 let lastTime = performance.now();
 let hudAcc = 0;
+let tickAcc = 0;
+const TICK_MAX_STEPS = 3;
 
 function loop(now: number): void {
-  const dt = Math.min((now - lastTime) / 1000, 1 / 20);
+  const frameDt = Math.min((now - lastTime) / 1000, 1 / 20);
   lastTime = now;
 
-  if (state.status === 'playing') {
-    pollInput();
+  if (state.status === 'playing') pollInput();
+
+  const step = 1 / PERF.tickHz;
+  tickAcc += frameDt;
+  let steps = 0;
+  let simDt = 0;
+  while (tickAcc >= step && steps < TICK_MAX_STEPS) {
+    tickAcc -= step;
+    steps++;
+    simDt += step;
+    if (state.status !== 'playing') continue;
     if (hitstop > 0) {
-      hitstop -= dt;
+      hitstop -= step;
     } else {
-      const status: GameStatus = state.update(dt);
+      const status: GameStatus = state.update(step);
       if (status === 'levelup') {
         if (state.pendingAltarRewards > 0) openAltarRewardUI();
         else if (state.pendingCrafts > 0) openCraftUI();
@@ -294,15 +305,18 @@ function loop(now: number): void {
       else if (status === 'victory') endRun(true);
     }
   }
+  if (steps >= TICK_MAX_STEPS) tickAcc = 0;
 
-  processEvents();
-  audio.setCombatIntensity(state.bossId != null ? 1 : 0);
-  audio.setStageMood(state.stageId);
-  renderer.render(state, dt);
-  hudAcc += dt;
-  if (state.status !== 'playing' || hudAcc >= PERF.hudInterval) {
-    hudAcc = 0;
-    ui.updateHUD(state);
+  if (steps > 0) {
+    processEvents();
+    audio.setCombatIntensity(state.bossId != null ? 1 : 0);
+    audio.setStageMood(state.stageId);
+    renderer.render(state, simDt);
+    hudAcc += simDt;
+    if (state.status !== 'playing' || hudAcc >= PERF.hudInterval) {
+      hudAcc = 0;
+      ui.updateHUD(state);
+    }
   }
   requestAnimationFrame(loop);
 }
