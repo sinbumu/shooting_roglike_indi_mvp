@@ -3,7 +3,9 @@ import {
   CANVAS, CONSTELLATION, CONSTELLATION_FX, constellationUnlockCost,
 } from './GameConfig';
 import type { MetaSave } from './Meta';
-import { constellationLv, isConstellationAdjacent, tryUnlockConstellation } from './Meta';
+import {
+  constellationLv, isConstellationAdjacent, tryUnlockConstellation, tryRefundConstellation,
+} from './Meta';
 
 interface NodePos {
   id: ConstellationId;
@@ -23,6 +25,9 @@ interface Spark {
 const CORE_R = 22;
 const STEP = 78;
 const NODE_R = 16;
+
+/** 세션 중 마지막으로 투자/회수한 노드 — 재오픈 시 카메라 포커스 */
+let sessionLastInvested: ConstellationId | null = null;
 
 /** 중심에서 시계 반대, 위쪽부터 갈래 */
 const BRANCHES: { ids: ConstellationId[][] }[] = [
@@ -79,9 +84,12 @@ export class ConstellationBoard {
   private getMeta: () => MetaSave;
   private onChange: () => void;
   private playUnlock: () => void;
+  private onWarn: (msg: string) => void;
 
   private panX = 0;
   private panY = 0;
+  private scale: number = CONSTELLATION_FX.zoomDefault;
+  private refundMode = false;
   private dragging = false;
   private dragStartX = 0;
   private dragStartY = 0;
@@ -100,6 +108,10 @@ export class ConstellationBoard {
   private lastTs = 0;
   private flow = 0;
 
+  private refundBtn: HTMLButtonElement;
+  private zoomInBtn: HTMLButtonElement;
+  private zoomOutBtn: HTMLButtonElement;
+
   constructor(
     overlay: HTMLElement,
     canvas: HTMLCanvasElement,
@@ -108,6 +120,7 @@ export class ConstellationBoard {
     getMeta: () => MetaSave,
     onChange: () => void,
     playUnlock: () => void,
+    onWarn: (msg: string) => void,
   ) {
     this.overlay = overlay;
     this.canvas = canvas;
@@ -119,6 +132,11 @@ export class ConstellationBoard {
     this.getMeta = getMeta;
     this.onChange = onChange;
     this.playUnlock = playUnlock;
+    this.onWarn = onWarn;
+
+    this.refundBtn = document.getElementById('cst-refund-btn') as HTMLButtonElement;
+    this.zoomInBtn = document.getElementById('cst-zoom-in') as HTMLButtonElement;
+    this.zoomOutBtn = document.getElementById('cst-zoom-out') as HTMLButtonElement;
 
     canvas.addEventListener('pointerdown', (e) => this.onDown(e));
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
@@ -126,16 +144,34 @@ export class ConstellationBoard {
     canvas.addEventListener('pointerleave', () => {
       if (!this.dragging) this.hideTip();
     });
+    canvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    this.zoomInBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.zoomAtCenter(CONSTELLATION_FX.zoomStep);
+    });
+    this.zoomOutBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.zoomAtCenter(1 / CONSTELLATION_FX.zoomStep);
+    });
+    this.refundBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.setRefundMode(!this.refundMode);
+    });
+    window.addEventListener('resize', () => {
+      if (this.running) this.resize();
+    });
   }
 
   open(): void {
     this.overlay.classList.remove('hidden');
-    this.panX = 0;
-    this.panY = 0;
+    this.refundMode = false;
+    this.syncRefundBtn();
     this.holdId = null;
     this.hoverId = null;
     this.hideTip();
     this.resize();
+    this.scale = this.clampScale(CONSTELLATION_FX.zoomDefault);
+    this.focusOn(this.pickFocus());
     this.refreshPoints();
     this.running = true;
     this.lastTs = performance.now();
@@ -148,11 +184,77 @@ export class ConstellationBoard {
     this.running = false;
     cancelAnimationFrame(this.raf);
     this.holdId = null;
+    this.refundMode = false;
+    this.syncRefundBtn();
     this.hideTip();
   }
 
   isOpen(): boolean {
     return !this.overlay.classList.contains('hidden');
+  }
+
+  private setRefundMode(on: boolean): void {
+    this.refundMode = on;
+    this.holdId = null;
+    this.holdT = 0;
+    this.syncRefundBtn();
+  }
+
+  private syncRefundBtn(): void {
+    this.refundBtn.textContent = this.refundMode ? '노드 회수: ON' : '노드 회수: OFF';
+    this.refundBtn.classList.toggle('cst-refund-on', this.refundMode);
+  }
+
+  private viewSize(): { w: number; h: number } {
+    return {
+      w: this.canvas.clientWidth || CANVAS.width,
+      h: this.canvas.clientHeight || CANVAS.height,
+    };
+  }
+
+  private clampScale(s: number): number {
+    const { w, h } = this.viewSize();
+    let maxR = CORE_R + 24;
+    for (const n of NODES) maxR = Math.max(maxR, Math.hypot(n.x, n.y) + NODE_R + 24);
+    const fit = Math.min(w, h) / (2 * maxR);
+    const min = Math.max(0.35, Math.min(1, fit));
+    return Math.min(CONSTELLATION_FX.zoomMax, Math.max(min, s));
+  }
+
+  private pickFocus(): NodePos {
+    const meta = this.getMeta();
+    if (sessionLastInvested && constellationLv(meta, sessionLastInvested) > 0) {
+      const n = NODES.find((x) => x.id === sessionLastInvested);
+      if (n) return n;
+    }
+    return { id: 'voidPredator', x: 0, y: 0 };
+  }
+
+  private focusOn(pos: { x: number; y: number }): void {
+    this.panX = -pos.x * this.scale;
+    this.panY = -pos.y * this.scale;
+  }
+
+  private zoomAt(px: number, py: number, nextScale: number): void {
+    const { w, h } = this.viewSize();
+    const wx = (px - (w / 2 + this.panX)) / this.scale;
+    const wy = (py - (h / 2 + this.panY)) / this.scale;
+    this.scale = this.clampScale(nextScale);
+    this.panX = px - w / 2 - wx * this.scale;
+    this.panY = py - h / 2 - wy * this.scale;
+  }
+
+  private zoomAtCenter(factor: number): void {
+    const { w, h } = this.viewSize();
+    this.zoomAt(w / 2, h / 2, this.scale * factor);
+  }
+
+  private onWheel(e: WheelEvent): void {
+    if (!this.running) return;
+    e.preventDefault();
+    const p = this.localFromClient(e.clientX, e.clientY);
+    const factor = e.deltaY > 0 ? 1 / CONSTELLATION_FX.zoomStep : CONSTELLATION_FX.zoomStep;
+    this.zoomAt(p.x, p.y, this.scale * factor);
   }
 
   private refreshPoints(): void {
@@ -169,8 +271,7 @@ export class ConstellationBoard {
   }
 
   private origin(): { x: number; y: number } {
-    const w = this.canvas.clientWidth || CANVAS.width;
-    const h = this.canvas.clientHeight || CANVAS.height;
+    const { w, h } = this.viewSize();
     const sx = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 6 : 0;
     const sy = this.shake > 0 ? (Math.random() - 0.5) * this.shake * 6 : 0;
     return { x: w / 2 + this.panX + sx, y: h / 2 + this.panY + sy };
@@ -178,7 +279,7 @@ export class ConstellationBoard {
 
   private toWorld(cx: number, cy: number): { x: number; y: number } {
     const o = this.origin();
-    return { x: cx - o.x, y: cy - o.y };
+    return { x: (cx - o.x) / this.scale, y: (cy - o.y) / this.scale };
   }
 
   private hitNode(wx: number, wy: number): ConstellationId | null {
@@ -194,9 +295,13 @@ export class ConstellationBoard {
     return best;
   }
 
-  private localPoint(e: PointerEvent): { x: number; y: number } {
+  private localFromClient(clientX: number, clientY: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    return { x: clientX - r.left, y: clientY - r.top };
+  }
+
+  private localPoint(e: PointerEvent): { x: number; y: number } {
+    return this.localFromClient(e.clientX, e.clientY);
   }
 
   private onDown(e: PointerEvent): void {
@@ -214,7 +319,7 @@ export class ConstellationBoard {
     this.hoverId = id;
     if (id) {
       this.showTip(id, p.x, p.y);
-      if (isConstellationAdjacent(this.getMeta(), id)) {
+      if (!this.refundMode && isConstellationAdjacent(this.getMeta(), id)) {
         this.holdId = id;
         this.holdT = 0;
       }
@@ -266,8 +371,10 @@ export class ConstellationBoard {
     const w = this.toWorld(p.x, p.y);
     const id = this.hitNode(w.x, w.y);
     this.hoverId = id;
-    if (id && !this.moved) this.showTip(id, p.x, p.y);
-    else this.hideTip();
+    if (id && !this.moved) {
+      if (this.refundMode) this.tryRefund(id);
+      this.showTip(id, p.x, p.y);
+    } else this.hideTip();
   }
 
   private tryUnlock(id: ConstellationId): void {
@@ -277,6 +384,7 @@ export class ConstellationBoard {
       this.shake = 0.35;
       return;
     }
+    sessionLastInvested = id;
     this.playUnlock();
     this.shake = 0.7;
     const n = NODES.find((x) => x.id === id);
@@ -284,6 +392,23 @@ export class ConstellationBoard {
     this.refreshPoints();
     this.onChange();
     this.showTip(id, this.dragStartX, this.dragStartY);
+  }
+
+  private tryRefund(id: ConstellationId): void {
+    const meta = this.getMeta();
+    const result = tryRefundConstellation(meta, id);
+    if (result === 'blocked') {
+      this.shake = 0.35;
+      this.onWarn('하위 노드를 먼저 회수해야 합니다');
+      return;
+    }
+    if (result === 'none') {
+      this.shake = 0.2;
+      return;
+    }
+    sessionLastInvested = constellationLv(meta, id) > 0 ? id : sessionLastInvested;
+    this.refreshPoints();
+    this.onChange();
   }
 
   private burst(x: number, y: number, color: string): void {
@@ -309,14 +434,17 @@ export class ConstellationBoard {
     const adj = isConstellationAdjacent(meta, id);
     const cost = constellationUnlockCost(id, lv);
     const locked = !adj && lv === 0;
-    const costLine = def.repeatable
+    let costLine = def.repeatable
       ? `투자 ${cost}pt · 중첩 ${lv}`
       : lv > 0 ? '해금됨' : `해금 ${cost}pt`;
+    if (this.refundMode && lv > 0) costLine = '클릭하여 1pt 회수';
+    else if (this.refundMode && lv === 0) costLine = '회수할 투자가 없습니다';
+    const holdHint = !this.refundMode && adj && (lv === 0 || def.repeatable) ? ' · 0.5초 홀드' : '';
     this.tooltip.innerHTML = `
       <div class="cst-tip-title" style="color:${def.color}">${def.icon} ${def.name}</div>
       <div class="cst-tip-penalty">${def.penalty}</div>
       <div class="cst-tip-reward">${def.reward}</div>
-      <div class="cst-tip-cost">${locked ? '선행 노드 필요' : costLine}${adj && (lv === 0 || def.repeatable) ? ' · 0.5초 홀드' : ''}</div>
+      <div class="cst-tip-cost">${locked ? '선행 노드 필요' : costLine}${holdHint}</div>
     `;
     this.tooltip.classList.remove('hidden');
     const w = this.canvas.clientWidth || CANVAS.width;
@@ -357,10 +485,26 @@ export class ConstellationBoard {
     this.raf = requestAnimationFrame((t) => this.tick(t));
   }
 
+  private drawInvestableGlow(n: NodePos, color: string, r: number): void {
+    const ctx = this.ctx;
+    const pulse = 0.3 + 0.2 * (0.5 + 0.5 * Math.sin(this.flow * 2.1));
+    const rad = r + 20;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const grd = ctx.createRadialGradient(n.x, n.y, r * 0.15, n.x, n.y, rad);
+    grd.addColorStop(0, hexAlpha(color, pulse));
+    grd.addColorStop(0.5, hexAlpha(color, pulse * 0.4));
+    grd.addColorStop(1, hexAlpha(color, 0));
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   private draw(): void {
     const ctx = this.ctx;
-    const w = this.canvas.clientWidth || CANVAS.width;
-    const h = this.canvas.clientHeight || CANVAS.height;
+    const { w, h } = this.viewSize();
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#050816';
     ctx.fillRect(0, 0, w, h);
@@ -370,6 +514,7 @@ export class ConstellationBoard {
 
     ctx.save();
     ctx.translate(o.x, o.y);
+    ctx.scale(this.scale, this.scale);
 
     for (const n of NODES) {
       const parent = parentId(n.id);
@@ -416,25 +561,16 @@ export class ConstellationBoard {
       else if (!adj) r = NODE_R * 0.55;
 
       if (lv > 0) {
-        ctx.shadowColor = def.color;
-        ctx.shadowBlur = 16;
-        ctx.fillStyle = def.color;
+        ctx.fillStyle = hexAlpha(def.color, 0.92);
       } else if (adj) {
-        ctx.shadowColor = def.color;
-        ctx.shadowBlur = 10 + pulse * 12;
-        ctx.fillStyle = hexAlpha(def.color, 0.35 + pulse * 0.4);
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r + 8 + pulse * 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = def.color;
+        this.drawInvestableGlow(n, def.color, r);
+        ctx.fillStyle = hexAlpha(def.color, 0.88);
       } else {
-        ctx.shadowBlur = 0;
         ctx.fillStyle = '#334155';
       }
       ctx.beginPath();
       ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.shadowBlur = 0;
       ctx.strokeStyle = this.hoverId === n.id ? '#f8fafc' : hexAlpha('#f8fafc', 0.35);
       ctx.lineWidth = this.hoverId === n.id ? 2 : 1;
       ctx.stroke();

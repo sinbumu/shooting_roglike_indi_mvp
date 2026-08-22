@@ -7,6 +7,14 @@ export interface PatchNote {
 /** 최신 패치가 index 0. 이후 커밋 전에 이 배열 앞에 항목을 추가한다. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: 'v1.13.0',
+    date: '2026-08-22',
+    changes: [
+      '성좌 보드: 1.75배 확대 시작, 휠·+/− 줌, 드래그 패닝. 투자 가능 노드는 은은한 방사 글로우',
+      '노드 회수 토글: 투자한 노드를 1pt씩 되돌림. 하위 노드가 있으면 회수 불가',
+    ],
+  },
+  {
     version: 'v1.12.0',
     date: '2026-08-20',
     changes: [

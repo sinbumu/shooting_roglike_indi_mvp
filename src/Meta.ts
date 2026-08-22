@@ -1,7 +1,7 @@
 import type {
   AchievementId, MetaUpgradeId, ShipId, StageId, ChallengeId,
   ShipSkinId, ProjSkinId, WeaponId, DroneId, PilotTraitId,
-  ConstellationId,
+  ConstellationId, ConstellationDef,
 } from './types';
 import {
   ACHIEVEMENTS, META, META_UPGRADES, SHIPS, DEFAULT_SHIP,
@@ -339,6 +339,25 @@ export function tryUnlockConstellation(meta: MetaSave, id: ConstellationId): boo
   meta.constellation[id] = lv + 1;
   saveMeta(meta);
   return true;
+}
+
+export function constellationHasDependents(meta: MetaSave, id: ConstellationId): boolean {
+  return (Object.values(CONSTELLATION) as ConstellationDef[]).some(
+    (c) => c.prereq === id && constellationLv(meta, c.id) > 0,
+  );
+}
+
+export type RefundResult = 'ok' | 'none' | 'blocked';
+
+/** 레벨 1 감소, 판테온 +1. 하위 노드가 투자되어 있으면 blocked. */
+export function tryRefundConstellation(meta: MetaSave, id: ConstellationId): RefundResult {
+  const lv = constellationLv(meta, id);
+  if (lv <= 0) return 'none';
+  if (constellationHasDependents(meta, id)) return 'blocked';
+  meta.constellation[id] = lv - 1;
+  meta.pantheonPoints += 1;
+  saveMeta(meta);
+  return 'ok';
 }
 
 function unlockNextStages(meta: MetaSave, cleared: StageId): void {

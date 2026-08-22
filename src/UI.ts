@@ -268,6 +268,7 @@ export class UI {
       () => this.meta as MetaSave,
       () => this.onHangarChange?.(),
       () => this.audio?.playConstellationUnlock(),
+      (msg) => this.showBanner(msg),
     );
   }
 

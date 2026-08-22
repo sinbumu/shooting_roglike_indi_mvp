@@ -1472,6 +1472,9 @@ export const CONSTELLATION_FX = {
   orbitMove: 0.03,
   orbitCrit: 0.05,
   fateWeightMul: 3,
+  zoomDefault: 1.75,
+  zoomMax: 3.2,
+  zoomStep: 1.18,
 } as const;
 
 export function constellationUnlockCost(id: ConstellationId, currentLevel: number): number {
