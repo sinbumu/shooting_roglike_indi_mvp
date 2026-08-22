@@ -1249,6 +1249,9 @@ export const CONSTELLATION_CAT_COLOR: Record<ConstellationDef['category'], strin
   risk: '#f87171',
   sink: '#facc15',
   fate: '#e879f9',
+  alchemy: '#34d399',
+  quest: '#fb923c',
+  mutant: '#a78bfa',
 };
 
 export const CONSTELLATION: Record<ConstellationId, ConstellationDef> = {
@@ -1420,6 +1423,60 @@ export const CONSTELLATION: Record<ConstellationId, ConstellationDef> = {
     reward: '공격 태그 패시브 선택지 가중치 ×3',
     cost: 1, prereq: null, repeatable: false,
   },
+  toxicMatter: {
+    id: 'toxicMatter', category: 'alchemy', name: '유해 물질', icon: '☣', color: '#34d399',
+    penalty: '회복 픽업이 발밑에 맹독 장판을 남깁니다',
+    reward: '장판은 적만 틱 피해',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  emSurge: {
+    id: 'emSurge', category: 'alchemy', name: '전자기 폭주', icon: '⚡', color: '#34d399',
+    penalty: '자석 픽업이 폭주 버프로 바뀝니다 (중첩 없음)',
+    reward: '5초 이속 +50% · 가해 +30% · 피격 −30%',
+    cost: 2, prereq: 'toxicMatter', repeatable: false,
+  },
+  equivalentExchange: {
+    id: 'equivalentExchange', category: 'alchemy', name: '등가 교환', icon: '⚖', color: '#34d399',
+    penalty: '폭탄이 폭발하지 않고 현재 체력 50%를 깎습니다',
+    reward: '필드 적에게 드랍 ×1.5 표식 (비중첩)',
+    cost: 3, prereq: 'emSurge', repeatable: false,
+  },
+  bloodPact: {
+    id: 'bloodPact', category: 'quest', name: '피의 계약', icon: '🩸', color: '#fb923c',
+    penalty: '스테이지 중반 붉은 마법진이 나타납니다',
+    reward: '안에서 10초 체류 시 퀀텀 큐브',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  bountyHunt: {
+    id: 'bountyHunt', category: 'quest', name: '긴급 현상수배', icon: '🏷', color: '#fb923c',
+    penalty: '엘리트마다 15초 바운티 타이머',
+    reward: '만료 전 처치 시 경험치·크레딧 3배',
+    cost: 2, prereq: 'bloodPact', repeatable: false,
+  },
+  cursedCrate: {
+    id: 'cursedCrate', category: 'quest', name: '저주받은 보급상자', icon: '📦', color: '#fb923c',
+    penalty: '검붉은 상자를 열면 체력이 1이 됩니다',
+    reward: '경험치를 가득 채워 무료 레벨업',
+    cost: 3, prereq: 'bountyHunt', repeatable: false,
+  },
+  corpseBurst: {
+    id: 'corpseBurst', category: 'mutant', name: '시체 폭발', icon: '💥', color: '#a78bfa',
+    penalty: '일반 적 사망 시 20% 광역 폭발',
+    reward: '적만 피해 · 최대 체력 10% + 20',
+    cost: 1, prereq: null, repeatable: false,
+  },
+  goldDrone: {
+    id: 'goldDrone', category: 'mutant', name: '황금 드론', icon: '📀', color: '#a78bfa',
+    penalty: '드론 5%가 체력·방어 5배 황금체로 변이',
+    reward: '10초 배회 후 도주 · 처치 시 100–200 크레딧',
+    cost: 2, prereq: 'corpseBurst', repeatable: false,
+  },
+  splitShadow: {
+    id: 'splitShadow', category: 'mutant', name: '분열하는 그림자', icon: '👥', color: '#a78bfa',
+    penalty: '엘리트 처치 시 0.6배 분열체 2마리가 남습니다',
+    reward: '분열체는 엘리트 유지 · 원본보다 단단함',
+    cost: 3, prereq: 'goldDrone', repeatable: false,
+  },
 };
 
 export const CONSTELLATION_FX = {
@@ -1475,6 +1532,34 @@ export const CONSTELLATION_FX = {
   zoomDefault: 1.75,
   zoomMax: 3.2,
   zoomStep: 1.18,
+  toxicDuration: 3,
+  toxicTick: 0.15,
+  toxicRadius: 48,
+  toxicDamage: 18,
+  rampageSec: 5,
+  rampageMoveMul: 1.5,
+  rampageDmgMul: 1.3,
+  rampageTakenMul: 0.7,
+  lootMarkMul: 1.5,
+  bloodPactRadius: 120,
+  bloodPactDwell: 10,
+  bountySec: 15,
+  bountyRewardMul: 3,
+  cursedSpawnFrom: 0.25,
+  cursedSpawnTo: 0.75,
+  corpseChance: 0.2,
+  corpseRadius: 60,
+  corpseHpFrac: 0.1,
+  corpseFlat: 20,
+  goldDroneChance: 0.05,
+  goldDroneHpMul: 5,
+  goldDroneTakenMul: 0.2,
+  goldDroneWanderSec: 10,
+  goldCreditMin: 100,
+  goldCreditMax: 200,
+  splitScale: 0.6,
+  splitHpMul: 1.25,
+  splitTakenMul: 0.5,
 } as const;
 
 export function constellationUnlockCost(id: ConstellationId, currentLevel: number): number {

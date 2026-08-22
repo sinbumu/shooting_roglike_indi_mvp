@@ -418,7 +418,9 @@ export type MovePattern =
 /** 후반 돌연변이 */
 export type MutationId = 'explode' | 'split' | 'burst';
 
-export type PickupKind = 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube' | 'voidCrate';
+export type PickupKind =
+  | 'heal' | 'magnet' | 'bomb' | 'cube' | 'goldCube' | 'voidCrate'
+  | 'cursedCrate' | 'credit';
 
 export type PilotTraitId = 'lastStand' | 'turretDark' | 'executioner';
 
@@ -509,7 +511,9 @@ export interface LevelUpChoice {
 // 성좌 (v1.8)
 // ------------------------------------------------------------
 
-export type ConstellationCategory = 'stage' | 'elite' | 'rule' | 'risk' | 'sink' | 'fate';
+export type ConstellationCategory =
+  | 'stage' | 'elite' | 'rule' | 'risk' | 'sink' | 'fate'
+  | 'alchemy' | 'quest' | 'mutant';
 
 export type ConstellationId =
   | 'voidPredator'
@@ -539,7 +543,16 @@ export type ConstellationId =
   | 'fateProjectile'
   | 'fateSurvival'
   | 'fateUtility'
-  | 'fateOffense';
+  | 'fateOffense'
+  | 'toxicMatter'
+  | 'emSurge'
+  | 'equivalentExchange'
+  | 'bloodPact'
+  | 'bountyHunt'
+  | 'cursedCrate'
+  | 'corpseBurst'
+  | 'goldDrone'
+  | 'splitShadow';
 
 export interface ConstellationDef {
   id: ConstellationId;

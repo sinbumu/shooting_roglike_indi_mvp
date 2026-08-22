@@ -387,7 +387,7 @@ export class AudioManager {
         } else if (ev.kind === 'magnet') {
           this.tone(280, 0.32, { type: 'sine', slideTo: 1500, gain: 0.055 });
           this.tone(420, 0.2, { type: 'triangle', slideTo: 900, gain: 0.03, delay: 0.06 });
-        } else if (ev.kind === 'cube' || ev.kind === 'goldCube' || ev.kind === 'voidCrate') {
+        } else if (ev.kind === 'cube' || ev.kind === 'goldCube' || ev.kind === 'voidCrate' || ev.kind === 'cursedCrate' || ev.kind === 'credit') {
           const seq = ev.kind === 'cube'
             ? [784, 988, 1175, 1568]
             : [523, 784, 1047, 1319];

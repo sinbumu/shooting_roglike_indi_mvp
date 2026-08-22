@@ -135,6 +135,15 @@ export interface Enemy {
   enraged?: boolean;
   clonedWeapons?: WeaponSlot[];
   nemesisShipId?: ShipId;
+  /** 등가 교환 드랍 배수 (없으면 1) */
+  lootMul?: number;
+  /** 현상수배 남은 시간 */
+  bountyLeft?: number;
+  goldDrone?: boolean;
+  fleeAt?: number;
+  fromSplit?: boolean;
+  scale?: number;
+  dmgTakenMul?: number;
 }
 
 export interface Slash {
@@ -224,7 +233,7 @@ export interface HazardZone {
   damage: number;
   pull: number;
   color: string;
-  weaponId: WeaponId;
+  weaponId?: WeaponId;
   pulsePeak?: number;
   pulseMaxLife?: number;
   slow?: number;
@@ -363,6 +372,16 @@ export interface Pickup {
   /** 탐욕: 오염까지 남은 시간. 0 이하이면 적 유도 */
   corruptIn?: number;
   homing?: boolean;
+  /** 크레딧 픽업 양 */
+  value?: number;
+}
+
+export interface BloodPactZone {
+  x: number;
+  y: number;
+  radius: number;
+  dwell: number;
+  needed: number;
 }
 
 export interface Gem {
@@ -406,6 +425,7 @@ export type FxEvent =
   | { type: 'bossDied'; x: number; y: number }
   | { type: 'bossPhase'; x: number; y: number }
   | { type: 'pickup'; kind: PickupKind; x: number; y: number }
+  | { type: 'cursedBox' }
   | { type: 'bomb' }
   | { type: 'jackpot' }
   | { type: 'riftWarn' }
@@ -469,7 +489,7 @@ class EnemyGrid {
   rebuild(enemies: Enemy[]): void {
     this.clear();
     for (const e of enemies) {
-      const hitR = e.def.radius * (e.elite ? 1.15 : 1);
+      const hitR = enemyRadius(e) * (e.elite ? 1.15 : 1);
       if (hitR > this.maxHitR) this.maxHitR = hitR;
       const key = this.keyAt(e.x, e.y);
       let bucket = this.buckets.get(key);
@@ -558,6 +578,10 @@ export class GameState {
   shieldLeft = 0;
   /** 자기장 폭주 남은 시간(초) */
   magnetStormLeft = 0;
+  /** 전자기 폭주 남은 시간(초) */
+  rampageLeft = 0;
+  cursedPrompt = false;
+  bloodPact: BloodPactZone | null = null;
   /** 전역 진공 흡인 남은 시간(초) */
   vacuumLeft = 0;
   pendingCrafts = 0;
@@ -704,6 +728,10 @@ export class GameState {
   private wheelAcc = 0;
   private wheelPending = false;
   private bloodBursting = false;
+  private corpseBursting = false;
+  private bloodPactSpawned = false;
+  private cursedAt = Infinity;
+  private cursedSpawned = false;
   private carpetQueue: { x: number; y: number; left: number; radius: number; damage: number }[] = [];
   private minefieldAcc = 0;
   private nemesisSpawned = false;
@@ -835,9 +863,19 @@ export class GameState {
     this.creditOrbs = [];
     this.runCreditBonus = 0;
     this.hunterBuffLeft = 0;
+    this.rampageLeft = 0;
+    this.cursedPrompt = false;
+    this.bloodPact = null;
+    this.bloodPactSpawned = false;
+    this.cursedSpawned = false;
+    this.cursedAt = this.hasNode('cursedCrate')
+      ? this.victoryTime * (CONSTELLATION_FX.cursedSpawnFrom
+        + Math.random() * (CONSTELLATION_FX.cursedSpawnTo - CONSTELLATION_FX.cursedSpawnFrom))
+      : Infinity;
     this.wheelAcc = 0;
     this.wheelPending = false;
     this.bloodBursting = false;
+    this.corpseBursting = false;
     this.carpetQueue = [];
     this.summons = [];
     for (const p of this.projectiles) this.releaseProjectile(p);
@@ -954,6 +992,10 @@ export class GameState {
       this.shieldLeft = 0;
       this.levelAegisLeft = 0;
     }
+    if (this.rampageLeft > 0) {
+      this.moveSpeed *= CONSTELLATION_FX.rampageMoveMul;
+      this.damageMul *= CONSTELLATION_FX.rampageDmgMul;
+    }
     const newMax = this.hasNode('glassCannon')
       ? 1
       : Math.max(1, Math.round(this.baseMaxHp * hpMul));
@@ -1007,14 +1049,15 @@ export class GameState {
     this.spawnPickup('cube', x, y);
   }
 
-  private spawnPickup(kind: PickupKind, x: number, y: number, life: number = PICKUPS.lifetime): Pickup {
+  private spawnPickup(kind: PickupKind, x: number, y: number, life: number = PICKUPS.lifetime, value?: number): Pickup {
     const p: Pickup = {
       kind,
       x: Math.max(24, Math.min(CANVAS.width - 24, x)),
       y: Math.max(24, Math.min(CANVAS.height - 24, y)),
       life,
     };
-    if (this.hasNode('greed')) {
+    if (value != null) p.value = value;
+    if (this.hasNode('greed') && kind !== 'cursedCrate' && kind !== 'credit') {
       p.corruptIn = CONSTELLATION_FX.greedLife;
       p.life = CONSTELLATION_FX.greedLife + 12;
     }
@@ -1176,6 +1219,7 @@ export class GameState {
   /** 1프레임 진행 후 현재 상태를 반환 (호출부에서 상태 전환 감지용) */
   update(dt: number): GameStatus {
     if (this.status !== 'playing') return this.status;
+    if (this.cursedPrompt) return this.status;
 
     this.fenceSegCache = null;
     this.vortexCache = null;
@@ -1261,6 +1305,10 @@ export class GameState {
       this.hunterBuffLeft = Math.max(0, this.hunterBuffLeft - dt);
       if (this.hunterBuffLeft <= 0) this.applyPassiveEffects();
     }
+    if (this.rampageLeft > 0) {
+      this.rampageLeft = Math.max(0, this.rampageLeft - dt);
+      if (this.rampageLeft <= 0) this.applyPassiveEffects();
+    }
     if (this.levelAegisLeft > 0) {
       this.levelAegisLeft = Math.max(0, this.levelAegisLeft - dt);
     }
@@ -1297,10 +1345,48 @@ export class GameState {
         this.beginHazardWarn(kind);
       }
     }
+    this.updateQuestNodes(dt);
+  }
+
+  private updateQuestNodes(dt: number): void {
+    if (this.hasNode('bloodPact')) {
+      if (!this.bloodPactSpawned && this.time >= this.victoryTime * 0.5) {
+        this.bloodPactSpawned = true;
+        this.bloodPact = {
+          x: CANVAS.width / 2,
+          y: CANVAS.height / 2,
+          radius: CONSTELLATION_FX.bloodPactRadius,
+          dwell: 0,
+          needed: CONSTELLATION_FX.bloodPactDwell,
+        };
+        this.events.push({ type: 'banner', text: '🩸 피의 계약 — 마법진에서 10초' });
+      }
+      if (this.bloodPact) {
+        const z = this.bloodPact;
+        if ((this.playerX - z.x) ** 2 + (this.playerY - z.y) ** 2 <= z.radius * z.radius) {
+          z.dwell += dt;
+        }
+        if (z.dwell >= z.needed) {
+          this.dropCube(z.x, z.y);
+          this.events.push({ type: 'banner', text: '🩸 피의 계약 성사 · 퀀텀 큐브' });
+          this.bloodPact = null;
+        }
+      }
+    }
+    if (this.hasNode('cursedCrate') && !this.cursedSpawned && this.time >= this.cursedAt) {
+      this.cursedSpawned = true;
+      this.spawnPickup(
+        'cursedCrate',
+        48 + Math.random() * (CANVAS.width - 96),
+        CANVAS.height * (0.28 + Math.random() * 0.32),
+        PICKUPS.lifetime * 2,
+      );
+      this.events.push({ type: 'banner', text: '📦 저주받은 보급상자가 떨어졌다' });
+    }
   }
 
   tryUseSkill(): boolean {
-    if (this.status !== 'playing') return false;
+    if (this.status !== 'playing' || this.cursedPrompt) return false;
     const skill = SHIPS[this.shipId].activeSkill;
     const dashAwake = this.hasAwakening('scoutDash');
     if (dashAwake) {
@@ -1461,7 +1547,7 @@ export class GameState {
       if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) swapPop(this.enemyProjectiles, i);
     }
     for (const e of [...this.enemies]) {
-      const hitR = e.def.radius * (e.elite ? 1.15 : 1) + radius;
+      const hitR = enemyRadius(e) * (e.elite ? 1.15 : 1) + radius;
       if ((e.x - x) ** 2 + (e.y - y) ** 2 > hitR * hitR) continue;
       if (this.tryAbsorbShield(e, true)) continue;
       this.damageEnemy(e, damage);
@@ -1728,7 +1814,7 @@ export class GameState {
       const dx = e.x - this.playerX;
       const dy = e.y - this.playerY;
       const dist = Math.hypot(dx, dy);
-      if (dist > radius + e.def.radius) continue;
+      if (dist > radius + enemyRadius(e)) continue;
       const nx = dx / (dist || 1);
       const ny = dy / (dist || 1);
       e.x += nx * knock;
@@ -1741,7 +1827,7 @@ export class GameState {
 
   private dashTrailKill(x1: number, y1: number, x2: number, y2: number): void {
     for (const e of [...this.enemies]) {
-      const hitR = e.def.radius * (e.elite ? 1.15 : 1) + PLAYER.radius;
+      const hitR = enemyRadius(e) * (e.elite ? 1.15 : 1) + PLAYER.radius;
       if (distToSegment(e.x, e.y, x1, y1, x2, y2) > hitR) continue;
       if (this.isBossLike(e)) {
         this.damageEnemy(e, e.maxHp * AWAKEN.dashBossHpPct);
@@ -2500,8 +2586,8 @@ export class GameState {
       e.x += (-dy / dist) * speed * 0.55 * dt;
       e.y += (dx / dist) * speed * 0.55 * dt;
     }
-    e.x = Math.max(e.def.radius, Math.min(CANVAS.width - e.def.radius, e.x));
-    e.y = Math.max(e.def.radius + 40, Math.min(CANVAS.height * 0.62, e.y));
+    e.x = Math.max(enemyRadius(e), Math.min(CANVAS.width - enemyRadius(e), e.x));
+    e.y = Math.max(enemyRadius(e) + 40, Math.min(CANVAS.height * 0.62, e.y));
     this.updateNemesisWeapons(e, dt);
   }
 
@@ -2888,7 +2974,7 @@ export class GameState {
     const pxHit = this.envHazard.beams.some((x) => Math.abs(this.playerX - x) <= half + this.playerHitRadius());
     if (pxHit) this.hurtPlayer(this.maxHp * 20);
     for (const e of [...this.enemies]) {
-      const hit = this.envHazard.beams.some((x) => Math.abs(e.x - x) <= half + e.def.radius);
+      const hit = this.envHazard.beams.some((x) => Math.abs(e.x - x) <= half + enemyRadius(e));
       if (!hit) continue;
       if (this.isTrueBoss(e) || this.isBossLike(e)) {
         this.damageEnemy(e, e.maxHp * HAZARDS.asteroid.bossHpPct
@@ -3059,7 +3145,7 @@ export class GameState {
     const dmg = TERRAIN.core.damage;
     this.events.push({ type: 'coreBurst', x: c.x, y: c.y, radius: r });
     for (const e of [...this.enemies]) {
-      if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 > (r + e.def.radius) ** 2) continue;
+      if ((e.x - c.x) ** 2 + (e.y - c.y) ** 2 > (r + enemyRadius(e)) ** 2) continue;
       if (this.tryAbsorbShield(e, true)) continue;
       this.damageEnemy(e, dmg);
     }
@@ -3097,6 +3183,17 @@ export class GameState {
   ): Enemy {
     const def = ENEMIES[enemyId];
     const isBoss = this.isBossPattern(def.movePattern);
+    let gold = false;
+    if (
+      enemyId === 'drone'
+      && this.hasNode('goldDrone')
+      && allowElite
+      && !forceElite
+      && Math.random() < CONSTELLATION_FX.goldDroneChance
+    ) {
+      gold = true;
+      allowElite = false;
+    }
     const giant = this.hasNode('giantMarch') && allowElite && !isBoss && enemyId !== 'splinter';
     const elite = forceElite
       || giant
@@ -3111,6 +3208,7 @@ export class GameState {
 
     let hp = def.hp * enemyHpScale(this.time) * this.enemyHpMul * this.legionHpMul;
     if (elite) hp *= ELITE.hpMul;
+    if (gold) hp *= CONSTELLATION_FX.goldDroneHpMul;
 
     const enemy: Enemy = {
       id: this.nextEnemyId++,
@@ -3127,6 +3225,14 @@ export class GameState {
         ? SHIELDER.hits * (this.hasNode('shieldBreaker') ? CONSTELLATION_FX.shieldHitsMul : 1)
         : undefined,
     };
+    if (gold) {
+      enemy.goldDrone = true;
+      enemy.fleeAt = CONSTELLATION_FX.goldDroneWanderSec;
+      enemy.dmgTakenMul = CONSTELLATION_FX.goldDroneTakenMul;
+    }
+    if (elite && this.hasNode('bountyHunt')) {
+      enemy.bountyLeft = CONSTELLATION_FX.bountySec;
+    }
     this.enemies.push(enemy);
     return enemy;
   }
@@ -3142,6 +3248,9 @@ export class GameState {
       const e = this.enemies[i];
       e.age += dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.bountyLeft != null && e.bountyLeft > 0) {
+        e.bountyLeft = Math.max(0, e.bountyLeft - dt);
+      }
 
       const haste = this.hasMod('mod_haste') && !this.isBossLike(e) ? MODIFIER_FX.hasteSpeedMul : 1;
       const moveMul = this.enemyMoveMul() * this.nebulaMulAt(e.x, e.y) * this.zoneMoveMulAt(e.x, e.y, e)
@@ -3149,6 +3258,9 @@ export class GameState {
           ? CONSTELLATION_FX.hunterSpeedMul : 1) * haste;
       const eliteMul = (e.elite ? ELITE.speedMul : 1) * (e.enraged ? 1.5 : 1);
 
+      if (e.goldDrone) {
+        this.updateGoldDrone(e, dt * moveMul);
+      } else {
       switch (e.def.movePattern) {
         case 'down':
         case 'slowDown':
@@ -3192,6 +3304,7 @@ export class GameState {
           this.updateNemesis(e, dt * moveMul);
           break;
       }
+      }
 
       const isBoss = this.isBossLike(e);
       const out =
@@ -3201,6 +3314,20 @@ export class GameState {
         if (e.def.id === 'trapper') this.clearPylons(e.id);
         swapPop(this.enemies, i);
       }
+    }
+  }
+
+  private updateGoldDrone(e: Enemy, dt: number): void {
+    if (e.age < (e.fleeAt ?? CONSTELLATION_FX.goldDroneWanderSec)) {
+      const ang = e.age * 1.45;
+      const orbit = 110;
+      const tx = this.playerX + Math.cos(ang) * orbit;
+      const ty = this.playerY + Math.sin(ang) * orbit;
+      e.x += (tx - e.x) * Math.min(1, 2.4 * dt);
+      e.y += (ty - e.y) * Math.min(1, 2.4 * dt);
+    } else {
+      e.y -= e.def.speed * 2.6 * dt;
+      e.x += Math.sin(e.age * 3.2) * 48 * dt;
     }
   }
 
@@ -3400,7 +3527,7 @@ export class GameState {
           const dx = this.playerX - e.x;
           const dy = this.playerY - e.y;
           const dist = Math.hypot(dx, dy);
-          if (dist > 8 && dist <= o.radius + e.def.radius) {
+          if (dist > 8 && dist <= o.radius + enemyRadius(e)) {
             e.x += (dx / dist) * o.pull * dt;
             e.y += (dy / dist) * o.pull * dt;
           }
@@ -3412,9 +3539,9 @@ export class GameState {
         if (this.isCloaked(e)) continue;
         let hit = false;
         if (o.ring) {
-          hit = Math.hypot(e.x - this.playerX, e.y - this.playerY) <= o.radius + e.def.radius;
+          hit = Math.hypot(e.x - this.playerX, e.y - this.playerY) <= o.radius + enemyRadius(e);
         } else {
-          hit = (px - e.x) ** 2 + (py - e.y) ** 2 <= (o.hitRadius + e.def.radius) ** 2;
+          hit = (px - e.x) ** 2 + (py - e.y) ** 2 <= (o.hitRadius + enemyRadius(e)) ** 2;
         }
         if (!hit) continue;
         if (this.tryAbsorbShield(e, true)) continue;
@@ -3443,7 +3570,7 @@ export class GameState {
         const dx = e.x - s.x;
         const dy = e.y - s.y;
         const dist = Math.hypot(dx, dy);
-        if (dist > s.range + e.def.radius) continue;
+        if (dist > s.range + enemyRadius(e)) continue;
         let ang = Math.atan2(dy, dx) - (s.sweep ? sweepAng : s.angle);
         while (ang > Math.PI) ang -= Math.PI * 2;
         while (ang < -Math.PI) ang += Math.PI * 2;
@@ -3669,9 +3796,9 @@ export class GameState {
           if (this.isCloaked(e)) continue;
           let hit = false;
           if (z.kind === 'segment') {
-            hit = distToSegment(e.x, e.y, z.x, z.y, z.x2, z.y2) <= z.radius + e.def.radius;
+            hit = distToSegment(e.x, e.y, z.x, z.y, z.x2, z.y2) <= z.radius + enemyRadius(e);
           } else {
-            hit = (e.x - z.x) ** 2 + (e.y - z.y) ** 2 <= (z.radius + e.def.radius) ** 2;
+            hit = (e.x - z.x) ** 2 + (e.y - z.y) ** 2 <= (z.radius + enemyRadius(e)) ** 2;
           }
           if (!hit) continue;
           if (this.tryAbsorbShield(e, true)) continue;
@@ -3766,7 +3893,7 @@ export class GameState {
     const dist = Math.hypot(this.playerX - e.x, this.playerY - e.y);
     if ((e.teleportCd ?? 0) <= 0 && dist < TELEPORTER.triggerDist * (this.hasNode('hunterToy') ? 1.6 : 1) && dist > 24) {
       const side = Math.random() < 0.5 ? -1 : 1;
-      const r = e.def.radius;
+      const r = enemyRadius(e);
       e.x = Math.max(r, Math.min(CANVAS.width - r, this.playerX + side * (38 + Math.random() * 36)));
       e.y = Math.max(r, Math.min(CANVAS.height - r, this.playerY + 40 + Math.random() * 28));
       e.teleportCd = TELEPORTER.cooldown * (this.hasNode('hunterToy') ? 0.45 : 1);
@@ -3979,7 +4106,7 @@ export class GameState {
       for (const e of candidates) {
         if (e.hp <= 0) continue;
         if (p.hitIds.has(e.id)) continue;
-        const hitR = e.def.radius * (e.elite ? 1.15 : 1);
+        const hitR = enemyRadius(e) * (e.elite ? 1.15 : 1);
         const rr = p.radius + hitR;
         if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 <= rr * rr) {
           if (this.isCloaked(e)) continue;
@@ -4080,7 +4207,7 @@ export class GameState {
     const half = b.width * 0.5;
     for (const e of [...this.enemies]) {
       if (this.isCloaked(e)) continue;
-      const hitR = e.def.radius * (e.elite ? 1.15 : 1) + half;
+      const hitR = enemyRadius(e) * (e.elite ? 1.15 : 1) + half;
       if (distToSegment(e.x, e.y, b.x, b.y, x2, y2) > hitR) continue;
       const fromFront = Math.sin(b.angle) < -0.2;
       if (!b.ignoreShield && this.tryAbsorbShield(e, fromFront)) continue;
@@ -4107,7 +4234,7 @@ export class GameState {
     for (const g of this.enemies) {
       if (g.def.id !== 'guardian' || g.id === e.id) continue;
       if (Math.hypot(g.x - e.x, g.y - e.y) <= GUARDIAN.auraRadius
-        * (this.hasNode('shieldBreaker') ? CONSTELLATION_FX.guardianAuraMul : 1) + e.def.radius) return true;
+        * (this.hasNode('shieldBreaker') ? CONSTELLATION_FX.guardianAuraMul : 1) + enemyRadius(e)) return true;
     }
     return false;
   }
@@ -4130,7 +4257,7 @@ export class GameState {
     if (!fromFront) return false;
     e.shieldHits = (e.shieldHits ?? 1) - 1;
     e.hitFlash = 0.07;
-    this.events.push({ type: 'shieldBlock', x: e.x, y: e.y + e.def.radius });
+    this.events.push({ type: 'shieldBlock', x: e.x, y: e.y + enemyRadius(e) });
     if (e.shieldHits <= 0) {
       e.shieldHits = 0;
       this.events.push({ type: 'banner', text: '🛡️ 역장 파괴' });
@@ -4361,6 +4488,7 @@ export class GameState {
     if (this.isCloaked(e)) return;
     dmg = this.modHitDamage(dmg, e, weaponId);
     if (this.inGuardianAura(e)) dmg *= GUARDIAN.damageTakenMul;
+    if (e.dmgTakenMul != null) dmg *= e.dmgTakenMul;
     const prevRatio = e.hp / e.maxHp;
     const applied = Math.min(e.hp, dmg);
     e.hp -= dmg;
@@ -4403,7 +4531,9 @@ export class GameState {
         this.maidenQueue.push({ x: e.x, y: e.y });
       }
 
-      const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1));
+      const bounty = (e.bountyLeft ?? 0) > 0 ? CONSTELLATION_FX.bountyRewardMul : 1;
+      const loot = e.lootMul ?? 1;
+      const expDrop = Math.round(e.def.exp * (e.elite ? ELITE.expMul : 1) * bounty * loot);
       const scoreMul = e.elite ? ELITE.scoreMul : 1;
       let fogScore = 1;
       if (this.hasNode('darkFog') && Math.hypot(e.x - this.playerX, e.y - this.playerY) > CONSTELLATION_FX.fogRadius) {
@@ -4447,12 +4577,20 @@ export class GameState {
         }
         if (e.fromAltar) this.onAltarEliteKilled();
         this.applyDeathMutation(e);
+        this.tryCorpseBurst(e);
+        this.trySplitShadow(e);
+        if (e.goldDrone) {
+          const lo = CONSTELLATION_FX.goldCreditMin;
+          const hi = CONSTELLATION_FX.goldCreditMax;
+          const amt = lo + Math.floor(Math.random() * (hi - lo + 1));
+          this.spawnPickup('credit', e.x, e.y, PICKUPS.lifetime, amt);
+        }
         if (e.def.id === 'trapper') this.clearPylons(e.id);
         this.events.push({
           type: 'enemyDied',
           x: e.x, y: e.y,
           color: e.elite ? '#fbbf24' : e.def.color,
-          radius: e.def.radius * (e.elite ? 1.3 : 1),
+          radius: enemyRadius(e) * (e.elite ? 1.3 : 1),
         });
         this.spawnGem(e.x, e.y, Math.max(1, expDrop));
         const n = Math.max(1, this.enemies.length);
@@ -4528,6 +4666,39 @@ export class GameState {
         });
       }
     }
+  }
+
+  private tryCorpseBurst(e: Enemy): void {
+    if (!this.hasNode('corpseBurst') || this.corpseBursting) return;
+    if (e.elite || e.fromSplit || this.isBossLike(e) || e.def.id === 'nemesis') return;
+    if (Math.random() >= CONSTELLATION_FX.corpseChance) return;
+    this.corpseBursting = true;
+    const r = CONSTELLATION_FX.corpseRadius;
+    const dmg = e.maxHp * CONSTELLATION_FX.corpseHpFrac + CONSTELLATION_FX.corpseFlat;
+    this.events.push({ type: 'blast', x: e.x, y: e.y, color: '#a78bfa', radius: r });
+    for (const other of [...this.enemies]) {
+      if (other.id === e.id) continue;
+      if ((other.x - e.x) ** 2 + (other.y - e.y) ** 2 > r * r) continue;
+      if (this.tryAbsorbShield(other, true)) continue;
+      this.damageEnemy(other, dmg);
+    }
+    this.corpseBursting = false;
+  }
+
+  private trySplitShadow(e: Enemy): void {
+    if (!this.hasNode('splitShadow') || e.fromSplit) return;
+    if (!e.elite || this.isBossLike(e) || e.def.id === 'nemesis') return;
+    for (const ox of [-22, 22]) {
+      const child = this.addEnemy(e.def.id, e.x + ox, e.y, e.dir, false, false, e.mutation);
+      child.elite = true;
+      child.fromSplit = true;
+      child.scale = CONSTELLATION_FX.splitScale;
+      child.maxHp = e.maxHp * CONSTELLATION_FX.splitHpMul;
+      child.hp = child.maxHp;
+      child.dmgTakenMul = CONSTELLATION_FX.splitTakenMul;
+      child.lootMul = e.lootMul;
+    }
+    this.events.push({ type: 'banner', text: '👥 분열하는 그림자' });
   }
 
   private triggerBossPhase(e: Enemy): void {
@@ -4610,7 +4781,7 @@ export class GameState {
       const dx = this.playerX - p.x;
       const dy = this.playerY - p.y;
       const dist = Math.hypot(dx, dy);
-      if (vacuum) {
+      if (vacuum && p.kind !== 'cursedCrate') {
         const step = GEM.magnetSpeed * dt;
         p.x += (dx / Math.max(dist, 1)) * step;
         p.y += (dy / Math.max(dist, 1)) * step;
@@ -4636,11 +4807,28 @@ export class GameState {
           this.hp + PICKUPS.healAmount * (1 + this.time * PICKUPS.healScalePerSec)
             * (this.shipId === 'crimson' ? 0.1 : 1),
         );
+        if (this.hasNode('toxicMatter')) this.spawnToxicPuddle();
         break;
       case 'magnet':
         this.vacuumDrops();
+        if (this.hasNode('emSurge')) {
+          this.rampageLeft = CONSTELLATION_FX.rampageSec;
+          this.applyPassiveEffects();
+          this.events.push({ type: 'banner', text: '⚡ 전자기 폭주' });
+        }
         break;
       case 'bomb': {
+        if (this.hasNode('equivalentExchange')) {
+          this.hp = Math.max(1, this.hp * 0.5);
+          let marked = 0;
+          for (const e of this.enemies) {
+            if (e.lootMul != null) continue;
+            e.lootMul = CONSTELLATION_FX.lootMarkMul;
+            marked++;
+          }
+          this.events.push({ type: 'banner', text: `⚖ 등가 교환 · 표식 ${marked}` });
+          break;
+        }
         this.events.push({ type: 'bomb' });
         const bombDmg = PICKUPS.bombDamage * (1 + this.time * PICKUPS.bombScalePerSec);
         for (const e of [...this.enemies]) {
@@ -4666,7 +4854,46 @@ export class GameState {
         this.status = 'levelup';
         this.events.push({ type: 'banner', text: '📦 공허의 보급상자 · 판테온 +2' });
         break;
+      case 'cursedCrate':
+        this.cursedPrompt = true;
+        this.events.push({ type: 'cursedBox' });
+        break;
+      case 'credit': {
+        const amt = p.value ?? CONSTELLATION_FX.goldCreditMin;
+        this.runCreditBonus += amt;
+        this.events.push({ type: 'banner', text: `💰 크레딧 +${amt}` });
+        break;
+      }
     }
+  }
+
+  private spawnToxicPuddle(): void {
+    this.zones.push({
+      kind: 'circle',
+      x: this.playerX,
+      y: this.playerY,
+      x2: this.playerX,
+      y2: this.playerY,
+      radius: CONSTELLATION_FX.toxicRadius,
+      life: CONSTELLATION_FX.toxicDuration,
+      tickLeft: 0,
+      tickInterval: CONSTELLATION_FX.toxicTick,
+      damage: CONSTELLATION_FX.toxicDamage,
+      pull: 0,
+      color: '#34d399',
+    });
+  }
+
+  resolveCursedBox(open: boolean): void {
+    this.cursedPrompt = false;
+    if (!open) return;
+    this.hp = 1;
+    const need = Math.max(0.001, (this.expToNext - this.exp) / Math.max(0.001, this.expMul));
+    this.gainExp(need);
+    this.pendingLevelUps = Math.max(this.pendingLevelUps, 1);
+    this.status = 'levelup';
+    this.events.push({ type: 'levelUp', x: this.playerX, y: this.playerY });
+    this.events.push({ type: 'banner', text: '📦 저주받은 상자 — HP 1 · 레벨업' });
   }
 
   // ---------- 보석 & 경험치 ----------
@@ -4763,7 +4990,7 @@ export class GameState {
     if (!this.hasNode('glassCannon') && !iaidoReady && (this.invincibleLeft > 0 || this.shieldLeft > 0)) return;
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     for (const e of this.enemies) {
-      const rr = this.playerHitRadius() + e.def.radius * (e.elite ? 1.15 : 1) * (e.enraged ? 1.5 : 1) - 4;
+      const rr = this.playerHitRadius() + enemyRadius(e) * (e.elite ? 1.15 : 1) * (e.enraged ? 1.5 : 1) - 4;
       if ((this.playerX - e.x) ** 2 + (this.playerY - e.y) ** 2 <= rr * rr) {
         const abyss = this.nodeLv('endlessAbyss');
         const dmg = e.def.contactDamage * (e.elite ? ELITE.damageMul : 1)
@@ -4796,6 +5023,7 @@ export class GameState {
     if (this.skillActiveLeft > 0 && SHIPS[this.shipId].activeSkill.id === 'aegis') return;
     let taken = damage * (1 - this.armorReduce);
     if (this.levelAegisLeft > 0) taken *= 1 - this.levelAegisReduce;
+    if (this.rampageLeft > 0) taken *= CONSTELLATION_FX.rampageTakenMul;
     if (
       this.hasAwakening('crimsonImmortal')
       && this.immortalProcCd <= 0
@@ -4861,6 +5089,10 @@ export class GameState {
   private isTrueBoss(e: Enemy): boolean {
     return e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
   }
+}
+
+function enemyRadius(e: Enemy): number {
+  return e.def.radius * (e.scale ?? 1);
 }
 
 function distToSegment(

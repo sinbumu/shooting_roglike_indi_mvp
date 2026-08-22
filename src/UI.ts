@@ -69,6 +69,7 @@ export class UI {
   private victoryOverlay = document.getElementById('victory-overlay') as HTMLDivElement;
   private victoryStats = document.getElementById('victory-stats') as HTMLDivElement;
   private pauseOverlay = document.getElementById('pause-overlay') as HTMLDivElement;
+  private cursedOverlay = document.getElementById('cursed-overlay') as HTMLDivElement;
   private startOverlay = document.getElementById('start-overlay') as HTMLDivElement;
   private metaOverlay = document.getElementById('meta-overlay') as HTMLDivElement;
   private achvOverlay = document.getElementById('achv-overlay') as HTMLDivElement;
@@ -1089,6 +1090,20 @@ export class UI {
     this.clearFocus();
   }
 
+  showCursedBoxPrompt(onOpen: () => void, onSkip: () => void): void {
+    this.cursedOverlay.classList.remove('hidden');
+    const openBtn = document.getElementById('cursed-open-btn') as HTMLButtonElement;
+    const skipBtn = document.getElementById('cursed-skip-btn') as HTMLButtonElement;
+    openBtn.onclick = () => onOpen();
+    skipBtn.onclick = () => onSkip();
+    this.setFocusGroup([openBtn, skipBtn]);
+  }
+
+  hideCursedBoxPrompt(): void {
+    this.cursedOverlay.classList.add('hidden');
+    this.clearFocus();
+  }
+
   showRetreatConfirm(): void {
     (document.getElementById('pause-actions') as HTMLDivElement).classList.add('hidden');
     (document.getElementById('retreat-confirm') as HTMLDivElement).classList.remove('hidden');
@@ -1226,6 +1241,14 @@ export class UI {
   }
 
   handleKey(e: KeyboardEvent): boolean {
+    if (!this.cursedOverlay.classList.contains('hidden')) {
+      const left = e.code === 'ArrowLeft' || e.code === 'KeyA';
+      const right = e.code === 'ArrowRight' || e.code === 'KeyD';
+      const confirm = e.code === 'Enter' || e.code === 'Space';
+      if (left || right) { this.moveFocus(left ? -1 : 1); return true; }
+      if (confirm) { this.activateFocus(); return true; }
+      return true;
+    }
     if (e.repeat && (e.code === 'Space' || e.code === 'Enter')) return true;
     const left = e.code === 'ArrowLeft' || e.code === 'KeyA';
     const right = e.code === 'ArrowRight' || e.code === 'KeyD';

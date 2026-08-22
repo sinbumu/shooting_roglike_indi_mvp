@@ -136,6 +136,7 @@ function pollInput(): void {
 }
 
 function togglePause(): void {
+  if (state.cursedPrompt) return;
   if (state.status === 'playing') {
     state.status = 'paused';
     ui.showPause();
@@ -266,6 +267,19 @@ function processEvents(): void {
       case 'levelUp':
         vibrate(60);
         break;
+      case 'cursedBox':
+        ui.showCursedBoxPrompt(
+          () => {
+            ui.hideCursedBoxPrompt();
+            state.resolveCursedBox(true);
+            if (state.status === 'levelup') openLevelUpUI();
+          },
+          () => {
+            ui.hideCursedBoxPrompt();
+            state.resolveCursedBox(false);
+          },
+        );
+        break;
       default:
         break;
     }
@@ -331,6 +345,7 @@ function beginRun(mods?: ModifierId[]): void {
   ui.hideGameOver();
   ui.hideVictory();
   ui.hidePause();
+  ui.hideCursedBoxPrompt();
   ui.hideModifierModal();
   ui.hideStart();
   audio.init();
@@ -348,6 +363,7 @@ function backToHangar(): void {
   ui.hideGameOver();
   ui.hideVictory();
   ui.hidePause();
+  ui.hideCursedBoxPrompt();
   ui.showStart({ animateCreditsFrom: from });
   audio.setPaused(false);
 }

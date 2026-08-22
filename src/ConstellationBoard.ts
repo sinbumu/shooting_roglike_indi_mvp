@@ -37,6 +37,9 @@ const BRANCHES: { ids: ConstellationId[][] }[] = [
   { ids: [['greed'], ['glassCannon'], ['bloodFeast'], ['giantMarch'], ['darkFog']] },
   { ids: [['endlessAbyss'], ['fateWheel'], ['altarFrenzy'], ['infiniteOrbit']] },
   { ids: [['fateMelee', 'fateSummon', 'fateProjectile'], ['fateSurvival', 'fateUtility', 'fateOffense']] },
+  { ids: [['toxicMatter'], ['emSurge'], ['equivalentExchange']] },
+  { ids: [['bloodPact'], ['bountyHunt'], ['cursedCrate']] },
+  { ids: [['corpseBurst'], ['goldDrone'], ['splitShadow']] },
 ];
 const DEG = (Math.PI * 2) / BRANCHES.length;
 

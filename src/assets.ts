@@ -96,6 +96,8 @@ export const SPRITE_PATHS = {
     cube: `${base}/pickup_cube.webp`,
     goldCube: `${base}/pickup_goldCube.webp`,
     voidCrate: `${base}/pickup_goldCube.webp`,
+    cursedCrate: `${base}/pickup_goldCube.webp`,
+    credit: `${base}/pickup_goldCube.webp`,
   } satisfies Record<PickupKind, string>,
   terrain: {
     derelict: `${base}/spr_derelict_ship.webp`,

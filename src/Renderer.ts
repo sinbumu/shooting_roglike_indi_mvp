@@ -1,6 +1,6 @@
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { GameState, Beam, Enemy } from './GameState';
-import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, isWhipWeapon, isSummonFamily, slashSweepAngle } from './GameConfig';
+import { CANVAS, PLAYER, PICKUPS, SHIPS, DANGER, MIRAGE, GUARDIAN, SHIELDER, TRAPPER, VORTEX, WEAPONS, VOID_ALTAR, HAZARDS, TERRAIN, IAIDO_FX, PERF, CONSTELLATION_FX, isWhipWeapon, isSummonFamily, slashSweepAngle } from './GameConfig';
 import { fxFrame, fxFrameOnce, loadSpriteAtlas, PROJ_FX, type FxId, type SpriteAtlas } from './assets';
 import type { EnemyId, ShipId, WeaponId } from './types';
 
@@ -485,7 +485,8 @@ export class Renderer {
           const tint = ev.kind === 'heal' ? 0x4ade80
             : ev.kind === 'magnet' ? 0x38bdf8
             : ev.kind === 'cube' ? 0x67e8f9
-            : ev.kind === 'goldCube' || ev.kind === 'voidCrate' ? 0xfbbf24
+            : ev.kind === 'goldCube' || ev.kind === 'voidCrate' || ev.kind === 'credit' ? 0xfbbf24
+            : ev.kind === 'cursedCrate' ? 0x7f1d1d
             : 0xfb923c;
           this.spawnParticle({ x: ev.x, y: ev.y, life: 0.35, sizeFrom: 14, sizeTo: 90, tint, alphaFrom: 0.8, ring: true });
           break;
@@ -1408,6 +1409,13 @@ export class Renderer {
       glow.width = glow.height = PLAYER.radius * 5.8 + Math.sin(this.elapsed * 26) * 10;
       glow.alpha = 0.5 + Math.sin(this.elapsed * 20) * 0.12;
     }
+    if (state.rampageLeft > 0) {
+      const glow = this.glowPool.get();
+      glow.tint = 0x34d399;
+      glow.position.set(x, y);
+      glow.width = glow.height = PLAYER.radius * 5.4 + Math.sin(this.elapsed * 14) * 8;
+      glow.alpha = 0.42;
+    }
     if (state.immortalLeft > 0) {
       const glow = this.glowPool.get();
       glow.tint = 0xfb7185;
@@ -1475,7 +1483,7 @@ export class Renderer {
     g.clear();
     const nebulaOn = state.nebulaZones.length > 0;
     for (const e of state.enemies) {
-      const r = e.def.radius * (e.elite ? 1.2 : 1) * (e.enraged ? 1.5 : 1);
+      const r = e.def.radius * (e.scale ?? 1) * (e.elite ? 1.2 : 1) * (e.enraged ? 1.5 : 1);
       const isTrueBoss = e.def.movePattern === 'boss' || e.def.movePattern === 'bossSeraph';
       const isCommander = e.def.movePattern === 'legion';
       const isBoss = isTrueBoss || isCommander;
@@ -1505,6 +1513,7 @@ export class Renderer {
           && state.inNebula(e.x, e.y);
         if (e.hitFlash > 0) spr.tint = 0xffffff;
         else if (tintNebula) spr.tint = 0x67e8f9;
+        else if (e.goldDrone) spr.tint = 0xfacc15;
         else if (e.enraged) spr.tint = 0xf43f5e;
         else if (e.elite) spr.tint = 0xfbbf24;
         else if (e.mutation === 'explode') spr.tint = 0xfb923c;
@@ -1522,6 +1531,12 @@ export class Renderer {
           glow.position.set(e.x, e.y);
           glow.width = glow.height = r * 3.2;
           glow.alpha = 0.55;
+        } else if (e.goldDrone) {
+          const glow = this.glowPool.get();
+          glow.tint = 0xfacc15;
+          glow.position.set(e.x, e.y);
+          glow.width = glow.height = r * 3.6 + Math.sin(this.elapsed * 6) * 6;
+          glow.alpha = 0.7;
         } else if (isBoss || state.enemies.length <= PERF.glowGruntCap) {
           const glow = this.glowPool.get();
           glow.tint = hex(e.def.color);
@@ -1571,7 +1586,9 @@ export class Renderer {
         }
       } else {
         // Graphics 폴백
-        const color = e.hitFlash > 0 ? 0xffffff : (e.elite ? 0xfbbf24 : hex(e.def.color));
+        const color = e.hitFlash > 0 ? 0xffffff
+          : e.goldDrone ? 0xfacc15
+          : (e.elite ? 0xfbbf24 : hex(e.def.color));
         let pts: number[] = [];
         switch (e.def.id) {
           case 'drone':
@@ -1726,6 +1743,12 @@ export class Renderer {
         g.rect(e.x - r, e.y - r - 8, r * 2 * Math.max(0, e.hp / e.maxHp), 4)
           .fill(e.elite ? 0xfbbf24 : 0x4ade80);
       }
+      if ((e.bountyLeft ?? 0) > 0) {
+        const frac = Math.max(0, e.bountyLeft! / CONSTELLATION_FX.bountySec);
+        const by = e.y - r - 14;
+        g.rect(e.x - r, by, r * 2, 3).fill({ color: 0x000000, alpha: 0.55 });
+        g.rect(e.x - r, by, r * 2 * frac, 3).fill(0xfb923c);
+      }
     }
 
     const fenceCol = hex(DANGER.high);
@@ -1851,9 +1874,12 @@ export class Renderer {
       const tint = p.kind === 'heal' ? 0x4ade80
         : p.kind === 'magnet' ? 0x38bdf8
         : p.kind === 'cube' ? 0x67e8f9
-        : p.kind === 'goldCube' || p.kind === 'voidCrate' ? 0xfbbf24
+        : p.kind === 'goldCube' || p.kind === 'voidCrate' || p.kind === 'credit' ? 0xfbbf24
+        : p.kind === 'cursedCrate' ? 0x7f1d1d
         : 0xfb923c;
-      const tex = this.atlas.pickups[p.kind === 'voidCrate' ? 'goldCube' : p.kind];
+      const tex = this.atlas.pickups[
+        p.kind === 'voidCrate' || p.kind === 'cursedCrate' || p.kind === 'credit' ? 'goldCube' : p.kind
+      ];
 
       const glow = this.glowPool.get();
       glow.tint = tint;
@@ -1870,6 +1896,12 @@ export class Renderer {
         if (p.kind === 'voidCrate') {
           g.circle(p.x, y, PICKUPS.radius + 9)
             .stroke({ width: 2.4, color: 0xfde68a, alpha: 0.95 });
+        } else if (p.kind === 'cursedCrate') {
+          g.circle(p.x, y, PICKUPS.radius + 9)
+            .stroke({ width: 2.6, color: 0x7f1d1d, alpha: 0.95 });
+          spr.tint = 0x7f1d1d;
+        } else if (p.kind === 'credit') {
+          spr.tint = 0xfacc15;
         }
       } else {
         g.circle(p.x, y, PICKUPS.radius + 3).fill({ color: 0x0f172a, alpha: 0.85 }).stroke({ width: 2, color: tint });
@@ -1880,7 +1912,7 @@ export class Renderer {
           g.rect(p.x - 6, y - 6, 4, 9).fill(tint);
           g.rect(p.x + 2, y - 6, 4, 9).fill(tint);
           g.rect(p.x - 6, y + 3, 12, 4).fill(tint);
-        } else if (p.kind === 'cube' || p.kind === 'goldCube' || p.kind === 'voidCrate') {
+        } else if (p.kind === 'cube' || p.kind === 'goldCube' || p.kind === 'voidCrate' || p.kind === 'credit' || p.kind === 'cursedCrate') {
           const r = PICKUPS.radius + 2;
           g.poly([p.x, y - r, p.x + r * 0.75, y, p.x, y + r, p.x - r * 0.75, y], true).fill(tint);
         } else {
@@ -2540,6 +2572,18 @@ export class Renderer {
 
   private drawAltarAndHazards(state: GameState): void {
     const g = this.coreG;
+    const pact = state.bloodPact;
+    if (pact) {
+      const pulse = 0.45 + Math.sin(this.elapsed * 4) * 0.12;
+      g.circle(pact.x, pact.y, pact.radius).fill({ color: 0x7f1d1d, alpha: 0.18 });
+      g.circle(pact.x, pact.y, pact.radius)
+        .stroke({ width: 3, color: 0xef4444, alpha: pulse });
+      const frac = Math.min(1, pact.dwell / pact.needed);
+      if (frac > 0) {
+        g.circle(pact.x, pact.y, pact.radius * frac)
+          .stroke({ width: 4, color: 0xfca5a5, alpha: 0.85 });
+      }
+    }
     const altar = state.altar;
     if (altar && !altar.done) {
       const riseT = Math.min(1, altar.age / VOID_ALTAR.spawnRiseSec);

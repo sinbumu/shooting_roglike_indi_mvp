@@ -867,7 +867,8 @@ button.cst-hud-btn {
 }
 
 #pause-overlay #pause-actions,
-#pause-overlay #retreat-confirm {
+#pause-overlay #retreat-confirm,
+#cursed-overlay #cursed-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -881,7 +882,8 @@ button.cst-hud-btn {
 }
 
 #pause-overlay #pause-actions button,
-#pause-overlay #retreat-confirm button {
+#pause-overlay #retreat-confirm button,
+#cursed-overlay #cursed-actions button {
   width: 100%;
 }
 
